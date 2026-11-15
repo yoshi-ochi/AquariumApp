@@ -11,9 +11,12 @@
  */
 import { webcrypto as crypto } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { normalizePassword } from '../src/auth/normalize.js';
 
 const ITERATIONS = 600000;
-const { APP_PASSWORD, DATA_TOKEN, DATA_REPO = 'yoshi-ochi/AquariumApp-data' } = process.env;
+const { DATA_REPO = 'yoshi-ochi/AquariumApp-data' } = process.env;
+const APP_PASSWORD = normalizePassword(process.env.APP_PASSWORD);
+const DATA_TOKEN = (process.env.DATA_TOKEN ?? '').trim();
 
 if (!APP_PASSWORD || !DATA_TOKEN) {
   console.log('[make-auth] APP_PASSWORD / DATA_TOKEN が未設定のため auth.json を作りません（サイトはロックされたままになります）');
@@ -38,4 +41,4 @@ const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encod
 
 mkdirSync('public', { recursive: true });
 writeFileSync('public/auth.json', JSON.stringify({ v: 1, iterations: ITERATIONS, salt: b64(salt), iv: b64(iv), data: b64(data) }));
-console.log('[make-auth] public/auth.json を書き出しました');
+console.log(`[make-auth] public/auth.json を書き出しました（パスワード ${APP_PASSWORD.length} 文字・数字のみ: ${/^\d+$/.test(APP_PASSWORD)}）`);

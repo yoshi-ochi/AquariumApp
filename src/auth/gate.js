@@ -5,6 +5,8 @@
  *
  * 開発サーバーで auth.json が無いときは、パスワードなしで入れる（保存はファイルのみ）。
  */
+import { normalizePassword } from './normalize.js';
+
 const $ = (id) => document.getElementById(id);
 
 function fromB64(s) {
@@ -66,7 +68,7 @@ export async function unlock() {
       btn.disabled = true;
       msg.textContent = '確認中…';
       try {
-        const cred = await decrypt(auth, input.value.trim());
+        const cred = await decrypt(auth, normalizePassword(input.value));
         box.hidden = true;
         resolve(cred);
       } catch {
