@@ -28,6 +28,8 @@ import { WAVE_PARAMS, bakeWaves, waveCacheKey } from './water/waveBaker.js';
 import { loadCached, saveCached } from './water/waveCache.js';
 import { setWaveData, updateWater } from './water/waterSurface.js';
 import { LAYOUT_VERSION, downloadJSON, readLayoutFile } from './io/layoutIO.js';
+import { CloudStore } from './io/cloudStore.js';
+import { unlock } from './auth/gate.js';
 
 const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
@@ -360,24 +362,12 @@ async function boot() {
       toast(`「${economy.stage.name}」に拡張しました！`);
     },
     onSave: () => {
-      roomSettings.plan = room.plan.toJSON();
-      downloadJSON(
-        { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), room: roomSettings, objects: manager.serialize() },
-        `aquarium-layout-${Date.now()}.json`,
-      );
-      toast('レイアウトを保存しました');
+      downloadJSON(snapshot(), `aquarium-layout-${Date.now()}.json`);
+      toast('レイアウトをファイルに保存しました');
     },
     onLoad: async (file) => {
       try {
-        const data = await readLayoutFile(file);
-        if (mode !== 'home') goHome();
-        economy.fromJSON(data.economy);
-        roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
-        roomSettings.lights = roomSettings.lights.map(normalizeLight);
-        manager.deserialize(data.objects);
-        manager.setFloor(economy.floor);
-        applyRoom(true);
-        shell.update();
+        applySnapshot(await readLayoutFile(file));
         toast('レイアウトを読み込みました');
       } catch (err) {
         console.error(err);
@@ -385,6 +375,24 @@ async function boot() {
       }
     },
   });
+
+  /** 現在の状態を保存用データにする */
+  function snapshot() {
+    roomSettings.plan = room.plan.toJSON();
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), room: roomSettings, objects: manager.serialize() };
+  }
+
+  /** 保存用データから状態を復元する */
+  function applySnapshot(data) {
+    if (mode !== 'home') goHome();
+    economy.fromJSON(data.economy);
+    roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
+    roomSettings.lights = roomSettings.lights.map(normalizeLight);
+    manager.deserialize(data.objects);
+    manager.setFloor(economy.floor);
+    applyRoom(true);
+    shell.update();
+  }
 
   // 初期レイアウト（無料）：バックヤードとの仕切り壁の前に水槽台＋60cm水槽、右寄りに飼育員用ドア
   const b = room.plan.bounds(CELL.FLOOR);
@@ -439,9 +447,38 @@ async function boot() {
 
   const wait = MIN_SPLASH_MS - (performance.now() - startedAt);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  splash.setProgress(1, '準備完了');
+  splash.setProgress(1, 'パスワードを入力してください');
   // 確認用：URL に ?splash を付けるとスプラッシュを閉じない
   if (new URLSearchParams(location.search).has('splash')) return;
+
+  // ---- パスワード → クラウド保存（プライベートリポジトリ）への接続 ----------------
+  const cred = await unlock();
+  if (cred) {
+    const cloud = new CloudStore(cred);
+    $('cloud-row').hidden = false;
+    $('btn-cloud-save').addEventListener('click', async () => {
+      try {
+        toast('クラウドに保存中…');
+        await cloud.save(snapshot());
+        toast('クラウドに保存しました');
+      } catch (err) {
+        toast(err.message, { error: true });
+      }
+    });
+    const loadCloud = async (quiet) => {
+      try {
+        const data = await cloud.load();
+        if (!data) return quiet || toast('クラウドにまだ保存がありません');
+        applySnapshot(data);
+        toast('クラウドから読み込みました');
+      } catch (err) {
+        toast(err.message, { error: true });
+      }
+    };
+    $('btn-cloud-load').addEventListener('click', () => loadCloud(false));
+    splash.setProgress(1, 'クラウドのデータを読み込み中…');
+    await loadCloud(true); // 最後に保存したレイアウトで始める
+  }
   await splash.hide();
 }
 

@@ -25,6 +25,13 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # パスワードと保存用トークンは Actions のシークレットから。暗号文（auth.json）だけをサイトに含める
+      - name: Encrypt auth data
+        run: node scripts/make-auth.mjs
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          DATA_TOKEN: ${{ secrets.DATA_TOKEN }}
+          DATA_REPO: yoshi-ochi/AquariumApp-data
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
