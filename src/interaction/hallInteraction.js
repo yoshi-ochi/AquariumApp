@@ -1,0 +1,356 @@
+import * as THREE from 'three';
+import { getDef, CATEGORY } from '../tanks/tankData.js';
+import { buildObject, disposeObject } from '../tanks/tankBuilder.js';
+import { TankManager } from '../tanks/tankManager.js';
+import { REFUND_RATE } from '../management/stageData.js';
+import { findNearestRun, findRunByKey, placeEmbedded, alongOf, EMBED_RATIO_MAX } from '../room/embed.js';
+
+const CLICK_TOLERANCE = 6; // px
+const SNAP = 0.05; // m（Shift で無効）
+const ROTATE_STEP = Math.PI / 2;
+
+/**
+ * 館内編集モードの操作：選択・ドラッグ移動・カタログからの新規配置・壁への埋め込み。
+ * 配置できる範囲は床のマス（FloorPlan）。埋め込み水槽は壁に沿ってのみ動く。
+ */
+export class HallInteraction {
+  constructor({ sceneMgr, cameraCtl, manager, economy, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged }) {
+    Object.assign(this, { sceneMgr, cameraCtl, manager, economy, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged });
+    this.dom = sceneMgr.renderer.domElement;
+    this.raycaster = new THREE.Raycaster();
+    this.pointer = new THREE.Vector2();
+    this.floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    this.enabled = false;
+    this.placing = null;
+    this.drag = null;
+    this.down = null;
+
+    this.dom.addEventListener('pointerdown', this._onDown, { capture: true });
+    window.addEventListener('pointermove', this._onMove);
+    window.addEventListener('pointerup', this._onUp);
+    window.addEventListener('pointercancel', this._onUp);
+    window.addEventListener('keydown', this._onKey);
+    this.dom.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  setEnabled(v) {
+    if (!v) {
+      this.cancelPlacement();
+      this._endDrag();
+    }
+    this.enabled = v;
+  }
+
+  // ---- ユーティリティ -------------------------------------------------------
+
+  _setPointer(e) {
+    const r = this.dom.getBoundingClientRect();
+    this.pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.sceneMgr.camera);
+  }
+
+  _floorHit() {
+    const p = new THREE.Vector3();
+    return this.raycaster.ray.intersectPlane(this.floorPlane, p) ? p : null;
+  }
+
+  _snap(v, e) {
+    return e?.shiftKey ? v : Math.round(v / SNAP) * SNAP;
+  }
+
+  _pick() {
+    const hits = this.raycaster.intersectObjects(this.manager.getPickables(), true);
+    for (const h of hits) {
+      const root = this.manager.findRoot(h.object);
+      if (root) return root;
+    }
+    return null;
+  }
+
+  /** 床のマスに収まるか */
+  _fits(def, rotY, x, z) {
+    const { hx, hz } = TankManager.footprintHalf(def, rotY);
+    return this.room.plan.containsRect(x, z, hx, hz);
+  }
+
+  // ---- 新規配置 -------------------------------------------------------------
+
+  startPlacement(defId) {
+    this.cancelPlacement();
+    this.customizer.deselect();
+    const def = getDef(defId);
+    const ghost = buildObject(def);
+    ghost.visible = false;
+    const helper = new THREE.Box3Helper(new THREE.Box3(), 0x4cd18a);
+    helper.material.depthTest = false;
+    helper.renderOrder = 999;
+    helper.visible = false;
+    this.sceneMgr.scene.add(ghost, helper);
+    this.placing = { def, ghost, helper, rotY: 0, valid: false, reason: '' };
+    this.onPlacementChange?.(defId);
+  }
+
+  cancelPlacement() {
+    if (!this.placing) return;
+    const { ghost, helper } = this.placing;
+    this.sceneMgr.scene.remove(ghost, helper);
+    disposeObject(ghost);
+    helper.dispose();
+    this.placing = null;
+    this.onPlacementChange?.(null);
+  }
+
+  _updateGhost(e) {
+    const p = this.placing;
+    const hit = this._floorHit();
+    if (!hit) return;
+    if (p.def.wallMount) return this._updateWallGhost(p, hit);
+    const x = this._snap(hit.x, e);
+    const z = this._snap(hit.z, e);
+    const fits = this._fits(p.def, p.rotY, x, z);
+    p.ghost.position.set(x, this.manager.elevationAt(p.def, x, z, this.manager.currentFloor), z);
+    p.ghost.rotation.y = p.rotY;
+    p.ghost.visible = true;
+    const afford = this.economy.canAfford(p.def.price);
+    p.valid = fits && afford;
+    p.reason = !fits ? '床の上に収まりません' : !afford ? '資金が足りません' : '';
+    p.helper.box.setFromObject(p.ghost);
+    p.helper.material.color.set(p.valid ? 0x4cd18a : 0xff6b6b);
+    p.helper.visible = true;
+  }
+
+  /** 壁付けオブジェ（飼育員用ドア）：近くの仕切り壁に吸い付く */
+  _updateWallGhost(p, hit) {
+    const near = findNearestRun(this.room.plan.runs(), hit.x, hit.z, 2.5, true, true);
+    p.embed = near ? { key: near.run.key, along: near.along, ratio: 0.5, bottom: 0 } : null;
+    const placed = near && placeEmbedded(p.ghost, p.def, near.run, p.embed);
+    if (!placed) p.ghost.position.set(hit.x, 0, hit.z);
+    p.ghost.visible = true;
+    const afford = this.economy.canAfford(p.def.price);
+    p.valid = !!placed && afford;
+    p.reason = !placed ? 'バックヤードとの仕切り壁の近くに置いてください' : !afford ? '資金が足りません' : '';
+    p.helper.box.setFromObject(p.ghost);
+    p.helper.material.color.set(p.valid ? 0x4cd18a : 0xff6b6b);
+    p.helper.visible = true;
+  }
+
+  _commitPlacement(e) {
+    const p = this.placing;
+    if (!p.ghost.visible) return;
+    if (!p.valid) return this.toast(p.reason, { error: true });
+    this.economy.spend(p.def.price);
+    const obj = this.manager.add(p.def.id, {
+      x: p.ghost.position.x,
+      z: p.ghost.position.z,
+      rotY: p.ghost.rotation.y,
+      embed: p.def.wallMount ? { ...p.embed } : null,
+    });
+    if (p.def.wallMount) this.onWallsChanged?.();
+    this.toast(`${p.def.name} を設置しました`);
+    if (!e.shiftKey) {
+      this.cancelPlacement();
+      this.customizer.select(obj);
+    }
+    this.onChanged?.();
+  }
+
+  // ---- 選択オブジェクト操作 -------------------------------------------------
+
+  rotate(obj, dir) {
+    if (obj.userData.embed) return this.toast('埋め込み中の水槽は壁に向いて固定されます');
+    const def = this.manager.defOf(obj);
+    const angle = dir * ROTATE_STEP;
+    const newRot = (obj.rotation.y + angle) % (Math.PI * 2);
+    if (!this._fits(def, newRot, obj.position.x, obj.position.z)) return this.toast('回転すると床からはみ出します', { error: true });
+    const riders = this.manager.getRiders(obj);
+    obj.rotation.y = newRot;
+    const c = Math.cos(-angle);
+    const s = Math.sin(-angle);
+    for (const r of riders) {
+      const dx = r.position.x - obj.position.x;
+      const dz = r.position.z - obj.position.z;
+      r.position.x = obj.position.x + dx * c - dz * s;
+      r.position.z = obj.position.z + dx * s + dz * c;
+      r.rotation.y = (r.rotation.y + angle) % (Math.PI * 2);
+    }
+    this.manager.refreshElevations();
+    this.customizer.renderPanel();
+    this.onChanged?.();
+  }
+
+  remove(obj) {
+    const def = this.manager.defOf(obj);
+    const value = def.price + (obj.userData.clip ? this.manager.contentsValue(obj) : 0);
+    const wasEmbedded = !!obj.userData.embed;
+    this.customizer.deselect();
+    this.manager.remove(obj);
+    this.economy.earn(Math.floor(value * REFUND_RATE));
+    this.toast(`${def.name} を撤去しました`);
+    if (wasEmbedded) this.onWallsChanged?.();
+    this.onChanged?.();
+  }
+
+  // ---- 壁への埋め込み -------------------------------------------------------
+
+  embed(tank) {
+    const def = this.manager.defOf(tank);
+    if (def.category !== CATEGORY.TANK) return;
+    const near = findNearestRun(this.room.plan.runs(), tank.position.x, tank.position.z, 1.5);
+    if (!near) return this.toast('近くに壁がありません。水槽を壁際へ動かしてください', { error: true });
+    const embed = { key: near.run.key, along: near.along, ratio: EMBED_RATIO_MAX, bottom: Math.max(0.3, tank.position.y) };
+    if (!placeEmbedded(tank, def, near.run, embed)) return this.toast('この壁は水槽より短いため埋め込めません', { error: true });
+    tank.userData.embed = embed;
+    this.manager.refreshElevations();
+    this.onWallsChanged?.();
+    this.customizer.renderPanel();
+  }
+
+  unembed(tank) {
+    const def = this.manager.defOf(tank);
+    const embed = tank.userData.embed;
+    if (!embed) return;
+    delete tank.userData.embed;
+    // 部屋側へ出して床に戻す
+    const run = findRunByKey(this.room.plan.runs(), embed.key, embed.along);
+    if (run) {
+      const [nx, nz] = run.normal;
+      tank.position.x += nx * def.size.d;
+      tank.position.z += nz * def.size.d;
+    }
+    this.manager.refreshElevations();
+    this.onWallsChanged?.();
+    this.customizer.renderPanel();
+  }
+
+  setEmbedParam(tank, key, value) {
+    const embed = tank.userData.embed;
+    if (!embed) return;
+    embed[key] = value;
+    const run = findRunByKey(this.room.plan.runs(), embed.key, embed.along);
+    if (run) placeEmbedded(tank, this.manager.defOf(tank), run, embed);
+    this.onWallsChanged?.();
+  }
+
+  // ---- イベント -------------------------------------------------------------
+
+  _endDrag() {
+    if (!this.drag) return;
+    this.drag = null;
+    this.cameraCtl.setEnabled(true);
+    this.dom.style.cursor = '';
+  }
+
+  _onDown = (e) => {
+    if (!this.enabled) return;
+    // 2本目の指 → ドラッグをやめてカメラ操作（ピンチ）に任せる
+    if (!e.isPrimary) {
+      this._endDrag();
+      this.down = null;
+      return;
+    }
+    if (this.placing && e.button === 2) return this.cancelPlacement();
+    if (e.button !== 0) return;
+    this._setPointer(e);
+    this.down = { x: e.clientX, y: e.clientY };
+    if (this.placing) return;
+
+    const obj = this._pick();
+    if (!obj) return;
+    this.customizer.select(obj);
+    const hit = this._floorHit();
+    if (!hit) return;
+    this.cameraCtl.setEnabled(false);
+    this.drag = {
+      obj,
+      offset: new THREE.Vector3(obj.position.x - hit.x, 0, obj.position.z - hit.z),
+      riders: this.manager.getRiders(obj).map((r) => ({ obj: r, dx: r.position.x - obj.position.x, dz: r.position.z - obj.position.z })),
+      moved: false,
+    };
+  };
+
+  _onMove = (e) => {
+    if (!this.enabled || !e.isPrimary) return;
+    if (this.placing) {
+      if (e.target !== this.dom && !this.down) return;
+      this._setPointer(e);
+      this._updateGhost(e);
+      return;
+    }
+    if (!this.drag) return;
+    this._setPointer(e);
+    const hit = this._floorHit();
+    if (!hit) return;
+    const { obj, offset, riders } = this.drag;
+    const def = this.manager.defOf(obj);
+    const x = this._snap(hit.x + offset.x, e);
+    const z = this._snap(hit.z + offset.z, e);
+
+    if (obj.userData.embed) {
+      // 埋め込み水槽は壁に沿ってスライド
+      const embed = obj.userData.embed;
+      const run = findRunByKey(this.room.plan.runs(), embed.key, embed.along);
+      if (run) {
+        embed.along = alongOf(run, x, z);
+        placeEmbedded(obj, def, run, embed);
+        this.onWallsChanged?.();
+      }
+    } else {
+      // 床に収まる位置だけ受け付ける（軸ごとに試して壁沿いに滑らせる）
+      const rot = obj.rotation.y;
+      let nx = obj.position.x;
+      let nz = obj.position.z;
+      if (this._fits(def, rot, x, z)) [nx, nz] = [x, z];
+      else if (this._fits(def, rot, x, nz)) nx = x;
+      else if (this._fits(def, rot, nx, z)) nz = z;
+      obj.position.x = nx;
+      obj.position.z = nz;
+      for (const r of riders) {
+        r.obj.position.x = nx + r.dx;
+        r.obj.position.z = nz + r.dz;
+      }
+      this.manager.refreshElevations();
+    }
+    this.drag.moved = true;
+  };
+
+  _onUp = (e) => {
+    if (!this.enabled || !e.isPrimary) return;
+    const down = this.down;
+    this.down = null;
+    const clicked = down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < CLICK_TOLERANCE;
+    if (this.placing) {
+      if (clicked && e.button === 0) {
+        // タッチにはホバーがないので、タップ位置でゴーストを置き直してから確定
+        this._setPointer(e);
+        this._updateGhost(e);
+        this._commitPlacement(e);
+      }
+      return;
+    }
+    if (this.drag) {
+      const { moved } = this.drag;
+      this._endDrag();
+      this.customizer.renderPanel();
+      if (moved) this.onChanged?.();
+      return;
+    }
+    if (clicked) this.customizer.deselect();
+  };
+
+  _onKey = (e) => {
+    if (!this.enabled || e.target instanceof HTMLInputElement) return;
+    const sel = this.customizer.selected;
+    if (e.key === 'Escape') {
+      if (this.placing) this.cancelPlacement();
+      else this.customizer.deselect();
+    } else if (e.key === 'r' || e.key === 'R') {
+      const dir = e.shiftKey ? 1 : -1;
+      if (this.placing) {
+        this.placing.rotY = (this.placing.rotY + dir * ROTATE_STEP) % (Math.PI * 2);
+        this._updateGhost(e);
+      } else if (sel) this.rotate(sel, dir);
+    } else if ((e.key === 'Delete' || e.key === 'Backspace') && sel && !this.placing) {
+      this.remove(sel);
+    }
+  };
+}
