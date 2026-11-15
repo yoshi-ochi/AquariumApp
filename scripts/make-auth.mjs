@@ -41,4 +41,7 @@ const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encod
 
 mkdirSync('public', { recursive: true });
 writeFileSync('public/auth.json', JSON.stringify({ v: 1, iterations: ITERATIONS, salt: b64(salt), iv: b64(iv), data: b64(data) }));
-console.log(`[make-auth] public/auth.json を書き出しました（パスワード ${APP_PASSWORD.length} 文字・数字のみ: ${/^\d+$/.test(APP_PASSWORD)}）`);
+// 値は出さず、形だけをログに出す（登録ミスの切り分け用）
+console.log(`[make-auth] public/auth.json を書き出しました（パスワード ${APP_PASSWORD.length} 文字・数字のみ: ${/^\d+$/.test(APP_PASSWORD)} ／ トークン ${DATA_TOKEN.length} 文字・github_pat_ で始まる: ${DATA_TOKEN.startsWith('github_pat_')}）`);
+if (DATA_TOKEN.length < 20) console.warn('[make-auth] 警告：DATA_TOKEN が短すぎます。APP_PASSWORD と入れ替わっていませんか？');
+if (APP_PASSWORD.startsWith('github_pat_') || APP_PASSWORD.startsWith('ghp_')) console.warn('[make-auth] 警告：APP_PASSWORD に GitHub トークンが登録されています');
