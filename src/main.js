@@ -124,6 +124,13 @@ async function boot() {
       if (action === 'param-bubbles') return (obj.userData.bubbles = value);
       if (action.startsWith('look-') || action === 'param-tanklight-intensity' || action === 'param-side-alpha') return changeTankLook(obj, action, value);
       if (action === 'unembed') return hall.unembed(obj);
+      if (action === 'lock') {
+        obj.userData.locked = !obj.userData.locked;
+        customizer.syncLock();
+        customizer.renderPanel();
+        return;
+      }
+      if (obj.userData.locked && (action.startsWith('rotate') || action === 'delete')) return;
       const target = obj.userData.interiorItem ? interior : hall;
       if (action === 'rotate-left') target.rotate(obj, 1);
       else if (action === 'rotate-right') target.rotate(obj, -1);

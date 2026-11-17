@@ -3,6 +3,7 @@ import { MATERIALS, RENDER_ORDER } from './materials.js';
 import { CATEGORY } from './tankData.js';
 import { buildLiveRock, buildDriftwood, buildPlants } from './interiorBuilder.js';
 import { CORAL_BUILDERS } from './coralBuilder.js';
+import { MODULAR_BUILDERS } from './coralModular.js';
 import { buildAirstone } from './aeration.js';
 import { normalizeGrowth } from './growth.js';
 import { waterSurfaceMesh } from '../water/waterSurface.js';
@@ -377,5 +378,6 @@ const BUILDERS = {
   driftwood: buildDriftwood,
   plants: buildPlants,
   ...CORAL_BUILDERS,
+  ...MODULAR_BUILDERS,
   airstone: buildAirstone,
 };

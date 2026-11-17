@@ -20,7 +20,8 @@ export class SceneManager {
 
     this.scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x6b8f4e, 1.1));
     const sun = new THREE.DirectionalLight(0xfff6e5, 1.5);
-    sun.castShadow = true;
+    // 天井が無いため、太陽の影は室内に落とさない（影は室内ライトのみ）
+    sun.castShadow = false;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.bias = -0.0005;
     sun.shadow.normalBias = 0.02;

@@ -57,11 +57,12 @@ export class TankManager {
   }
 
   /** 水槽内オブジェを生成してクリップを適用する（座標は水槽ローカル） */
-  createInterior(tank, defId, { x = 0, y = 0, z = 0, rotY = 0, seed, sculpt, growth, bubbles } = {}) {
+  createInterior(tank, defId, { x = 0, y = 0, z = 0, rotY = 0, seed, sculpt, growth, bubbles, locked } = {}) {
     const def = getDef(defId);
     const surface = def.growth === 'colony' ? this.surfaceSampler(tank, null, { x, y, z, rotY }) : undefined;
     const item = buildObject(def, { seed: seed ?? Math.floor(Math.random() * 2 ** 31), growth, surface });
     if (bubbles !== undefined) item.userData.bubbles = bubbles;
+    if (locked) item.userData.locked = true;
     const rock = item.getObjectByName('rock');
     if (sculpt && rock && applyEncodedPositions(rock.geometry, sculpt)) item.userData.sculpted = true;
     item.position.set(x, y, z);
@@ -299,6 +300,7 @@ export class TankManager {
           z: round(c.position.z),
           rotY: round(c.rotation.y),
           ...(c.userData.growth && { growth: roundGrowth(c.userData.growth) }),
+          ...(c.userData.locked && { locked: true }),
           ...(c.userData.bubbles !== undefined && { bubbles: c.userData.bubbles }),
           ...(c.userData.sculpted && { sculpt: encodePositions(c.getObjectByName('rock').geometry) }),
         })),
@@ -324,5 +326,6 @@ export class TankManager {
 const round = (v) => Math.round(v * 1000) / 1000;
 const roundGrowth = (g) => ({
   ...g,
+  ...(g.nodes && { nodes: g.nodes.map((n) => ({ a: n.a.map(round), b: n.b.map(round), r: Math.round(n.r * 1e4) / 1e4, p: n.p })) }),
   ...(g.parts && { parts: g.parts.map((p) => ({ pts: p.pts.map((q) => q.map(round)), r: round(p.r) })) }),
 });

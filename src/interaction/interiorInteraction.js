@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { startCoralEdit, moveCoralEdit } from './coralEdit.js';
 import { getDef } from '../tanks/tankData.js';
 import { REFUND_RATE } from '../management/stageData.js';
 import { BRUSH_DEFAULTS, sculptAt, createBrushCursor } from '../interior/sculpt.js';
@@ -106,12 +107,16 @@ export class InteriorInteraction {
   }
 
   _pick() {
+    // ロック中は奥にある未ロックを優先。未ロックが無ければロック物（選択のみ）
     const hits = this.raycaster.intersectObjects(this._items(), true);
+    let locked = null;
     for (const h of hits) {
       const root = this.manager.findInteriorRoot(h.object);
-      if (root) return root;
+      if (!root) continue;
+      if (!root.userData.locked) return root;
+      locked ??= root;
     }
-    return null;
+    return locked;
   }
 
   // ---- 岩肌スカルプト -------------------------------------------------------
@@ -139,7 +144,7 @@ export class InteriorInteraction {
   /** ブラシ有効時、選択中のライブロック表面へのヒット */
   _rockHit() {
     const sel = this.customizer.selected;
-    if (!this.brush.mode || !sel?.userData.interiorItem) return null;
+    if (!this.brush.mode || !sel?.userData.interiorItem || sel.userData.locked) return null;
     const rock = sel.getObjectByName('rock');
     if (!rock) return null;
     return this.raycaster.intersectObject(rock, false)[0] ?? null;
@@ -183,7 +188,10 @@ export class InteriorInteraction {
   /** 成長モード中に、選択中のオブジェ本体に触れたか（流木は触ったパーツも返す） */
   _growTarget() {
     const sel = this.customizer.selected;
-    if (!this.growMode || !sel?.userData.interiorItem || !getDef(sel.userData.defId).growth) return null;
+    if (!this.growMode || !sel?.userData.interiorItem || sel.userData.locked || !getDef(sel.userData.defId).growth) return null;
+    // 種類に合わないモード（別のオブジェで選んだまま）は無視
+    const modular = getDef(sel.userData.defId).growth === 'modular';
+    if (modular !== ['add', 'remove'].includes(this.growMode) && !(modular && this.growMode === 'extend')) return null;
     const hit = this.raycaster.intersectObject(sel, true)[0];
     return hit ? { item: sel, hit } : null;
   }
@@ -193,7 +201,8 @@ export class InteriorInteraction {
     const g = this.growing;
     if (!g?.dirty) return;
     g.dirty = false;
-    if (g.wood) this.manager.regrowInterior(g.item, { ...g.item.userData.growth, parts: g.wood.parts });
+    if (g.mod) this.manager.regrowInterior(g.item, { ...g.item.userData.growth, nodes: g.mod.nodes });
+    else if (g.wood) this.manager.regrowInterior(g.item, { ...g.item.userData.growth, parts: g.wood.parts });
     else this.manager.regrowInterior(g.item, { ...g.item.userData.growth, ...g.value });
   }
 
@@ -362,6 +371,12 @@ export class InteriorInteraction {
       const growItem = growHit.item;
       this.cameraCtl.setEnabled(false);
       const gr = growItem.userData.growth;
+      if (getDef(growItem.userData.defId).growth === 'modular') {
+        const mod = startCoralEdit(this, growItem, growHit.hit);
+        if (!mod) return this.cameraCtl.setEnabled(true);
+        this.growing = { item: growItem, mod, dirty: true };
+        return;
+      }
       if (getDef(growItem.userData.defId).growth === 'driftwood') {
         this.growing = { item: growItem, wood: this._startWoodEdit(growItem, growHit.hit, e), dirty: true };
         return;
@@ -392,6 +407,7 @@ export class InteriorInteraction {
     const item = this._pick();
     if (!item) return;
     this.customizer.select(item);
+    if (item.userData.locked) return; // ロック中は選択のみ
     this.cameraCtl.setEnabled(false);
     this.drag = { obj: item, moved: false };
     this.dom.style.cursor = 'grabbing';
@@ -404,6 +420,10 @@ export class InteriorInteraction {
       let value;
       if (g.wood) {
         if (this._moveWoodEdit(g.wood, e)) g.dirty = true;
+        return;
+      }
+      if (g.mod) {
+        if (moveCoralEdit(this, g.mod, e)) g.dirty = true;
         return;
       }
       {
@@ -454,7 +474,10 @@ export class InteriorInteraction {
     }
     if (e.buttons === 0 && e.target === this.dom) {
       this._setPointer(e);
-      this.dom.style.cursor = this._pick() ? 'grab' : '';
+      {
+        const p = this._pick();
+        this.dom.style.cursor = p ? (p.userData.locked ? 'not-allowed' : 'grab') : '';
+      }
     }
   };
 
@@ -462,6 +485,7 @@ export class InteriorInteraction {
     if (!this.enabled || !e.isPrimary) return;
     if (this.growing) {
       this._updateGrowth();
+      if (this.growing.mod) this.onChanged?.();
       this.growing = null;
       this.cameraCtl.setEnabled(true);
       this.customizer.renderPanel();

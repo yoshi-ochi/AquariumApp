@@ -12,6 +12,7 @@ export function normalizeGrowth(g = {}) {
   const ext = g.ext ?? { x: 0, z: 0 };
   const out = { ext: { x: ext.x ?? 0, z: ext.z ?? 0 } };
   if (Array.isArray(g.parts)) out.parts = g.parts.map((p) => ({ pts: p.pts.map((q) => [...q]), r: p.r })); // 流木の各パーツ
+  if (Array.isArray(g.nodes)) out.nodes = g.nodes.map((n) => ({ a: [...n.a], b: [...n.b], r: n.r, p: n.p })); // パーツ編集サンゴ
   return out;
 }
 

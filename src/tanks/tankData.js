@@ -66,12 +66,23 @@ const ROCK_DEFS = ROCK_PALETTES.flatMap((p) =>
 
 const CORAL_DEFS = [
   { id: 'acropora', name: 'ミドリイシ', shape: 'acropora', size: { w: 0.16, h: 0.1, d: 0.16 }, price: 6000, appeal: 2 },
-  { id: 'tosaka', name: 'トサカ', shape: 'tosaka', size: { w: 0.12, h: 0.12, d: 0.12 }, price: 4500, appeal: 1.6 },
   { id: 'brain', name: 'ノウサンゴ', shape: 'brain', size: { w: 0.12, h: 0.06, d: 0.12 }, price: 5000, appeal: 1.6 },
   { id: 'euphyllia', name: 'ナガレハナサンゴ', shape: 'euphyllia', size: { w: 0.12, h: 0.09, d: 0.12 }, price: 5500, appeal: 1.8 },
   { id: 'gsp', name: 'スターポリプ', shape: 'gsp', size: { w: 0.14, h: 0.02, d: 0.14 }, price: 2500, appeal: 1 },
-  { id: 'xenia', name: 'ウミアザミ', shape: 'xenia', size: { w: 0.1, h: 0.07, d: 0.1 }, price: 3000, appeal: 1.2 },
 ].map((d) => ({ ...d, group: 'coral', growth: 'colony' }));
+
+// パーツ単位で追加・削除できるサンゴ（growth: 'modular'。tosaka / xenia は旧IDを引き継ぐ）
+const MODULAR_CORAL_DEFS = [
+  { id: 'tosaka', name: 'アカバナトサカ', shape: 'mod_akabana', size: { w: 0.14, h: 0.12, d: 0.14 }, price: 4500, appeal: 1.6 },
+  { id: 'akayagi', name: 'アカヤギ', shape: 'mod_akayagi', size: { w: 0.22, h: 0.3, d: 0.05 }, price: 7000, appeal: 2.2 },
+  { id: 'umieda', name: 'ウミエダミドリイシ', shape: 'mod_umieda', size: { w: 0.2, h: 0.12, d: 0.2 }, price: 8000, appeal: 2.4 },
+  { id: 'usukami', name: 'ウスカミサンゴ', shape: 'mod_usukami', size: { w: 0.18, h: 0.08, d: 0.18 }, price: 6500, appeal: 2 },
+  { id: 'kikumeishi', name: 'キクメイシ', shape: 'mod_kikumeishi', size: { w: 0.14, h: 0.07, d: 0.14 }, price: 5000, appeal: 1.6 },
+  { id: 'shakogai', name: 'オオシャコガイ', shape: 'mod_shakogai', size: { w: 0.25, h: 0.11, d: 0.17 }, price: 30000, appeal: 5 },
+  { id: 'tama', name: 'タマイワスナギンチャク', shape: 'mod_tama', size: { w: 0.08, h: 0.03, d: 0.08 }, price: 2500, appeal: 1 },
+  { id: 'xenia', name: 'ウミアザミ', shape: 'mod_xenia', size: { w: 0.1, h: 0.06, d: 0.1 }, price: 3000, appeal: 1.2 },
+  { id: 'junceella', name: 'リュウキュウミゾヤギ', shape: 'mod_junceella', size: { w: 0.12, h: 0.28, d: 0.12 }, price: 4000, appeal: 1.4 },
+].map((d) => ({ ...d, group: 'coral', growth: 'modular' }));
 
 const DECOR_DEFS = [
   { id: 'driftwood', name: '流木', shape: 'driftwood', size: { w: 0.4, h: 0.25, d: 0.15 }, price: 3000, appeal: 0.8, growth: 'driftwood' },
@@ -79,7 +90,7 @@ const DECOR_DEFS = [
   { id: 'plants', name: '海藻・水草', shape: 'plants', size: { w: 0.3, h: 0.25, d: 0.2 }, price: 2500, appeal: 0.8, growth: 'colony' },
 ].map((d) => ({ ...d, group: 'decor' }));
 
-export const INTERIOR_DEFS = [...ROCK_DEFS, ...CORAL_DEFS, ...DECOR_DEFS].map(withCategory(CATEGORY.INTERIOR));
+export const INTERIOR_DEFS = [...ROCK_DEFS, ...CORAL_DEFS, ...MODULAR_CORAL_DEFS, ...DECOR_DEFS].map(withCategory(CATEGORY.INTERIOR));
 
 /** カタログのタブ */
 export const GROUP_LABELS = {

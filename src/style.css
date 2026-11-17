@@ -202,3 +202,8 @@ body.editing #hint { bottom: calc(var(--editor-h) + 10px + var(--safe-bottom)); 
 @media (min-width: 900px) {
   #editor { left: 12px; right: auto; width: 560px; bottom: 12px; border-radius: 16px; }
 }
+
+#gizmo .lock-btn { display: inline-flex; align-items: center; justify-content: center; }
+#gizmo .lock-btn.active { background: #ffb300; color: #fff; }
+#gizmo button:disabled { opacity: .35; }
+#gizmo button[hidden] { display: none; }

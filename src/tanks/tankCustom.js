@@ -66,6 +66,22 @@ export class TankCustomizer {
     this.gizmoEl.hidden = false;
     const isTank = this.getDef(obj.userData.defId).category === CATEGORY.TANK;
     this.gizmoEl.querySelectorAll('.only-tank').forEach((b) => (b.hidden = !isTank));
+    this.syncLock();
+  }
+
+  /** ロック状態をギズモに反映（水槽内オブジェのみ表示） */
+  syncLock() {
+    const obj = this.selected;
+    const inner = !!obj?.userData.interiorItem;
+    const locked = !!obj?.userData.locked;
+    this.gizmoEl.querySelectorAll('.only-interior').forEach((b) => (b.hidden = !inner));
+    const btn = this.gizmoEl.querySelector('.lock-btn');
+    if (btn) {
+      btn.classList.toggle('active', locked);
+      btn.querySelector('.shackle')?.setAttribute('d', locked ? 'M8 11V7a4 4 0 0 1 8 0v4' : 'M8 11V7a4 4 0 0 1 7.5-2');
+      btn.setAttribute('aria-label', locked ? 'ロック解除' : 'ロック');
+    }
+    this.gizmoEl.querySelectorAll('[data-action^="rotate"],[data-action="delete"]').forEach((b) => (b.disabled = locked));
   }
 
   deselect() {
@@ -96,6 +112,7 @@ export class TankCustomizer {
         ${isTank ? `<dt>集客</dt><dd>${def.appeal}</dd>` : ''}
       </dl>
       <div class="actions">
+        ${obj.userData.interiorItem ? `<button data-action="lock">${obj.userData.locked ? '🔒 ロック解除' : '🔓 ロック'}</button>` : ''}
         <button data-action="rotate-left">⟲ 回転</button>
         <button data-action="rotate-right">⟳ 回転</button>
         ${isTank ? '<button data-action="interior">✎ 水槽内</button>' : ''}
@@ -169,6 +186,7 @@ export class TankCustomizer {
 
   _growthSection(obj, def) {
     const mode = this.getGrowMode();
+    if (def.growth === 'modular') return this._partsSection(obj, mode);
     const g = obj.userData.growth ?? { ext: { x: 0, z: 0 } };
     const len = Math.round(Math.hypot(g.ext.x, g.ext.z) * 100);
     const btn = (m, label) => `<button data-action="grow-${m ?? 'off'}" class="${mode === m ? 'active' : ''}">${label}</button>`;
@@ -189,6 +207,15 @@ export class TankCustomizer {
     return `<div class="section"><h4>成長：${how}</h4>
       <div class="seg">${modes}</div>
       <div class="cat">${info}</div></div>`;
+  }
+
+  /** パーツ編集サンゴ：触った箇所にパーツを追加 / 伸縮 / 削減 */
+  _partsSection(obj, mode) {
+    const btn = (m, label) => `<button data-action="grow-${m ?? 'off'}" class="${mode === m ? 'active' : ''}">${label}</button>`;
+    const how = { add: '増やしたい箇所から伸ばす方向へドラッグ（タップで既定サイズ）', extend: '伸縮したいパーツを触ってドラッグ', remove: '削りたいパーツをタップ' }[mode] ?? 'モードを選んで本体を操作';
+    return `<div class="section"><h4>パーツ編集：${how}</h4>
+      <div class="seg">${btn(null, 'オフ')}${btn('add', '＋ 拡張')}${btn('extend', '➚ 伸縮')}${btn('remove', '－ 削減')}</div>
+      <div class="cat">パーツ ${obj.userData.growth?.nodes?.length ?? 0} 個</div></div>`;
   }
 
   /** 毎フレーム：ハイライト更新とギズモの画面位置追従 */
