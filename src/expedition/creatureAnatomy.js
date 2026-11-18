@@ -1,4 +1,5 @@
 import { PHOTO_ANATOMY } from './creatureAnatomyPhoto.js';
+import { PHOTO_ANATOMY_2 } from './creatureAnatomyPhoto2.js';
 
 /**
  * 実物の真横写真からトレースした、種ごとの頂点データ（写真上のピクセル座標）。
@@ -287,4 +288,5 @@ export const ANATOMY = {
     mouth: [[92, 492], [130, 506]],
   },
   ...PHOTO_ANATOMY,
+  ...PHOTO_ANATOMY_2,
 };

@@ -61,6 +61,9 @@ function surfaceDepth(a, [x, y]) {
   return 0;
 }
 
+/** 模様を体表の面に埋もれさせない高さ（面の折れ目は推定値より外へ張り出すため余裕を持たせる） */
+const aboveSurface = (a, p) => surfaceDepth(a, p) * 1.16 + 0.006;
+
 function tracedBody(a, c, P) {
   const mesh = new Mesh();
   const named = { body: c.colors.body, belly: c.colors.belly, mark: c.mark, fin: c.colors.fin };
@@ -133,6 +136,35 @@ function disc(mesh, [x, y, z], r, n, hex, side) {
   }
 }
 
+/** 棘や鰭条を1本ずつ作る。根元から先へ細くなり、colors を交互に塗って縞にする */
+function tracedRay(mesh, a, r, P, side) {
+  const [p0, p1, p2] = r.pts;
+  const at = (u) => [0, 1].map((k) => (1 - u) ** 2 * p0[k] + 2 * u * (1 - u) * p1[k] + u * u * p2[k]);
+  const root = r.lift ? surfaceDepth(a, p0) * 0.9 : 0;
+  const edge = (u) => {
+    const [x, y] = at(u);
+    const [x2, y2] = at(Math.min(1, u + 0.02));
+    const [x1, y1] = at(Math.max(0, u - 0.02));
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const hw = (r.w / 2) * (1 - 0.72 * u);
+    const nx = (-(y2 - y1) / len) * hw;
+    const ny = ((x2 - x1) / len) * hw;
+    const z = r.lift ? side * (root + (r.lift + 0.02) * Math.min(1, u * 2.5)) : 0;
+    return [P([x + nx, y + ny], z), P([x - nx, y - ny], z)];
+  };
+  for (let i = 0; i < r.n; i++) {
+    const [l0, r0] = edge(i / r.n);
+    const [l1, r1] = edge((i + 1) / r.n);
+    mesh.quad(l0, r0, l1, r1, r.colors[i % r.colors.length], i % 2);
+  }
+}
+
+/** 体表に重ねる模様の帯（点列 a と b の間） */
+function tracedDecal(mesh, a, d, P, side) {
+  const at = (p) => P(p, side * aboveSurface(a, p));
+  for (let i = 0; i < d.a.length - 1; i++) mesh.quad(at(d.a[i]), at(d.b[i]), at(d.a[i + 1]), at(d.b[i + 1]), d.hex, i % 2);
+}
+
 export function tracedParts(c, a) {
   const P = projector(a.photo);
   const parts = [tracedBody(a, c, P)];
@@ -141,22 +173,24 @@ export function tracedParts(c, a) {
     for (const side of f.lift ? [-1, 1] : [1]) parts.push(...tracedFin(a, f, hex, P, side));
   }
   const face = new Mesh();
+  for (const r of a.rays ?? []) for (const s of r.lift ? [-1, 1] : [1]) tracedRay(face, a, r, P, s);
+  for (const d of a.decals ?? []) for (const s of [-1, 1]) tracedDecal(face, a, d, P, s);
   const { eye, mouth } = a;
   for (const s of [-1, 1]) {
     const [x, y] = P(eye.at);
-    const z = s * (surfaceDepth(a, eye.at) + 0.003);
+    const z = s * aboveSurface(a, eye.at);
     disc(face, [x, y, z], eye.ring, 7, eye.iris, s);
     // 虹彩の中心の盛り上がりより手前に瞳と光を重ねる
     const lift = eye.ring * 0.04 + 0.002;
     disc(face, [x, y, z + s * lift], eye.pupil, 6, 0x0a0c10, s);
     disc(face, [x + eye.pupil * 0.35, y + eye.pupil * 0.35, z + s * (lift + eye.pupil * 0.04 + 0.002)], eye.pupil * 0.32, 4, 0xffffff, s);
-    const [m0, m1] = mouth.map((p) => P(p, s * (surfaceDepth(a, p) + 0.002)));
+    const [m0, m1] = mouth.map((p) => P(p, s * aboveSurface(a, p)));
     face.tri(m0, m1, [m1[0], m1[1] - 0.005, m1[2]], 0x3a1608);
     // 体側の縦縞
     for (const line of a.lines ?? []) {
       for (let i = 0; i < line.length - 1; i++) {
         const at = (p, dy) => {
-          const q = P(p, s * (surfaceDepth(a, p) + 0.002));
+          const q = P(p, s * aboveSurface(a, p));
           return [q[0], q[1] + dy, q[2]];
         };
         const hw = a.lineWidth ?? 0.004;
@@ -165,7 +199,7 @@ export function tracedParts(c, a) {
     }
     for (const d of a.dots ?? []) {
       const [dx, dy] = P(d);
-      disc(face, [dx, dy, s * (surfaceDepth(a, d) + 0.002)], 0.007, 4, c.mark, s);
+      disc(face, [dx, dy, s * aboveSurface(a, d)], a.dotR ?? 0.007, a.dotR ? 6 : 4, a.dotHex ?? c.mark, s);
     }
   }
   parts.push(face.build());
