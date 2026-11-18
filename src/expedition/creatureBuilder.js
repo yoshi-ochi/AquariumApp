@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FORMS } from './creatureForms.js';
 import { extraSoftParts } from './creatureSoft.js';
+import { RIM, bakeFacets, bandsFor, ringStops } from './creatureFacet.js';
 
 /**
- * 展示生物のローポリモデル。+X が頭、原点が体の中心。
+ * 展示生物のポリゴンアートモデル。+X が頭、原点が体の中心。三角形ごとに塗り分けて質感を統一する。
  * 全パーツを1メッシュに結合し、遊泳は頂点シェーダーで体をくねらせる（スマホ向けに軽量）。
  */
 const color = new THREE.Color();
@@ -12,8 +13,13 @@ const rgb = (hex) => color.set(hex).clone();
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const noise = (a, b) => { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return x - Math.floor(x); };
 
+/** 面を大きく見せるため、格子の細かさを落とす */
+const coarse = (n) => Math.max(3, Math.round(n * 0.62));
+
 /** 格子状の面。fn(u, v) → [x, y, z, hex] */
-function grid(nu, nv, fn, smoothNormals = true) {
+function grid(nu0, nv0, fn) {
+  const nu = coarse(nu0);
+  const nv = coarse(nv0);
   const pos = [];
   const col = [];
   const idx = [];
@@ -31,15 +37,22 @@ function grid(nu, nv, fn, smoothNormals = true) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
-  if (smoothNormals) g.computeVertexNormals();
-  const out = g.toNonIndexed();
-  if (!smoothNormals) out.computeVertexNormals();
-  return out;
+  return g.toNonIndexed();
 }
 
 const tint = (hex, k) => rgb(hex).multiplyScalar(k).getHex();
 
-function solid(geo, hex, matrix) {
+/** 球は角ばった多面体に置き換える */
+function faceted(geo) {
+  if (geo.type !== 'SphereGeometry') return geo;
+  geo.computeBoundingBox();
+  const size = geo.boundingBox.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  const center = geo.boundingBox.getCenter(new THREE.Vector3());
+  return new THREE.IcosahedronGeometry(1, 1).scale(size.x, size.y, size.z).translate(center.x, center.y, center.z);
+}
+
+function solid(geo0, hex, matrix) {
+  const geo = faceted(geo0);
   const g = geo.index ? geo.toNonIndexed() : geo;
   g.deleteAttribute('uv');
   if (matrix) g.applyMatrix4(matrix);
@@ -61,43 +74,114 @@ function profile(f, t) {
   return { top: top + hump, bot: (f.h / 2) * nose * taper * end, wide: (f.w / 2) * Math.pow(Math.min(1, t / 0.3), 0.7) * (1 - smooth(0.4, 1, t) * 0.78) };
 }
 
-/** 模様。t: 頭→尾、v: -1(腹)〜1(背) */
-function bodyColor(c, f, t, v) {
+/** 模様。t: 頭→尾、v: -1(腹)〜1(背)、seed: 面ごとの乱数 */
+function bodyColor(c, f, t, v, seed) {
   const { body, belly } = c.colors;
   const m = c.mark;
-  let hex = v < -0.3 ? belly : v < -0.05 ? rgb(body).lerp(rgb(belly), 0.5).getHex() : body;
-  const n = c.bands ?? 0;
-  if (c.pat === 'bands' && t > 0.12) {
-    const u = ((t - 0.12) / 0.88) * n;
-    if (u - Math.floor(u) < 0.42) hex = m;
-  } else if (c.pat === 'clown') {
-    if (Math.abs(t - 0.24) < 0.05 || Math.abs(t - 0.56) < 0.06 || t > 0.9) hex = m;
-    else if (Math.abs(t - 0.24) < 0.065 || Math.abs(t - 0.56) < 0.075) hex = 0x201c1a;
-  } else if (c.pat === 'mask') {
-    if (Math.abs(t - 0.16) < 0.045) hex = m;
-  } else if (c.pat === 'palette') {
-    if ((v > 0.15 && v < 0.5 && t > 0.2) || (t > 0.55 && v > -0.1 && v < 0.3)) hex = m;
-    if (t > 0.93) hex = c.colors.fin;
+  const band = bandsFor(c).find(([a, b]) => t >= a && t < b);
+  if (band) return band[2];
+  let hex = v < -0.35 ? belly : v < -0.05 ? rgb(body).lerp(rgb(belly), 0.5).getHex() : body;
+  if (c.pat === 'palette') {
+    if ((v > 0.1 && v < 0.75 && t > 0.2) || (t > 0.55 && v > -0.2 && v < 0.4)) hex = m;
+    if (t > 0.92) hex = c.colors.fin;
   } else if (c.pat === 'lateral') {
-    if (Math.abs(v - 0.05) < 0.1 && t > 0.2) hex = m;
+    if (Math.abs(v) < 0.42 && t > 0.2) hex = m;
   } else if (c.pat === 'spots') {
-    if (noise(Math.floor(t * 18), Math.floor(v * 5)) > 0.74) hex = m;
+    if (noise(seed, 3.1) > 0.72) hex = m;
   } else if (c.pat === 'mottle') {
-    if (noise(Math.floor(t * 12), Math.floor(v * 3.5)) > 0.58) hex = m;
+    if (noise(seed, 7.7) > 0.56) hex = m;
   }
-  if (f.gills && t > 0.2 && t < 0.3 && Math.abs(v) < 0.5 && Math.floor(t * 60) % 2 === 0) hex = tint(hex, 0.7);
-  if (!f.gills && t > 0.27 && t < 0.285 && v > -0.6) hex = tint(hex, 0.78); // エラぶた
+  if (f.gills ? t >= 0.2 && t < 0.22 || t >= 0.24 && t < 0.26 : t >= 0.27 && t < 0.295) {
+    if (Math.abs(v) < 0.8) hex = tint(hex, 0.55); // エラ
+  }
   return hex;
 }
 
-/** ひれ：根元の線 base(s) から先端 tip(s) まで張った面。先端ほど淡く、すじ入り */
+/** 胴体：模様の境目に合わせた輪切りを、半周ずつずらしてつなぐ（菱形の面になる） */
+function facetedBody(c, f) {
+  const SEG = 8;
+  const stops = ringStops(c, f.gills);
+  const pos = [];
+  const col = [];
+  const vertex = (r, k) => {
+    const t = stops[r];
+    const a = ((k + (r % 2) * 0.5) / SEG) * Math.PI * 2;
+    const p = profile(f, t < 0.16 ? 0.16 * Math.pow(t / 0.16, 0.72) : t); // 頭先を丸くする
+    const cy = Math.cos(a);
+    const sz = Math.sin(a);
+    const pw = f.boxy ? Math.sign(sz) * Math.pow(Math.abs(sz), 0.45) : sz;
+    const py = f.boxy ? Math.sign(cy) * Math.pow(Math.abs(cy), 0.45) : cy;
+    const bump = 1 + (noise(r + 1, k % SEG) - 0.5) * 0.14; // 面に表情をつける
+    return { p: [0.5 - t, (py > 0 ? p.top : p.bot) * py * bump, p.wide * pw * bump], a };
+  };
+  const tri = (A, B, C, r, seed) => {
+    const t = (stops[r] + stops[r + 1]) / 2;
+    const v = Math.cos((A.a + B.a + C.a) / 3);
+    const c0 = rgb(bodyColor(c, f, t, v, seed));
+    for (const q of [A, B, C]) {
+      pos.push(...q.p);
+      c0.toArray(col, col.length);
+    }
+  };
+  for (let r = 0; r < stops.length - 1; r++) for (let k = 0; k < SEG; k++) {
+    const A = vertex(r, k);
+    const B = vertex(r, k + 1);
+    // 奇数の輪は半周ずれているので、対応する頂点を合わせる
+    const C = vertex(r + 1, k + (r % 2 ? 1 : 0));
+    const D = vertex(r + 1, k - (r % 2 ? 0 : 1));
+    tri(A, B, C, r, r * 17 + k);
+    tri(A, C, D, r, r * 17 + k + 40);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
+
+/** ひれ：根元の線 base(s) から先端 tip(s) まで張った面 */
 function fin(base, tip, hex, rays = 10) {
   return grid(rays, 2, (u, v) => {
     const [bx, by, bz] = base(u);
     const [tx, ty, tz] = tip(u);
-    const ray = Math.floor(u * rays) % 2 === 0 ? 1 : 0.84;
-    return [bx + (tx - bx) * v, by + (ty - by) * v, bz + (tz - bz) * v, tint(hex, ray * (0.82 + v * 0.3))];
-  }, false);
+    return [bx + (tx - bx) * v, by + (ty - by) * v, bz + (tz - bz) * v, hex];
+  });
+}
+
+/** 黒い縁取りのあるひれ */
+function rimFin(base, tip, hex, rays = 10) {
+  const rows = [0, 0.5, 0.84, 1];
+  const nu = Math.max(3, Math.round(rays * 0.7));
+  const pos = [];
+  const col = [];
+  const point = (i, j) => {
+    const u = i / nu;
+    const v = rows[j];
+    const [bx, by, bz] = base(u);
+    const [tx, ty, tz] = tip(u);
+    return [bx + (tx - bx) * v, by + (ty - by) * v, bz + (tz - bz) * v];
+  };
+  const face = (a, b, c0, hexColor) => {
+    const k = rgb(hexColor);
+    for (const q of [a, b, c0]) {
+      pos.push(...q);
+      k.toArray(col, col.length);
+    }
+  };
+  for (let j = 0; j < 3; j++) for (let i = 0; i < nu; i++) {
+    const h = j === 2 ? RIM : hex;
+    const [a, b, c0, d] = [point(i, j), point(i + 1, j), point(i, j + 1), point(i + 1, j + 1)];
+    if ((i + j) % 2) {
+      face(a, c0, b, h);
+      face(b, c0, d, h);
+    } else {
+      face(a, c0, d, h);
+      face(a, d, b, h);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
 }
 
 function tailFin(f, hex) {
@@ -114,7 +198,7 @@ function tailFin(f, hex) {
   };
   const shape = shapes[f.tail];
   if (!shape) return null;
-  return fin((u) => [x0 + 0.01, (u * 2 - 1) * f.h * f.ped * 0.42, 0], (u) => {
+  return rimFin((u) => [x0 + 0.01, (u * 2 - 1) * f.h * f.ped * 0.42, 0], (u) => {
     const [dx, dy] = shape(u * 2 - 1);
     return [x0 + dx, dy * H, 0];
   }, hex, 14);
@@ -124,22 +208,12 @@ function fishParts(c, f) {
   const parts = [];
   const finC = c.colors.fin;
   const X = (t) => 0.5 - t;
-  // 胴体：頭から尾へ輪切りをつなぐ
-  parts.push(grid(14, 22, (u, s) => {
-    const a = u * Math.PI * 2;
-    const t = s;
-    const p = profile(f, t);
-    const cy = Math.cos(a);
-    const sz = Math.sin(a);
-    const pw = f.boxy ? Math.sign(sz) * Math.pow(Math.abs(sz), 0.45) : sz;
-    const py = f.boxy ? Math.sign(cy) * Math.pow(Math.abs(cy), 0.45) : cy;
-    return [X(t), (py > 0 ? p.top : p.bot) * py, p.wide * pw, bodyColor(c, f, t, cy)];
-  }));
+  parts.push(facetedBody(c, f));
   // 背びれ・尻びれ
   if (f.dorsal) {
     const [a, b, hK, sw] = f.dorsal;
     const H = f.h * hK;
-    parts.push(fin((u) => { const t = a + (b - a) * u; return [X(t), profile(f, t).top * 0.92, 0]; }, (u) => {
+    parts.push(rimFin((u) => { const t = a + (b - a) * u; return [X(t), profile(f, t).top * 0.92, 0]; }, (u) => {
       const t = a + (b - a) * u;
       const k = Math.sin(Math.PI * Math.min(1, u * 0.92 + 0.08)) ** 0.5;
       return [X(t) - sw * 0.2 * (0.4 + u), profile(f, t).top + H * k, 0];
@@ -148,7 +222,7 @@ function fishParts(c, f) {
   if (f.anal) {
     const [a, b, hK, sw] = f.anal;
     const H = f.h * hK;
-    parts.push(fin((u) => { const t = a + (b - a) * u; return [X(t), -profile(f, t).bot * 0.92, 0]; }, (u) => {
+    parts.push(rimFin((u) => { const t = a + (b - a) * u; return [X(t), -profile(f, t).bot * 0.92, 0]; }, (u) => {
       const t = a + (b - a) * u;
       return [X(t) - sw * 0.2, -profile(f, t).bot - H * Math.sin(Math.PI * Math.min(1, u * 0.92 + 0.08)) ** 0.5, 0];
     }, finC));
@@ -163,12 +237,12 @@ function fishParts(c, f) {
     }
   }
   // 胸びれ（左右）
-  const pl = f.h * f.pect;
+  const pl = f.h * f.pect * 1.2;
   const px = X(0.31);
   for (const s of [-1, 1]) {
     const z = s * f.w * 0.44;
     const y = -f.h * 0.12;
-    parts.push(fin((u) => [px - u * pl * 0.3, y + u * pl * 0.1, z], (u) => [px - pl * (0.55 + u * 0.4), y - pl * (0.32 - u * 0.5), z + s * pl * 0.55], tint(finC, 1.1), 6));
+    parts.push(rimFin((u) => [px - u * pl * 0.3, y + u * pl * 0.1, z], (u) => [px - pl * (0.55 + u * 0.4), y - pl * (0.32 - u * 0.5), z + s * pl * 0.55], tint(finC, 1.1), 6));
   }
   // シュモクザメの頭
   if (f.hammer) {
@@ -184,7 +258,7 @@ function fishParts(c, f) {
     const ez = f.hammer ? s * 0.13 : s * Math.max(p.wide * 0.82, R * 0.4);
     const at = (dx, dy, dz) => new THREE.Matrix4().makeTranslation(ex + dx, ey + dy, ez + dz);
     parts.push(solid(new THREE.SphereGeometry(R, 8, 6), c.iris ?? 0xf0e6c8, at(0, 0, 0)));
-    parts.push(solid(new THREE.SphereGeometry(R * 0.68, 7, 5), 0x0c1014, at(0.002, 0, s * R * 0.42)));
+    parts.push(solid(new THREE.SphereGeometry(R * 0.82, 7, 5), 0x0c1014, at(0.002, 0, s * R * 0.3)));
     parts.push(solid(new THREE.SphereGeometry(R * 0.2, 5, 4), 0xffffff, at(R * 0.3, R * 0.3, s * R * 0.96)));
   }
   // 口
@@ -300,10 +374,16 @@ export function buildCreature(c) {
   root.userData.creature = c.id;
   const f = FORMS[c.form];
   const { parts, mode = 0, opacity = 1 } = f ? { parts: fishParts(c, f) } : softParts(c);
-  const geo = mergeGeometries(parts.map((g) => { g.deleteAttribute('uv'); return g; }), false);
+  const geo = mergeGeometries(parts.map((g) => {
+    g.deleteAttribute('uv');
+    g.deleteAttribute('normal');
+    return g;
+  }), false);
   parts.forEach((g) => g.dispose());
+  bakeFacets(geo);
   const uni = { uTime: { value: 0 }, uMode: { value: mode }, uWave: { value: f?.wave ?? 1 } };
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.08, side: THREE.DoubleSide, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
+  // 色は焼き込み済みなので、館内の照明に左右されない
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uni);
     shader.vertexShader = shader.vertexShader.replace('#include <common>', VERT_DECL).replace('#include <begin_vertex>', VERT_BODY);
