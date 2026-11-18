@@ -30,7 +30,9 @@ function shade(out, base, light, seed) {
   if (hsl.l < 0.14) return out.setHSL(hsl.h, hsl.s, Math.max(0.03, hsl.l * (0.75 + light * 0.7)), THREE.SRGBColorSpace); // 黒はつぶさない
   if (hsl.s < 0.1) return out.setHSL(hsl.h, hsl.s, Math.min(1, hsl.l * (0.72 + light * 0.36) + jitter * 0.5), THREE.SRGBColorSpace); // 白・灰は色を足さない
   const bright = light - 0.5;
-  const h = bright > 0 ? shiftHue(hsl.h, WARM_HUE, bright * 0.5) : shiftHue(hsl.h, COOL_HUE, -bright * 0.5);
+  // 青系の魚は色相をほぼ保つ（黄や赤紫へ寄せると緑や紫に転んでしまう）
+  const keep = hsl.h > 0.42 && hsl.h < 0.78 ? 0.12 : 1;
+  const h = bright > 0 ? shiftHue(hsl.h, WARM_HUE, bright * 0.5 * keep) : shiftHue(hsl.h, COOL_HUE, -bright * 0.5 * keep);
   const s = Math.min(1, hsl.s * (1.2 + (0.5 - light) * 0.35));
   const l = Math.min(0.86, Math.max(0.07, hsl.l * (0.36 + light * 0.8) + jitter));
   return out.setHSL(h, s, l, THREE.SRGBColorSpace);

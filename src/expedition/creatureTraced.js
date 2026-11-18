@@ -149,6 +149,16 @@ export function tracedParts(c, a) {
     disc(face, [x + eye.pupil * 0.35, y + eye.pupil * 0.35, z + s * (lift + eye.pupil * 0.04 + 0.002)], eye.pupil * 0.32, 4, 0xffffff, s);
     const [m0, m1] = mouth.map((p) => P(p, s * (surfaceDepth(a, p) + 0.002)));
     face.tri(m0, m1, [m1[0], m1[1] - 0.005, m1[2]], 0x3a1608);
+    // 体側の縦縞
+    for (const line of a.lines ?? []) {
+      for (let i = 0; i < line.length - 1; i++) {
+        const at = (p, dy) => {
+          const q = P(p, s * (surfaceDepth(a, p) + 0.002));
+          return [q[0], q[1] + dy, q[2]];
+        };
+        face.quad(at(line[i], 0.004), at(line[i], -0.004), at(line[i + 1], 0.004), at(line[i + 1], -0.004), a.lineHex ?? c.mark, i % 2);
+      }
+    }
     for (const d of a.dots ?? []) {
       const [dx, dy] = P(d);
       disc(face, [dx, dy, s * (surfaceDepth(a, d) + 0.002)], 0.007, 4, c.mark, s);
