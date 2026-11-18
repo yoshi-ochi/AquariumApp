@@ -156,7 +156,8 @@ export function tracedParts(c, a) {
           const q = P(p, s * (surfaceDepth(a, p) + 0.002));
           return [q[0], q[1] + dy, q[2]];
         };
-        face.quad(at(line[i], 0.004), at(line[i], -0.004), at(line[i + 1], 0.004), at(line[i + 1], -0.004), a.lineHex ?? c.mark, i % 2);
+        const hw = a.lineWidth ?? 0.004;
+        face.quad(at(line[i], hw), at(line[i], -hw), at(line[i + 1], hw), at(line[i + 1], -hw), a.lineHex ?? c.mark, i % 2);
       }
     }
     for (const d of a.dots ?? []) {

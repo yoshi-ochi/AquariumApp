@@ -19,7 +19,7 @@ export const CREATURES = [
   c('chocho', 'チョウチョウウオ', 'disc', 0.11, 2, 1, 1.6, 0xf3d54a, 0xfaf0b4, 0xe0a92c, { pat: 'mask', mark: 0x2a2a2e }),
   c('tsunodashi', 'ツノダシ', 'moorish', 0.13, 3, 2, 3.5, 0xf5efd8, 0xffffff, 0xf0cf3e, { pat: 'bands', bands: 3, mark: 0x1f2226 }),
   // 小笠原
-  c('maaji', 'マアジ', 'tuna', 0.2, 1, 2, 1.2, 0x7f9bab, 0xe6edf0, 0x6f8795, { pat: 'lateral', mark: 0xd8c36a }),
+  c('maaji', 'マアジ', 'tuna', 0.2, 1, 2, 1.2, 0xd2b24a, 0xdcd8e0, 0xdcae34, { pat: 'lateral', mark: 0xd8c36a }),
   c('mizukurage', 'ミズクラゲ', 'jelly', 0.16, 1, 2, 1.6, 0xdbe8f5, 0xf5d9e6, 0xeaf2fa),
   c('shiira', 'シイラ', 'dolphin', 0.6, 2, 8, 6, 0x2fa58c, 0xe8d34e, 0x2467b0, { pat: 'spots', mark: 0x1d6f8a }),
   c('manta', 'オニイトマキエイ', 'ray', 1.2, 3, 24, 30, 0x27323d, 0xe9edf0, 0x1d262f),
@@ -58,8 +58,8 @@ export const CREATURES = [
   c('nekozame', 'ネコザメ', 'shark', 0.7, 2, 8, 7, 0x8a7a62, 0xe6dfd0, 0x6f614c, { pat: 'bands', bands: 6, mark: 0x4d4234 }),
   c('akaei', 'アカエイ', 'ray', 0.6, 2, 8, 6, 0x8a5a3a, 0xf0d8c0, 0x6f4730),
   // 三陸沖
-  c('maiwashi', 'マイワシ', 'tuna', 0.18, 1, 1, 0.8, 0x3f6f96, 0xe8eef2, 0x35587a, { pat: 'lateral', mark: 0x1f2f40 }),
-  c('katsuo', 'カツオ', 'tuna', 0.5, 1, 6, 4, 0x2a4468, 0xdfe7ec, 0x22364f, { pat: 'bands', bands: 5, mark: 0x8fa9bd }),
+  c('maiwashi', 'マイワシ', 'tuna', 0.18, 1, 1, 0.8, 0x46618f, 0xd6dbe4, 0x7d8894, { pat: 'lateral', mark: 0x1f2f40 }),
+  c('katsuo', 'カツオ', 'tuna', 0.5, 1, 6, 4, 0x22304e, 0xcdd3da, 0x2a3040, { pat: 'bands', bands: 5, mark: 0x8fa9bd }),
   c('zuwai', 'ズワイガニ', 'crab', 0.4, 2, 3, 6, 0xc2603a, 0xeac9a8, 0xa84e2e, { longLegs: true }),
   c('surume', 'スルメイカ', 'squid', 0.3, 1, 2, 3, 0xb56a58, 0xe8c4b4, 0x98523f),
   c('ankou', 'アンコウ', 'lump', 0.6, 3, 8, 15, 0x5c5340, 0xbdb39a, 0x463f30, { pat: 'mottle', mark: 0x38322a }),
