@@ -24,7 +24,7 @@ export function pickLayout(el) {
     let preview = null;
     const mark = () => {
       el.querySelectorAll('.lp-card').forEach((c) => c.classList.toggle('active', c.dataset.id === chosen));
-      el.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+      el.querySelectorAll('.lp-modes button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
     };
     const refresh = () => {
       mark();
@@ -36,7 +36,7 @@ export function pickLayout(el) {
     };
     el.onclick = (e) => {
       const card = e.target.closest('.lp-card');
-      const modeBtn = e.target.closest('[data-mode]');
+      const modeBtn = e.target.closest('.lp-modes button'); // body にも data-mode があるので範囲を限定する
       if (card) chosen = card.dataset.id;
       else if (modeBtn) mode = modeBtn.dataset.mode;
       if (card || modeBtn) return refresh();
@@ -46,7 +46,7 @@ export function pickLayout(el) {
       ok.disabled = true;
       ok.textContent = '準備しています…';
       // 押した表示を先に描いてから、重い後片付けと読み込みに進む
-      requestAnimationFrame(() => setTimeout(() => {
+      setTimeout(() => {
         try {
           preview?.dispose();
         } catch (err) {
@@ -55,7 +55,7 @@ export function pickLayout(el) {
         el.hidden = true;
         el.innerHTML = '';
         resolve(chosen);
-      }, 30));
+      }, 60);
     };
     mark();
     try {
