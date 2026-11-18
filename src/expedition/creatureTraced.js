@@ -61,13 +61,18 @@ function surfaceDepth(a, [x, y]) {
 
 function tracedBody(a, c, P) {
   const mesh = new Mesh();
-  const hexOf = (i) => (a.paint[i] === 'mark' ? c.mark : c.colors.body);
+  const named = { body: c.colors.body, belly: c.colors.belly, mark: c.mark, fin: c.colors.fin };
+  // paint: 列ごとの色、rows: 背から腹へ4段の色（paint が body の区間に適用）
+  const hexOf = (i, r) => {
+    const name = a.paint?.[i] ?? 'body';
+    return named[name === 'body' ? a.rows?.[r] ?? 'body' : name];
+  };
   for (const s of [-1, 1]) {
     const v = (i, r) => P(a.stations[i][r], s * a.depth[i] * ROW_DEPTH[r]);
     const tip = P(a.snout);
-    for (let r = 0; r < 4; r++) mesh.tri(tip, v(0, r), v(0, r + 1), hexOf(0));
+    for (let r = 0; r < 4; r++) mesh.tri(tip, v(0, r), v(0, r + 1), hexOf(0, r));
     for (let i = 0; i < a.stations.length - 1; i++) for (let r = 0; r < 4; r++) {
-      mesh.quad(v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1), hexOf(i + 1), (i + r) % 2);
+      mesh.quad(v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1), hexOf(i + 1, r), (i + r) % 2);
     }
   }
   return mesh.build();
@@ -90,6 +95,10 @@ function tracedFin(a, f, hex, P, side) {
       const z = k === 0 ? surfaceDepth(a, px) * 0.9 : surfaceDepth(a, px) + 0.006 + f.lift * k;
       return P(px, side * z);
     });
+    if (!f.rim) {
+      const [root, mid, outer] = [0, 0.5, 1].map(row);
+      return [band(root, mid, hex), band(mid, outer, hex)];
+    }
     const [root, mid, inner, outer] = [0, 0.5, 1 - f.rim, 1].map(row);
     return [band(root, mid, hex), band(mid, inner, hex), band(inner, outer, RIM)];
   }
@@ -116,7 +125,7 @@ function disc(mesh, [x, y, z], r, n, hex, side) {
       const ang = (k / n) * Math.PI * 2;
       return [x + Math.cos(ang) * r, y + Math.sin(ang) * r, z];
     };
-    mesh.tri([x, y, z + side * r * 0.25], at(i), at(i + 1), hex);
+    mesh.tri([x, y, z + side * r * 0.04], at(i), at(i + 1), hex);
   }
 }
 
@@ -133,10 +142,16 @@ export function tracedParts(c, a) {
     const [x, y] = P(eye.at);
     const z = s * (surfaceDepth(a, eye.at) + 0.003);
     disc(face, [x, y, z], eye.ring, 7, eye.iris, s);
-    disc(face, [x, y, z + s * 0.003], eye.pupil, 6, 0x0a0c10, s);
-    disc(face, [x + eye.pupil * 0.35, y + eye.pupil * 0.35, z + s * 0.006], eye.pupil * 0.32, 4, 0xffffff, s);
+    // 虹彩の中心の盛り上がりより手前に瞳と光を重ねる
+    const lift = eye.ring * 0.04 + 0.002;
+    disc(face, [x, y, z + s * lift], eye.pupil, 6, 0x0a0c10, s);
+    disc(face, [x + eye.pupil * 0.35, y + eye.pupil * 0.35, z + s * (lift + eye.pupil * 0.04 + 0.002)], eye.pupil * 0.32, 4, 0xffffff, s);
     const [m0, m1] = mouth.map((p) => P(p, s * (surfaceDepth(a, p) + 0.002)));
     face.tri(m0, m1, [m1[0], m1[1] - 0.005, m1[2]], 0x3a1608);
+    for (const d of a.dots ?? []) {
+      const [dx, dy] = P(d);
+      disc(face, [dx, dy, s * (surfaceDepth(a, d) + 0.002)], 0.007, 4, c.mark, s);
+    }
   }
   parts.push(face.build());
   return parts;
