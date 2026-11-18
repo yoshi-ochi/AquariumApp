@@ -45,7 +45,7 @@ import { AllianceApi } from './online/allianceApi.js';
 import { AllianceView } from './ui/allianceView.js';
 import { MapPage } from './ui/mapPage.js';
 import { LifeSystems } from './game/lifeSystems.js';
-import { START_ZONES, ATRIUM_TANK_POS, BASEMENT, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, getZone, setLayout, setWallEdits, zoneAt, zoneCenter } from './building/blueprint.js';
+import { START_ZONES, ATRIUM_TANK_POS, BASEMENT, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, zonesUpToLevel, getZone, setLayout, setWallEdits, zoneAt, zoneCenter } from './building/blueprint.js';
 import { ViewModes } from './building/viewModes.js';
 import { OutdoorScenery } from './building/outdoorScenery.js';
 import { WallInteraction } from './interaction/wallInteraction.js';
@@ -426,6 +426,11 @@ async function boot() {
     onUpgrade: () => {
       const res = economy.upgradeStage();
       if (!res.ok) return toast(res.reason, { error: true });
+      // レベルに応じたエリアを解放して建物へ反映する
+      const opened = zonesUpToLevel(economy.stage.level).filter((id) => !unlocked.has(id));
+      opened.forEach((id) => unlocked.add(id));
+      applyRoom(false);
+      if (opened.length) toast(`${opened.map((id) => getZone(id).name).join('、')} を解放しました`, { duration: 5000 });
       if (gameSheet.view) gameSheet.render();
       toast(`「${economy.stage.name}」に拡張しました！`);
     },
@@ -486,6 +491,8 @@ async function boot() {
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
     manager.deserialize(data.objects);
     unlocked = new Set([...START_ZONES, ...(data.room?.building ? data.room.unlocked ?? [] : zonesForLegacyStage(economy.stage.level))]);
+    // 以前にレベルアップ済みのセーブにも、レベルに応じたエリアを反映する
+    zonesUpToLevel(economy.stage.level).forEach((id) => unlocked.add(id));
     if (!data.room?.layout) {
       // 間取りを選ぶ前のセーブを、選んだ間取りへ移す
       migrateToLayout({ manager, unlocked, wasBuilding: !!data.room?.building, inventory, expeditions, economy });

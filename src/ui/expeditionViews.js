@@ -23,7 +23,11 @@ export class ExpeditionView {
         ? `<div class="gs-row"><div class="gs-info"><b>${d.name}</b><small>調査隊が帰還しました</small></div><button data-act="claim" data-id="${i}" class="primary">受け取る</button></div>`
         : `<div class="gs-row"><div class="gs-info"><b>${d.name}</b><small>採取中 ・ 残り ${until(t.doneAt)}</small></div></div>`;
     });
-    const status = `<p class="gs-empty">調査隊 ${ex.trips.length}/${level}</p>${trips.join('')}`;
+    const teamCost = ex.nextTeamCost;
+    const addTeam = teamCost == null
+      ? '<small>調査隊は上限まで追加済みです</small>'
+      : `<button data-act="team-add" ${this.economy.canAfford(teamCost) ? '' : 'disabled'}>調査隊を追加 ${yen(teamCost)}</button>`;
+    const status = `<div class="st-sum"><div class="st-head"><b>調査隊 ${ex.trips.length}/${ex.teamLimit(level)}隊</b><small>追加 ${ex.extraTeams}隊</small></div>${addTeam}</div>${trips.join('')}`;
     const d = this.focus && getDestination(this.focus);
     if (!d) return `${status}<p class="gs-empty">地図の採取地をタップして行き先を選びます。</p>`;
     const methods = methodsAt(d);
@@ -55,6 +59,14 @@ export class ExpeditionView {
 
   act(act, id) {
     const ex = this.expeditions;
+    if (act === 'team-add') {
+      const cost = ex.nextTeamCost;
+      if (cost != null && this.economy.spend(cost)) {
+        ex.addTeam();
+        this.toast('調査隊を追加しました');
+      }
+      return true;
+    }
     if (act === 'method') {
       this.methodId = id;
       return true;

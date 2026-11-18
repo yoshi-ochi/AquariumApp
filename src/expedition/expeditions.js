@@ -6,10 +6,15 @@ import { SPECIES_METHODS } from './fishingData.js';
  * 採取遠征の進行と、捕まえた生物の在庫。
  * 帰還時刻と成果の乱数 seed は出発時に確定する（再読み込みで成果が変わらない）。
  */
+/** 調査隊の追加：1隊目の費用（隊を増やすごとに倍数で上がる）と上限 */
+const TEAM_COST = 300000;
+const MAX_EXTRA_TEAMS = 6;
+
 export class Expeditions extends EventTarget {
   constructor() {
     super();
     this.trips = [];
+    this.extraTeams = 0;
     this.creatures = {};
     this.seen = {}; // 図鑑：これまでに手に入れた数
     this.getCapacity = () => Infinity;
@@ -40,9 +45,23 @@ export class Expeditions extends EventTarget {
     return this.creatures[id] ?? 0;
   }
 
-  /** 同時に出せる調査隊の数はステージのレベルと同じ */
+  /** 同時に出せる調査隊の数（レベルと同数＋追加した隊） */
+  teamLimit(stageLevel) {
+    return stageLevel + this.extraTeams;
+  }
+
+  /** 次の調査隊を追加する費用。上限なら null */
+  get nextTeamCost() {
+    return this.extraTeams < MAX_EXTRA_TEAMS ? TEAM_COST * (this.extraTeams + 1) : null;
+  }
+
+  addTeam() {
+    this.extraTeams++;
+    this._emit();
+  }
+
   canDepart(stageLevel) {
-    return this.trips.length < stageLevel;
+    return this.trips.length < this.teamLimit(stageLevel);
   }
 
   depart(dest, seconds = dest.seconds, method = null, now = Date.now()) {
@@ -88,10 +107,11 @@ export class Expeditions extends EventTarget {
   }
 
   toJSON() {
-    return { trips: this.trips.map((t) => ({ ...t })), creatures: { ...this.creatures }, seen: { ...this.seen } };
+    return { extraTeams: this.extraTeams, trips: this.trips.map((t) => ({ ...t })), creatures: { ...this.creatures }, seen: { ...this.seen } };
   }
 
   fromJSON(data) {
+    this.extraTeams = data?.extraTeams ?? 0;
     this.trips = Array.isArray(data?.trips) ? data.trips.filter((t) => getDestination(t.dest)).map((t) => ({ ...t })) : [];
     this.creatures = { ...(data?.creatures ?? {}) };
     this.seen = { ...(data?.seen ?? {}) };

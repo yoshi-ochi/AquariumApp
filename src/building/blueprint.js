@@ -153,6 +153,8 @@ export function setLayout(id) {
 setLayout(DEFAULT_LAYOUT);
 
 export const getZone = (id) => ZONES.find((z) => z.id === id);
+/** レベル2以降は、そのレベルまでのエリアがレベルアップで解放される（レベル1は購入のみ） */
+export const zonesUpToLevel = (level) => (level >= 2 ? ZONES.filter((z) => z.stage <= level).map((z) => z.id) : []);
 export const zoneHas = (zone, i, j) => zone.rects.some((r) => inRect(r, i, j));
 
 /** ワールド座標 → マス番号 */
