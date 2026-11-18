@@ -38,6 +38,10 @@ import { BottomNav } from './ui/bottomNav.js';
 import { GameSheet } from './ui/gameSheet.js';
 import { ExpeditionView, CreatureView } from './ui/expeditionViews.js';
 import { Expeditions } from './expedition/expeditions.js';
+import { Operations } from './management/operations.js';
+import { CleanView, StaffView, ShopView } from './ui/opsViews.js';
+import { finishCleaning, needsCleaning } from './tanks/tankCleaning.js';
+import { icon } from './ui/icons.js';
 import { CREATURES } from './expedition/creatureData.js';
 import { buildCreature } from './expedition/creatureBuilder.js';
 
@@ -63,6 +67,7 @@ async function boot() {
   const economy = new Economy();
   const inventory = new Inventory();
   const expeditions = new Expeditions();
+  const ops = new Operations();
   const manager = new TankManager(sceneMgr.scene);
   const room = new Room(sceneMgr.scene, sceneMgr);
   let roomSettings = defaultRoomSettings();
@@ -410,7 +415,7 @@ async function boot() {
   /** 現在の状態を保存用データにする */
   function snapshot() {
     roomSettings.plan = room.plan.toJSON();
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), room: roomSettings, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), room: roomSettings, objects: manager.serialize() };
   }
 
   /** 保存用データから状態を復元する */
@@ -419,6 +424,7 @@ async function boot() {
     economy.fromJSON(data.economy);
     inventory.fromJSON(data.inventory);
     expeditions.fromJSON(data.expedition);
+    ops.fromJSON(data.ops);
     roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
     manager.deserialize(data.objects);
@@ -491,8 +497,13 @@ async function boot() {
   // ---- 上部バー・下部メニュー・アイテム ---------------------------------------
   const hud = new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
   const gameSheet = new GameSheet({
-    el: $('game-sheet'), economy, inventory, expeditions, previews, toast,
-    expeditionView: new ExpeditionView({ economy, expeditions, toast }),
+    el: $('game-sheet'), economy, inventory, expeditions, ops, previews, toast,
+    panels: {
+      expedition: { title: '採取遠征', view: new ExpeditionView({ economy, expeditions, toast }) },
+      clean: { title: '水槽の掃除', live: true, view: new CleanView({ manager, economy, ops, toast, getTanks: () => manager.tanks, onChanged: () => shell.update() }) },
+      staff: { title: 'スタッフ', live: true, view: new StaffView({ ops }) },
+      shop: { title: '店舗運営', live: true, view: new ShopView({ ops, economy, toast }) },
+    },
     creatureView: new CreatureView({ manager, expeditions, previews, toast, onChanged: () => shell.update() }),
     onPlace: (id) => {
       if (mode !== 'hall-edit') enterHallEdit();
@@ -511,11 +522,20 @@ async function boot() {
       shell.toggleMenu(false);
       if (id === 'layout') return enterHallEdit();
       if (id === 'items') return itemsOpen ? undefined : gameSheet.openItems();
-      if (id === 'expedition') return wasOpen === 'expedition' ? undefined : gameSheet.openExpedition();
+      if (id === 'expedition' || id === 'shop') return wasOpen === id ? undefined : gameSheet.openPanel(id);
       if (wasOpen !== `feature:${id}`) gameSheet.openFeature(id);
     },
   });
-  for (const [btn, id] of [['btn-clean', 'clean'], ['btn-event', 'event']]) {
+  for (const [btn, id, ic] of [['side-clean', 'clean', 'clean'], ['side-staff', 'staff', 'staff']]) {
+    $(btn).querySelector('.sa-ico').innerHTML = icon(ic, 24);
+    $(btn).addEventListener('click', () => {
+      if (visiting) return;
+      const open = gameSheet.view === id;
+      gameSheet.close();
+      if (!open) gameSheet.openPanel(id);
+    });
+  }
+  for (const [btn, id] of [['btn-event', 'event']]) {
     $(btn).addEventListener('click', () => {
       shell.toggleMenu(false);
       gameSheet.openFeature(id);
@@ -527,6 +547,12 @@ async function boot() {
     if (visiting) return;
     for (const id of inventory.collect()) toast(`外注の ${getDef(id).name} が完成しました`);
     $('nav-expedition').classList.toggle('has-badge', expeditions.trips.some((t) => expeditions.isDone(t)));
+    for (const t of finishCleaning(manager.tanks)) toast(`${manager.defOf(t).name} の掃除が終わりました`);
+    const dirty = manager.tanks.filter((t) => needsCleaning(t)).length;
+    $('clean-badge').hidden = !dirty;
+    $('clean-badge').textContent = dirty;
+    $('side-sat').textContent = `満足度${Math.round(ops.satisfaction)}%`;
+    manager.updateCare();
   }, 1000);
   $('btn-visit-end').addEventListener('click', () => {
     if (!visiting) return;
@@ -547,7 +573,7 @@ async function boot() {
   goHome();
 
   // 開発時だけ：ブラウザのコンソールから状態を調べられるようにする
-  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions };
+  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions, ops };
 
   // ---- ループ ---------------------------------------------------------------
   /**
@@ -572,6 +598,19 @@ async function boot() {
     }
   }
 
+  /** 必要人員の計算に使う水族館の規模 */
+  function opsContext() {
+    const tanks = manager.tanks;
+    return {
+      potential: manager.totalAppeal() * economy.stage.visitorFactor,
+      tanks: tanks.length,
+      creatures: tanks.reduce((s, t) => s + Object.values(t.userData.creatures ?? {}).reduce((a, n) => a + n, 0), 0),
+      level: economy.stage.level,
+      showTanks: tanks.filter((t) => t.userData.defId === 'mammal').length * 2 + tanks.filter((t) => t.userData.defId === 'tunnel').length,
+      dirtyRatio: tanks.length ? tanks.filter((t) => needsCleaning(t)).length / tanks.length : 0,
+    };
+  }
+
   const clock = new THREE.Clock();
   sceneMgr.renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
@@ -584,7 +623,8 @@ async function boot() {
     manager.updateAeration(clock.elapsedTime);
     manager.updateLife(clock.elapsedTime);
     interior.update();
-    economy.update(dt, manager.totalAppeal());
+    economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult));
+    if (!visiting) ops.update(dt, opsContext, economy);
     customizer.update();
     sceneMgr.render();
   });

@@ -6,6 +6,7 @@ import { encodePositions, applyEncodedPositions } from '../interior/sculpt.js';
 import { applyTankLook } from './tankLook.js';
 import { updateBubbles } from './aeration.js';
 import { syncLife, updateLife, lifeAppeal } from '../expedition/tankLife.js';
+import { cleanAppealFactor, updateCareVisual } from './tankCleaning.js';
 
 /**
  * 館内に配置されたオブジェクトの管理。
@@ -23,7 +24,7 @@ export class TankManager {
 
   // ---- 追加・削除 ---------------------------------------------------------
 
-  add(defId, { x = 0, z = 0, rotY = 0, floor = this.currentFloor, uid, contents = [], embed = null, look = null, creatures = null } = {}) {
+  add(defId, { x = 0, z = 0, rotY = 0, floor = this.currentFloor, uid, contents = [], embed = null, look = null, creatures = null, clean = null } = {}) {
     const def = getDef(defId);
     const obj = buildObject(def);
     obj.userData.uid = uid ?? this.nextUid++;
@@ -35,6 +36,7 @@ export class TankManager {
     if (embed && (def.category === CATEGORY.TANK || def.wallMount)) obj.userData.embed = { ...embed };
     if (def.category === CATEGORY.TANK) {
       obj.userData.clip = createClipUniforms(obj.userData.interior);
+      obj.userData.clean = clean ? { ...clean } : { last: Date.now() };
       if (look) applyTankLook(obj, def, look);
     }
     this.group.add(obj);
@@ -166,6 +168,16 @@ export class TankManager {
     }
   }
 
+  /** 全水槽（配置順） */
+  get tanks() {
+    return [...this.objects.values()].filter((o) => o.userData.clip);
+  }
+
+  /** 現在の階の水槽の汚れ表示を更新 */
+  updateCare(now) {
+    for (const t of this.tanks) if (t.visible) updateCareVisual(t, now);
+  }
+
   /** 現在の階の展示生物を泳がせる */
   updateLife(time) {
     for (const tank of this.objects.values()) if (tank.userData.clip && tank.visible) updateLife(tank, time);
@@ -222,11 +234,12 @@ export class TankManager {
   totalAppeal() {
     let sum = 0;
     for (const o of this.objects.values()) {
-      sum += this.defOf(o).appeal ?? 0;
+      let value = this.defOf(o).appeal ?? 0;
       if (o.userData.clip) {
-        for (const c of this.interiorItems(o)) sum += getDef(c.userData.defId).appeal ?? 0;
-        sum += lifeAppeal(o);
+        for (const c of this.interiorItems(o)) value += getDef(c.userData.defId).appeal ?? 0;
+        value = (value + lifeAppeal(o)) * cleanAppealFactor(o); // 汚れた水槽は魅力が下がる
       }
+      sum += value;
     }
     return sum;
   }
@@ -306,6 +319,7 @@ export class TankManager {
       ...(o.userData.embed && { embed: { ...o.userData.embed } }),
       ...(o.userData.look && { look: o.userData.look }),
       ...(o.userData.creatures && { creatures: { ...o.userData.creatures } }),
+      ...(o.userData.clean && { clean: { ...o.userData.clean } }),
       ...(o.userData.clip && {
         contents: this.interiorItems(o).map((c) => ({
           defId: c.userData.defId,

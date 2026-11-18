@@ -339,3 +339,28 @@ body.editing #hud-save, body[data-mode=tank] #hud-save { left: 18px; top: 15px; 
 #save-conflict p { margin: 0 0 10px; }
 #save-conflict div { display: flex; gap: 8px; }
 #save-conflict button { flex: 1; }
+
+/* ---------- 掃除・スタッフ・店舗 ---------- */
+#side-actions { position: fixed; right: 8px; bottom: calc(var(--nav-h) + 56px + var(--safe-bottom)); z-index: 16; display: none; flex-direction: column; gap: 8px; }
+body[data-mode=home] #side-actions { display: flex; }
+body.visiting #side-actions { display: none; }
+#side-actions button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 58px; min-height: 58px; padding: 4px 2px; color: #fff; background: var(--bar); border: 2px solid var(--bar-line); border-radius: 14px; font-size: 9px; font-weight: 700; white-space: normal; line-height: 1.15; }
+.sa-ico { display: block; height: 24px; color: var(--aqua); }
+#clean-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 4px; color: #fff; background: #ef3b3b; border: 2px solid #fff; border-radius: 10px; font-size: 11px; font-style: normal; line-height: 16px; text-align: center; }
+#clean-badge[hidden] { display: none; }
+.gs-row.wrap { flex-wrap: wrap; }
+.gs-row.wrap .gs-info { flex-basis: 100%; }
+.gs-btns { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.gs-btns > button { flex: 1; padding: 6px 4px; font-size: 12px; }
+.gs-alert { color: #d13438; font-size: 12px; font-style: normal; font-weight: 700; }
+.st-sum { display: flex; flex-direction: column; gap: 5px; padding: 10px; background: #fff; border: 1px solid var(--border); border-radius: 10px; }
+.st-sum small { color: var(--muted); }
+.st-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.st-bar { height: 8px; overflow: hidden; background: #dfe9ef; border-radius: 4px; }
+.st-bar i { display: block; height: 100%; background: var(--ok); }
+.st-need { flex: none; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.st-need.lack { color: #d13438; }
+.st-ctl { display: flex; flex: none; gap: 4px; }
+.st-ctl button { width: 38px; padding: 0; font-size: 18px; }
+.sp-seg { display: grid; grid-template-columns: repeat(3, 1fr); flex: 1 1 150px; gap: 3px; }
+.sp-seg button { min-height: 34px; padding: 2px; font-size: 12px; }

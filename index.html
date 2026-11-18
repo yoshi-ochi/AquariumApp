@@ -50,7 +50,6 @@
       <div class="menu-row"><span id="menu-stage"></span><button id="btn-upgrade" class="primary">拡張</button></div>
       <div class="menu-row">
         <span>運営</span>
-        <button id="btn-clean">水槽の掃除</button>
         <button id="btn-event">イベント</button>
       </div>
       <div class="menu-row">
@@ -85,6 +84,10 @@
     <!-- 下部メインメニューとシート -->
     <div id="game-sheet" hidden></div>
     <nav id="bottom-nav" aria-label="メインメニュー"></nav>
+    <div id="side-actions">
+      <button id="side-clean" aria-label="水槽の掃除"><span class="sa-ico"></span><span>掃除</span><i id="clean-badge" hidden></i></button>
+      <button id="side-staff" aria-label="スタッフ"><span class="sa-ico"></span><span id="side-sat">満足度</span></button>
+    </div>
 
     <!-- オンライン（アカウント・フレンド） -->
     <div id="friend-sheet" hidden></div>

@@ -10,7 +10,7 @@ const MONEY_INTERVAL_MS = 300_000;
 export class SaveConflict extends Error {}
 
 /** 毎秒増える資金と保存時刻を除いた内容 */
-const fingerprint = (s) => JSON.stringify({ ...s, savedAt: 0, economy: { ...s.economy, money: 0 } });
+const fingerprint = (s) => JSON.stringify({ ...s, savedAt: 0, economy: { ...s.economy, money: 0 }, ops: { ...s.ops, live: 0 } });
 
 export class AutoSave {
   constructor({ save, getSnapshot, isPaused, onState, onConflict, now = () => Date.now() }) {

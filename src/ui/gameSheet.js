@@ -8,23 +8,23 @@ const TABS = [['stock', '所持品'], ['creatures', '生物'], ['supplier', '取
 
 /** 今後追加する機能の案内 */
 export const FEATURES = {
-  shop: ['shop', '店舗運営', 'お土産店を運営して、来館者から売上を得ます。'],
   ally: ['ally', '同盟水族館', 'ほかの水族館と同盟を組み、協力して運営します。'],
-  clean: ['clean', '水槽の掃除', '水槽をきれいに保ち、展示の魅力を高めます。'],
   event: ['event', 'イベント開催', '館内イベントを開いて、来館者を増やします。'],
 };
 
 /** 下部バーから開くシート：アイテム（所持品・取引先・外注）と各機能の案内 */
 export class GameSheet {
-  constructor({ el, economy, inventory, expeditions, expeditionView, creatureView, previews, toast, onPlace }) {
-    Object.assign(this, { el, economy, inventory, expeditions, expeditionView, creatureView, previews, toast, onPlace });
+  constructor({ el, economy, inventory, expeditions, ops, panels, creatureView, previews, toast, onPlace }) {
+    Object.assign(this, { el, economy, inventory, expeditions, panels, creatureView, previews, toast, onPlace });
     this.view = null;
+    this._beat = 0;
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-act]');
       if (b) this._act(b.dataset.act, b.dataset.id);
     });
     inventory.addEventListener('change', () => this.view && this.render());
     expeditions.addEventListener('change', () => this.view && this.render());
+    ops.addEventListener('change', () => this.view && this.render());
     setInterval(() => this._tick(), 1000);
   }
 
@@ -42,8 +42,9 @@ export class GameSheet {
     return TABS.some(([id]) => id === this.view);
   }
 
-  openExpedition() {
-    this.view = 'expedition';
+  /** panels のキー（expedition / clean / staff / shop）を開く */
+  openPanel(id) {
+    this.view = id;
     this.el.hidden = false;
     this.render();
   }
@@ -60,14 +61,22 @@ export class GameSheet {
   }
 
   render() {
+    const scroll = this.el.querySelector('.gs-list')?.scrollTop ?? 0;
+    this._render();
+    const list = this.el.querySelector('.gs-list');
+    if (list) list.scrollTop = scroll;
+  }
+
+  _render() {
     const head = (title) => `<div class="gs-head"><h3>${title}</h3><button data-act="close" class="gs-close" aria-label="閉じる">✕</button></div>`;
     if (this.view.startsWith('feature:')) {
       const [ic, title, text] = FEATURES[this.view.slice(8)];
       this.el.innerHTML = `${head(title)}<div class="gs-soon">${icon(ic, 40)}<p>${text}</p><b>準備中</b></div>`;
       return;
     }
-    if (this.view === 'expedition') {
-      this.el.innerHTML = `${head('採取遠征')}<div class="gs-list">${this.expeditionView.html()}</div>`;
+    const panel = this.panels[this.view];
+    if (panel) {
+      this.el.innerHTML = `${head(panel.title)}<div class="gs-list">${panel.view.html()}</div>`;
       return;
     }
     const tabs = TABS.map(([id, label]) => `<button data-act="tab" data-id="${id}" class="${this.view === id ? 'active' : ''}">${label}</button>`).join('');
@@ -122,6 +131,7 @@ export class GameSheet {
       s.textContent = time(Math.max(0, left));
     });
     if (finished) this.render(); // 帰還・完成を表示に反映
+    else if (this.panels[this.view]?.live && ++this._beat % 3 === 0) this.render(); // 満足度などを更新
   }
 
   _act(act, id) {
@@ -132,7 +142,7 @@ export class GameSheet {
       this.creatureView.picking = null;
       return this.render();
     }
-    if (this.view === 'expedition' ? this.expeditionView.act(act, id) : this.creatureView.act(act, id)) return this.render();
+    if ((this.panels[this.view]?.view ?? this.creatureView).act(act, id)) return this.render();
     if (act === 'place') {
       this.close();
       return this.onPlace(id);

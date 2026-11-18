@@ -39,6 +39,14 @@ export class Economy extends EventTarget {
     this._emit();
   }
 
+  /** 支払う。足りなければ残高を0にして false */
+  pay(amount) {
+    const ok = this.money >= amount;
+    this.money = Math.max(0, this.money - amount);
+    this._emit();
+    return ok;
+  }
+
   upgradeStage() {
     const next = this.nextStage;
     if (!next) return { ok: false, reason: 'これ以上拡張できません' };
