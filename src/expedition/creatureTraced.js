@@ -97,7 +97,7 @@ function flatSpot(mesh, a, P, [x, y], r, n, hex, side) {
 }
 
 /** 模様を体表の面に埋もれさせない高さ（面の折れ目は推定値より外へ張り出すため余裕を持たせる） */
-const aboveSurface = (a, p) => surfaceDepth(a, p) * 1.16 + 0.006;
+const aboveSurface = (a, p) => (a.free ? exactDepth(a, p) + 0.004 : surfaceDepth(a, p) * 1.16 + 0.006);
 
 function tracedBody(a, c, P) {
   const mesh = new Mesh();
@@ -112,9 +112,9 @@ function tracedBody(a, c, P) {
   for (const s of [-1, 1]) {
     const v = (i, r) => P(a.stations[i][r], s * a.depth[i] * ROW_DEPTH[r]);
     const tip = P(a.snout);
-    for (let r = 0; r < 4; r++) mesh.tri(tip, v(0, r), v(0, r + 1), s < 0 && a.ventral ? a.ventral : hexOf(0, r));
+    for (let r = 0; r < 4; r++) mesh.tri(tip, v(0, r), v(0, r + 1), s > 0 && a.ventral ? a.ventral : hexOf(0, r));
     for (let i = 0; i < a.stations.length - 1; i++) for (let r = 0; r < 4; r++) {
-      mesh.quad(v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1), s < 0 && a.ventral ? a.ventral : hexOf(i + 1, r), (i + r) % 2);
+      mesh.quad(v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1), s > 0 && a.ventral ? a.ventral : hexOf(i + 1, r), (i + r) % 2);
     }
   }
   return mesh.build();
@@ -208,11 +208,11 @@ export function tracedParts(c, a) {
     for (const side of f.lift ? [-1, 1] : [1]) parts.push(...tracedFin(a, f, hex, P, side));
   }
   const face = new Mesh();
-  for (const r of a.rays ?? []) for (const s of r.lift && !r.up ? [-1, 1] : [1]) tracedRay(face, a, r, P, s);
-  for (const d of a.decals ?? []) for (const s of [-1, 1]) tracedDecal(face, a, d, P, s);
+  for (const r of a.rays ?? []) for (const s of r.up ? [-1] : r.lift ? [-1, 1] : [1]) tracedRay(face, a, r, P, s);
+  for (const d of a.decals ?? []) for (const s of a.topView ? [-1] : [-1, 1]) tracedDecal(face, a, d, P, s);
   const { eye, mouth } = a;
   // 上面図の種は目や模様を背側だけに付ける
-  for (const s of a.topView ? [1] : [-1, 1]) {
+  for (const s of a.topView ? [-1] : [-1, 1]) {
     const [x, y] = P(eye.at);
     const z = s * aboveSurface(a, eye.at);
     disc(face, [x, y, z], eye.ring, 7, eye.iris, s);
@@ -244,7 +244,7 @@ export function tracedParts(c, a) {
     }
   }
   parts.push(face.build());
-  // 上面図から作った種は、画像の面を背側へ向ける
-  if (a.topView) parts.forEach((g) => g.rotateX(-Math.PI / 2));
+  // 画像に写っている面（-Z 側）を背側へ向ける。逆に回すと左右が反転する
+  if (a.topView) parts.forEach((g) => g.rotateX(Math.PI / 2));
   return parts;
 }

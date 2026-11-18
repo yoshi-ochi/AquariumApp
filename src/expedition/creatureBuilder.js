@@ -375,7 +375,7 @@ export function buildCreature(c) {
   const root = new THREE.Group();
   root.userData.creature = c.id;
   const f = FORMS[c.form];
-  const { parts, mode = 0, opacity = 1 } = ANATOMY[c.id] ? { parts: tracedParts(c, ANATOMY[c.id]) } : f ? { parts: fishParts(c, f) } : softParts(c);
+  const { parts, mode = 0, opacity = 1 } = ANATOMY[c.id] ? { parts: tracedParts(c, ANATOMY[c.id]), mode: ANATOMY[c.id].mode ?? 0 } : f ? { parts: fishParts(c, f) } : softParts(c);
   const merge = (list) => {
     const geo = mergeGeometries(list.map((g) => {
       g.deleteAttribute('uv');
