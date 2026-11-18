@@ -207,3 +207,33 @@ body.editing #hint { bottom: calc(var(--editor-h) + 10px + var(--safe-bottom)); 
 #gizmo .lock-btn.active { background: #ffb300; color: #fff; }
 #gizmo button:disabled { opacity: .35; }
 #gizmo button[hidden] { display: none; }
+
+/* オブジェ選択中（詳細編集）はカタログ・部屋パネルを閉じて作業領域を確保 */
+body.has-selection #catalog-tabs,
+body.has-selection #catalog-cards,
+body.has-selection #room-panel { display: none; }
+
+/* ---------- オンライン（フレンド） ---------- */
+#friend-sheet {
+  position: fixed; top: calc(62px + var(--safe-top)); left: 50%; transform: translateX(-50%); z-index: 30;
+  width: min(360px, calc(100vw - 20px)); max-height: calc(100vh - 90px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+#friend-sheet[hidden] { display: none; }
+#friend-sheet h3, #friend-sheet h4 { margin: 0; }
+#friend-sheet h4 { font-size: 13px; margin-top: 6px; color: var(--muted); }
+#friend-sheet input { min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; flex: 1; min-width: 0; }
+#friend-sheet .muted { color: var(--muted); font-size: 12px; margin: 0; }
+.fp-head, .fp-me, .fp-row { display: flex; align-items: center; gap: 6px; }
+.fp-head { justify-content: space-between; }
+.fp-row.end { justify-content: flex-end; }
+.fp-code { font-family: monospace; font-size: 16px; letter-spacing: .1em; flex: 1; }
+.fp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.fp-list li { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+#visit-bar {
+  position: fixed; left: 50%; bottom: calc(14px + var(--safe-bottom)); transform: translateX(-50%); z-index: 25;
+  display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 6px 6px 6px 16px;
+}
+#visit-bar[hidden] { display: none; }
+body.visiting #btn-edit, body.visiting #menu-sheet .menu-row:not(.stats) { display: none; }

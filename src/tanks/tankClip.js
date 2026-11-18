@@ -12,7 +12,15 @@ export function createClipUniforms(interior) {
     uClipInv: { value: new THREE.Matrix4() },
     uClipShape: { value: interior.shape === 'cylinder' ? 1 : 0 },
     uClipHalf: { value: new THREE.Vector3(interior.halfW, interior.halfD, interior.radius ?? 0) },
+    uTunnel: { value: new THREE.Vector2(interior.tunnel?.r ?? 0, interior.tunnel?.straightH ?? 0) },
   };
+}
+
+/** 水槽ローカル x における設置面の高さ（トンネル水槽ならアーチの上面） */
+export function floorAt(interior, x) {
+  const t = interior.tunnel;
+  if (!t || Math.abs(x) >= t.r) return interior.floorY;
+  return t.straightH + Math.sqrt(t.r * t.r - x * x);
 }
 
 /** 水槽のワールド行列が変わったら呼ぶ（毎フレームで可） */
@@ -28,6 +36,7 @@ varying vec3 vClipWorld;
 uniform mat4 uClipInv;
 uniform int uClipShape;
 uniform vec3 uClipHalf;
+uniform vec2 uTunnel;
 // 切り口の面の向き（水槽ローカル）：円形は半径方向、箱型ははみ出した側の面
 vec3 clipNormalLocal(vec3 lp) {
   if (uClipShape == 1) return normalize(vec3(lp.x, 0.0, lp.z));
@@ -47,6 +56,10 @@ const FRAG_BODY = `#include <clipping_planes_fragment>
   if (uClipShape == 1) {
     if (length(lp.xz) > uClipHalf.z) discard;
   } else if (abs(lp.x) > uClipHalf.x || abs(lp.z) > uClipHalf.y) {
+    discard;
+  }
+  // トンネル水槽：通路（アーチの内側）に入り込んだ部分を消す
+  if (uTunnel.x > 0.0 && abs(lp.x) < uTunnel.x && (lp.y < uTunnel.y || length(vec2(lp.x, lp.y - uTunnel.y)) < uTunnel.x)) {
     discard;
   }
 }`;

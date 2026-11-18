@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { startCoralEdit, moveCoralEdit } from './coralEdit.js';
+import { floorAt } from '../tanks/tankClip.js';
 import { getDef } from '../tanks/tankData.js';
 import { REFUND_RATE } from '../management/stageData.js';
 import { BRUSH_DEFAULTS, sculptAt, createBrushCursor } from '../interior/sculpt.js';
@@ -77,6 +78,12 @@ export class InteriorInteraction {
   _surfaceHit(exclude) {
     const hits = this.raycaster.intersectObjects(this._items(exclude), true);
     let world = hits[0]?.point ?? null;
+    if (!world && this.tank.userData.interior.tunnel) {
+      // トンネルのアーチ（ガラス上面）
+      const glass = [];
+      this.tank.getObjectByName('body').traverse((o) => o.userData.tunnelGlass && glass.push(o));
+      world = this.raycaster.intersectObjects(glass, false)[0]?.point ?? null;
+    }
     if (!world) {
       const I = this.tank.userData.interior;
       const p0 = this.tank.localToWorld(new THREE.Vector3(0, I.floorY, 0));
@@ -102,7 +109,7 @@ export class InteriorInteraction {
       x = THREE.MathUtils.clamp(x, -I.halfW, I.halfW);
       z = THREE.MathUtils.clamp(z, -I.halfD, I.halfD);
     }
-    const y = Math.max(local.y, I.floorY) - def.size.h * EMBED;
+    const y = Math.max(local.y, floorAt(I, x)) - def.size.h * EMBED;
     obj.position.set(x, y, z);
   }
 

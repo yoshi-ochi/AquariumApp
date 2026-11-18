@@ -30,6 +30,8 @@ import { setWaveData, updateWater } from './water/waterSurface.js';
 import { LAYOUT_VERSION, downloadJSON, readLayoutFile } from './io/layoutIO.js';
 import { CloudStore } from './io/cloudStore.js';
 import { unlock } from './auth/gate.js';
+import { Online } from './online/online.js';
+import { FriendPanel } from './ui/friendPanel.js';
 
 const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
@@ -349,6 +351,7 @@ async function boot() {
       goHome();
     },
     onEdit: () => {
+      if (visiting) return;
       if (mode === 'home') enterHallEdit();
       else if (mode === 'tank') enterInteriorEdit(focusTank, 'tank');
     },
@@ -400,6 +403,50 @@ async function boot() {
     applyRoom(true);
     shell.update();
   }
+
+  // ---- オンライン：クラウド保存・フレンド・訪問 -------------------------------
+  const online = new Online();
+  let visiting = null; // { mine: 自分のスナップショット }
+  const friendPanel = new FriendPanel({
+    el: $('friend-sheet'),
+    online,
+    toast,
+    onSave: async () => {
+      if (visiting) return toast('訪問中は保存できません', { error: true });
+      toast('クラウドに保存中…');
+      await online.save(snapshot());
+      toast('クラウドに保存しました');
+    },
+    onLoad: async () => {
+      if (visiting) return toast('訪問中は読み込めません', { error: true });
+      const data = await online.load();
+      if (!data) return toast('クラウドにまだ保存がありません');
+      applySnapshot(data);
+      toast('クラウドから読み込みました');
+    },
+    onVisit: async (id, name) => {
+      const data = await online.load(id);
+      if (!data) return toast(`${name} さんはまだ水族館を保存していません`, { error: true });
+      if (!visiting) visiting = { mine: snapshot() };
+      applySnapshot(data);
+      document.body.classList.add('visiting');
+      $('visit-label').textContent = `${name} さんの水族館`;
+      $('visit-bar').hidden = false;
+      toast(`${name} さんの水族館を訪問中`);
+    },
+  });
+  $('btn-online').addEventListener('click', () => {
+    shell.toggleMenu(false);
+    friendPanel.open();
+  });
+  $('btn-visit-end').addEventListener('click', () => {
+    if (!visiting) return;
+    applySnapshot(visiting.mine);
+    visiting = null;
+    document.body.classList.remove('visiting');
+    $('visit-bar').hidden = true;
+    toast('自分の水族館に戻りました');
+  });
 
   // 初期レイアウト（無料）：バックヤードとの仕切り壁の前に水槽台＋60cm水槽、右寄りに飼育員用ドア
   const b = room.plan.bounds(CELL.FLOOR);
@@ -484,7 +531,16 @@ async function boot() {
     };
     $('btn-cloud-load').addEventListener('click', () => loadCloud(false));
     splash.setProgress(1, 'クラウドのデータを読み込み中…');
-    await loadCloud(true); // 最後に保存したレイアウトで始める
+    if (!online.enabled) await loadCloud(true); // 最後に保存したレイアウトで始める
+  }
+  // オンラインにログイン済みなら、そのセーブで始める
+  try {
+    if (await online.restore()) {
+      const data = await online.load();
+      if (data) applySnapshot(data);
+    }
+  } catch (err) {
+    console.error(err);
   }
   await splash.hide();
 }

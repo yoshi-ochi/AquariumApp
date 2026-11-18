@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { getDef, hasDef, CATEGORY } from './tankData.js';
 import { buildObject, disposeObject } from './tankBuilder.js';
-import { createClipUniforms, updateClipUniforms, applyClip } from './tankClip.js';
+import { createClipUniforms, updateClipUniforms, applyClip, floorAt } from './tankClip.js';
 import { encodePositions, applyEncodedPositions } from '../interior/sculpt.js';
 import { applyTankLook } from './tankLook.js';
 import { updateBubbles } from './aeration.js';
@@ -97,7 +97,7 @@ export class TankManager {
    */
   surfaceSampler(tank, self, { x, y, z, rotY }) {
     const targets = this.interiorItems(tank).filter((o) => o !== self && !o.userData.ghost);
-    const floorY = tank.userData.interior.floorY;
+    const I = tank.userData.interior;
     const ray = new THREE.Raycaster();
     const down = new THREE.Vector3(0, -1, 0);
     const cache = new Map();
@@ -112,6 +112,7 @@ export class TankManager {
       const tz = z - lx * s + lz * c;
       const origin = tank.localToWorld(new THREE.Vector3(tx, y + 1.5, tz));
       ray.set(origin, down);
+      const floorY = floorAt(I, tx);
       let top = floorY;
       const hit = targets.length ? ray.intersectObjects(targets, true)[0] : null;
       if (hit) top = Math.max(floorY, tank.worldToLocal(hit.point.clone()).y);

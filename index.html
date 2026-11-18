@@ -50,6 +50,10 @@
         </div>
       </div>
       <div class="menu-row"><span id="menu-stage"></span><button id="btn-upgrade" class="primary">拡張</button></div>
+      <div class="menu-row">
+        <span>オンライン</span>
+        <button id="btn-online" class="primary">👥 フレンド・クラウド</button>
+      </div>
       <div class="menu-row" id="cloud-row" hidden>
         <span>クラウド</span>
         <button id="btn-cloud-save" class="primary">☁ 保存</button>
@@ -79,6 +83,11 @@
       <div id="catalog-cards"></div>
       <div id="room-panel" hidden></div>
     </section>
+
+    <!-- オンライン（アカウント・フレンド） -->
+    <div id="friend-sheet" hidden></div>
+    <!-- フレンドの水族館を訪問中 -->
+    <div id="visit-bar" hidden><span id="visit-label"></span><button id="btn-visit-end" class="pill accent">自分の水族館へ戻る</button></div>
 
     <div id="hint"></div>
     <div id="toast"></div>

@@ -222,11 +222,14 @@ function buildTunnelTank(g, def) {
   const arch = new THREE.CylinderGeometry(r, r, d, 48, 1, true, Math.PI / 2, Math.PI);
   arch.rotateX(Math.PI / 2);
   arch.translate(0, straightH, 0);
-  g.add(mesh(arch, MATERIALS.glass));
+  const archMesh = mesh(arch, MATERIALS.glass);
+  archMesh.userData.tunnelGlass = true;
+  g.add(archMesh);
   for (const sx of [-1, 1]) {
     const wall = mesh(new THREE.PlaneGeometry(d, straightH), MATERIALS.glass);
     wall.rotation.y = Math.PI / 2;
     wall.position.set(sx * r, straightH / 2, 0);
+    wall.userData.tunnelGlass = true;
     g.add(wall);
   }
 
@@ -245,7 +248,8 @@ function buildTunnelTank(g, def) {
     }
   }
   rim(g, w, d, h - 0.04, p, 0.08);
-  g.userData.interior = { shape: 'box', floorY: 0.18, halfW: w / 2 - 0.02, halfD: d / 2 - 0.02, waterTop: h * 0.93 };
+  // tunnel: 通路の上のアーチにもオブジェを置ける（アーチ内側はクリップ）
+  g.userData.interior = { shape: 'box', floorY: 0.18, halfW: w / 2 - 0.02, halfD: d / 2 - 0.02, waterTop: h * 0.93, tunnel: { r: r + 0.005, straightH } };
 }
 
 function buildMammalTank(g, def) {

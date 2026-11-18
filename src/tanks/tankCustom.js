@@ -64,6 +64,7 @@ export class TankCustomizer {
     this.renderPanel();
     this.panelEl.hidden = false;
     this.gizmoEl.hidden = false;
+    document.body.classList.add('has-selection'); // 詳細編集中はカタログを閉じる
     const isTank = this.getDef(obj.userData.defId).category === CATEGORY.TANK;
     this.gizmoEl.querySelectorAll('.only-tank').forEach((b) => (b.hidden = !isTank));
     this.syncLock();
@@ -92,6 +93,7 @@ export class TankCustomizer {
     this.helper = null;
     this.panelEl.hidden = true;
     this.gizmoEl.hidden = true;
+    document.body.classList.remove('has-selection');
   }
 
   renderPanel() {

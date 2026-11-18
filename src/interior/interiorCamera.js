@@ -28,6 +28,7 @@ export class InteriorCamera {
       minDistance: c.minDistance,
       maxDistance: c.maxDistance,
       enablePan: c.enablePan,
+      screenSpacePanning: c.screenSpacePanning,
     };
 
     // 水槽本体（中身を除く）のバウンディング球
@@ -43,8 +44,11 @@ export class InteriorCamera {
     const dir = new THREE.Vector3(0, 0.45, 1).applyQuaternion(q).normalize();
     const pos = center.clone().addScaledVector(dir, dist);
 
-    c.enablePan = false;
-    this._tweenTo(pos, center, { minDistance: dist * 0.3, maxDistance: dist * 1.8 });
+    // 2本指スライド（右ドラッグ）で視点を平行移動。注視点は水槽の範囲内に制限
+    c.enablePan = true;
+    c.screenSpacePanning = true;
+    this.panBox = box.clone().expandByScalar(sphere.radius * 0.1);
+    this._tweenTo(pos, center, { minDistance: dist * 0.15, maxDistance: dist * 1.8 });
   }
 
   exit() {
@@ -52,6 +56,8 @@ export class InteriorCamera {
     if (!s) return;
     this.saved = null;
     this.controls.enablePan = s.enablePan;
+    this.controls.screenSpacePanning = s.screenSpacePanning;
+    this.panBox = null;
     this._tweenTo(s.pos, s.target, { minDistance: s.minDistance, maxDistance: s.maxDistance });
   }
 
@@ -72,7 +78,18 @@ export class InteriorCamera {
 
   update(dt) {
     const tw = this.tween;
-    if (!tw) return;
+    if (!tw) {
+      // パンで注視点が水槽の外へ出ないように（カメラも同じだけ戻す）
+      if (this.panBox) {
+        const t = this.controls.target;
+        const clamped = t.clone().clamp(this.panBox.min, this.panBox.max);
+        if (!clamped.equals(t)) {
+          this.camera.position.add(clamped.clone().sub(t));
+          t.copy(clamped);
+        }
+      }
+      return;
+    }
     tw.t = Math.min(1, tw.t + dt / DURATION);
     const k = ease(tw.t);
     this.camera.position.lerpVectors(tw.fromPos, tw.pos, k);
