@@ -65,6 +65,7 @@ function tracedBody(a, c, P) {
   // paint: 列ごとの色、rows: 背から腹へ4段の色（paint が body の区間に適用）
   const hexOf = (i, r) => {
     const name = a.paint?.[i] ?? 'body';
+    if (name === 'saddle') return r < 2 ? c.mark : named[a.rows?.[r] ?? 'body']; // 背側だけの暗色帯
     return named[name === 'body' ? a.rows?.[r] ?? 'body' : name];
   };
   for (const s of [-1, 1]) {
