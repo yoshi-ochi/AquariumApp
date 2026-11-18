@@ -14,6 +14,7 @@ function formHtml(providers) {
     <div class="lg-row"><button type="button" data-act="signin" class="lg-main">ログイン</button><button type="button" data-act="signup">新規登録</button></div>
     <button type="button" data-act="reset" class="lg-link">パスワードを忘れた場合</button>
     <p id="lg-msg" role="alert"></p>
+    <a class="lg-policy" href="${import.meta.env.BASE_URL}privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
   </form>`;
 }
 
