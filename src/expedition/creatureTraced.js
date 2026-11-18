@@ -14,13 +14,15 @@ class Mesh {
     }
   }
 
+  /** hex は1色、または2枚の三角形それぞれの色 [色1, 色2] */
   quad(a, b, c, d, hex, flip) {
+    const [h1, h2] = Array.isArray(hex) ? hex : [hex, hex];
     if (flip) {
-      this.tri(a, c, b, hex);
-      this.tri(b, c, d, hex);
+      this.tri(a, c, b, h1);
+      this.tri(b, c, d, h2);
     } else {
-      this.tri(a, c, d, hex);
-      this.tri(a, d, b, hex);
+      this.tri(a, c, d, h1);
+      this.tri(a, d, b, h2);
     }
   }
 
@@ -64,6 +66,7 @@ function tracedBody(a, c, P) {
   const named = { body: c.colors.body, belly: c.colors.belly, mark: c.mark, fin: c.colors.fin };
   // paint: 列ごとの色、rows: 背から腹へ4段の色（paint が body の区間に適用）
   const hexOf = (i, r) => {
+    if (a.cells) return a.cells[i][r]; // 参考画像から採取した色
     const name = a.paint?.[i] ?? 'body';
     if (name === 'saddle') return r < 2 ? c.mark : named[a.rows?.[r] ?? 'body']; // 背側だけの暗色帯
     return named[name === 'body' ? a.rows?.[r] ?? 'body' : name];
@@ -82,7 +85,7 @@ function tracedBody(a, c, P) {
 /** 2本の点列の間に面を張る */
 function band(from, to, hex) {
   const mesh = new Mesh();
-  for (let i = 0; i < from.length - 1; i++) mesh.quad(from[i], from[i + 1], to[i], to[i + 1], hex, i % 2);
+  for (let i = 0; i < from.length - 1; i++) mesh.quad(from[i], from[i + 1], to[i], to[i + 1], Array.isArray(hex) ? hex[i] : hex, i % 2);
   return mesh.build();
 }
 
@@ -134,7 +137,7 @@ export function tracedParts(c, a) {
   const P = projector(a.photo);
   const parts = [tracedBody(a, c, P)];
   for (const f of a.fins) {
-    const hex = f.hex ?? c.colors.fin;
+    const hex = f.cols ?? f.hex ?? c.colors.fin;
     for (const side of f.lift ? [-1, 1] : [1]) parts.push(...tracedFin(a, f, hex, P, side));
   }
   const face = new Mesh();

@@ -382,7 +382,7 @@ export function buildCreature(c) {
       g.deleteAttribute('normal');
       return g;
     }), false);
-    bakeFacets(geo);
+    bakeFacets(geo, Boolean(ANATOMY[c.id]?.cells));
     return geo;
   };
   const clear = parts.filter((g) => g.userData.clear); // ひれの透ける膜

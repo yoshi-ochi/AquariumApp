@@ -38,8 +38,18 @@ function shade(out, base, light, seed) {
   return out.setHSL(h, s, l, THREE.SRGBColorSpace);
 }
 
+/** 参考画像から採取した色は、面の向きによる明暗だけを軽く足す */
+function shadePhoto(out, base, light, seed) {
+  const hsl = base.getHSL({}, THREE.SRGBColorSpace);
+  const jitter = (hash(seed) - 0.5) * 0.05;
+  // 明るい面は白飛びしやすいので控えめに、影の面はしっかり落とす
+  const gain = light > 0.5 ? 0.14 : 0.55;
+  const l = Math.min(0.96, Math.max(0, hsl.l * (1 + (light - 0.5) * gain) + jitter));
+  return out.setHSL(hsl.h, hsl.s, l, THREE.SRGBColorSpace);
+}
+
 /** 非インデックスの形状へ、三角形単位の色を焼き込む（各面の色は1頂点目の色を基準にする） */
-export function bakeFacets(geo) {
+export function bakeFacets(geo, photo = false) {
   const pos = geo.attributes.position;
   const col = geo.attributes.color;
   const [a, b, c, ab, ac, n, center] = Array.from({ length: 7 }, () => new THREE.Vector3());
@@ -62,7 +72,8 @@ export function bakeFacets(geo) {
     const raw = 0.5 + 0.5 * n.dot(LIGHT);
     const light = Math.min(1, Math.max(0, 0.5 + ((raw * 0.6 + height * 0.4) - 0.52) * 2.1));
     base.setRGB(col.getX(i), col.getY(i), col.getZ(i));
-    shade(out, base, light, i);
+    if (photo) shadePhoto(out, base, light, i);
+    else shade(out, base, light, i);
     for (let k = 0; k < 3; k++) col.setXYZ(i + k, out.r, out.g, out.b);
   }
   col.needsUpdate = true;
