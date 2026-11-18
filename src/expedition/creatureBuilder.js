@@ -3,6 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { FORMS } from './creatureForms.js';
 import { extraSoftParts } from './creatureSoft.js';
 import { RIM, bakeFacets, bandsFor, ringStops } from './creatureFacet.js';
+import { ANATOMY } from './creatureAnatomy.js';
+import { tracedParts } from './creatureTraced.js';
 
 /**
  * 展示生物のポリゴンアートモデル。+X が頭、原点が体の中心。三角形ごとに塗り分けて質感を統一する。
@@ -373,26 +375,36 @@ export function buildCreature(c) {
   const root = new THREE.Group();
   root.userData.creature = c.id;
   const f = FORMS[c.form];
-  const { parts, mode = 0, opacity = 1 } = f ? { parts: fishParts(c, f) } : softParts(c);
-  const geo = mergeGeometries(parts.map((g) => {
-    g.deleteAttribute('uv');
-    g.deleteAttribute('normal');
-    return g;
-  }), false);
+  const { parts, mode = 0, opacity = 1 } = ANATOMY[c.id] ? { parts: tracedParts(c, ANATOMY[c.id]) } : f ? { parts: fishParts(c, f) } : softParts(c);
+  const merge = (list) => {
+    const geo = mergeGeometries(list.map((g) => {
+      g.deleteAttribute('uv');
+      g.deleteAttribute('normal');
+      return g;
+    }), false);
+    bakeFacets(geo);
+    return geo;
+  };
+  const clear = parts.filter((g) => g.userData.clear); // ひれの透ける膜
+  const geo = merge(parts.filter((g) => !g.userData.clear));
+  const clearGeo = clear.length ? merge(clear) : null;
   parts.forEach((g) => g.dispose());
-  bakeFacets(geo);
   const uni = { uTime: { value: 0 }, uMode: { value: mode }, uWave: { value: f?.wave ?? 1 } };
   // 色は焼き込み済みなので、館内の照明に左右されない
-  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
-  mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uni);
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', VERT_DECL).replace('#include <begin_vertex>', VERT_BODY);
+  const addMesh = (g, alpha) => {
+    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide, transparent: alpha < 1, opacity: alpha, depthWrite: alpha >= 1 });
+    mat.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, uni);
+      shader.vertexShader = shader.vertexShader.replace('#include <common>', VERT_DECL).replace('#include <begin_vertex>', VERT_BODY);
+    };
+    mat.customProgramCacheKey = () => 'creature-swim';
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.scale.setScalar(c.len);
+    mesh.raycast = () => {};
+    root.add(mesh);
   };
-  mat.customProgramCacheKey = () => 'creature-swim';
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.scale.setScalar(c.len);
-  mesh.raycast = () => {};
-  root.add(mesh);
+  addMesh(geo, opacity);
+  if (clearGeo) addMesh(clearGeo, 0.38);
   root.userData.uni = uni;
   return root;
 }

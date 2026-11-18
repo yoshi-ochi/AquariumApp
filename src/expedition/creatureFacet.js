@@ -32,7 +32,7 @@ function shade(out, base, light, seed) {
   const bright = light - 0.5;
   const h = bright > 0 ? shiftHue(hsl.h, WARM_HUE, bright * 0.5) : shiftHue(hsl.h, COOL_HUE, -bright * 0.5);
   const s = Math.min(1, hsl.s * (1.2 + (0.5 - light) * 0.35));
-  const l = Math.min(0.86, Math.max(0.07, hsl.l * (0.3 + light * 0.98) + jitter));
+  const l = Math.min(0.86, Math.max(0.07, hsl.l * (0.36 + light * 0.8) + jitter));
   return out.setHSL(h, s, l, THREE.SRGBColorSpace);
 }
 
