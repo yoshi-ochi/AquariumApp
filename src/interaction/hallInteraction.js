@@ -4,6 +4,7 @@ import { buildObject, disposeObject } from '../tanks/tankBuilder.js';
 import { TankManager } from '../tanks/tankManager.js';
 import { REFUND_RATE } from '../management/stageData.js';
 import { CELL } from '../room/floorPlan.js';
+import { BASEMENT } from '../building/blueprint.js';
 import { findNearestRun, findRunByKey, placeEmbedded, alongOf, EMBED_RATIO_MAX } from '../room/embed.js';
 
 const CLICK_TOLERANCE = 6; // px
@@ -74,6 +75,8 @@ export class HallInteraction {
     const plan = this.room.plan;
     if (!plan.containsRect(x, z, hx, hz)) return false;
     if (def.yardOnly && plan.typeAt(x, z) !== CELL.YARD) return false;
+    // 地下は設備専用。予備水槽などは地下にだけ置ける
+    if (plan.floor === BASEMENT ? !def.yardOnly : def.basement) return false;
     // 大水槽には重ねて置けない
     return ![...this.manager.objects.values()].some((o) => {
       if (!this.manager.defOf(o).atrium || plan.floor !== 0) return false;
@@ -129,7 +132,7 @@ export class HallInteraction {
     p.ghost.visible = true;
     const lack = this._lack(p.def);
     p.valid = fits && !lack;
-    p.reason = !fits ? (p.def.yardOnly ? 'バックヤードに設置してください' : '解放済みの床の上に置いてください') : lack;
+    p.reason = !fits ? (p.def.basement ? '地下に設置してください' : p.def.yardOnly ? 'バックヤードに設置してください' : '解放済みの床の上に置いてください') : lack;
     p.helper.box.setFromObject(p.ghost);
     p.helper.material.color.set(p.valid ? 0x4cd18a : 0xff6b6b);
     p.helper.visible = true;

@@ -19,3 +19,12 @@ export const ARCHIVE_BONUS = 1.5;
 /** レア度ごとの繁殖時間（時間） */
 export const BREED_HOURS = { 1: 2, 2: 6, 3: 24 };
 export const breedHours = (rarity, level) => Math.round(BREED_HOURS[rarity] * (1 - level * 0.25) * 10) / 10;
+
+// ---- 魚の保持 ------------------------------------------------------------------
+/** 建物のレベルごとの基本の保持枠 */
+export const HOLD_BY_LEVEL = [30, 60, 100, 160];
+/** 地下の予備水槽1基あたりの保持枠 */
+export const HOLD_PER_TANK = 30;
+/** 拡張工事は建物が最大レベルでも同じ金額で続けられる */
+export const EXPAND_COST = 500000;
+export const EXPAND_SLOTS = 20;

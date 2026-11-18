@@ -1,53 +1,113 @@
-import { GRID_X, GRID_Z, LAYOUTS } from '../building/blueprint.js';
-import { renderExteriorPreviews } from '../building/exteriorPreview.js';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { LAYOUTS, BASEMENT, ZONES, setLayout } from '../building/blueprint.js';
+import { buildFloorModel } from '../building/floorModel.js';
+import { Exterior } from '../building/exterior.js';
 
-/** 初期設定の間取り選択。選んだ間取りの id を返す */
-const META = {
-  entrance: '#7fc8e8', yard1: '#c9ccd0', yard2: '#c9ccd0', coast: '#6fbf9a', subtropical: '#f2b45a', gallery: '#8fd3e0',
-  atrium: '#3f8fd0', deep: '#4a5a9c', archive: '#b79bd8', pool: '#54c0d8', plaza: '#d9c49a', marine: '#8aa6b8', nature: '#7fae62',
-};
-const FLOORS = [
-  ['1F', ['pool', 'plaza', 'marine', 'nature', 'yard1', 'coast', 'subtropical', 'atrium', 'entrance']],
-  ['2F', ['yard2', 'deep', 'archive', 'gallery']],
-];
-const LEGEND = [['entrance', '入口'], ['coast', '近海'], ['subtropical', '亜熱帯'], ['atrium', '大水槽'], ['deep', '深海'], ['archive', '資料'], ['yard1', '職員'], ['pool', 'イルカ'], ['marine', '海獣'], ['plaza', 'ひろば'], ['nature', '自然再現']];
+const MODES = [['exterior', '外観'], ['all', '全館'], ['1', '2F'], ['0', '1F'], [String(BASEMENT), 'B1']];
+const STACK_GAP = 24;
 
-function planSvg(layout, ids, label) {
-  const rects = ids.flatMap((id) => layout.rects[id].map(([x0, z0, x1, z1]) => `<rect x="${x0}" y="${z0}" width="${x1 - x0 + 1}" height="${z1 - z0 + 1}" fill="${META[id]}"/>`));
-  const [vx0, vz0, vx1, vz1] = layout.voidRect;
-  const hole = label === '2F' ? `<rect x="${vx0}" y="${vz0}" width="${vx1 - vx0 + 1}" height="${vz1 - vz0 + 1}" fill="#123f60"/>` : '';
-  return `<figure><svg viewBox="0 0 ${GRID_X} ${GRID_Z}" role="img" aria-label="${layout.name} ${label}の間取り">${rects.join('')}${hole}</svg><figcaption>${label}</figcaption></figure>`;
-}
-
-export async function pickLayout(el) {
-  el.innerHTML = '<p class="lp-wait">外観を準備しています…</p>';
-  el.hidden = false;
-  const shots = await renderExteriorPreviews();
+/** 間取りを立体で見比べる選択画面。選んだ間取りの id を返す */
+export function pickLayout(el) {
   return new Promise((resolve) => {
     let chosen = LAYOUTS[0].id;
-    const cards = LAYOUTS.map((l) => `<button class="lp-card" data-id="${l.id}">
-      <img class="lp-shot" src="${shots.get(l.id)}" alt="${l.name}の外観">
-      <span class="lp-plans">${FLOORS.map(([label, ids]) => planSvg(l, ids, label)).join('')}</span>
-      <b>${l.name}</b><small>${l.summary}</small><small class="lp-from">${l.inspired}</small></button>`).join('');
+    let mode = 'exterior';
     el.innerHTML = `<div class="lp-box"><h2>水族館の間取りを選ぶ</h2>
-      <p>建物全体の形と順路が決まります。あとから変更はできません。</p>
-      <div class="lp-grid">${cards}</div>
-      <p class="lp-legend">${LEGEND.map(([id, t]) => `<i style="background:${META[id]}"></i>${t}`).join('')}</p>
+      <div class="lp-stage"><canvas id="lp-canvas"></canvas>
+        <div class="lp-modes">${MODES.map(([id, label]) => `<button data-mode="${id}">${label}</button>`).join('')}</div></div>
+      <p class="lp-tip">ドラッグで回転、ピンチで拡大できます。選んだ間取りは後から変更できません。</p>
+      <div class="lp-grid">${LAYOUTS.map((l) => `<button class="lp-card" data-id="${l.id}"><b>${l.name}</b><small>${l.summary}</small><small class="lp-from">${l.inspired}</small></button>`).join('')}</div>
       <button id="lp-ok" class="primary">この間取りで始める</button></div>`;
     el.hidden = false;
-    const mark = () => el.querySelectorAll('.lp-card').forEach((c) => c.classList.toggle('active', c.dataset.id === chosen));
-    mark();
+
+    const canvas = el.querySelector('#lp-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xbfe6ff);
+    scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x6b8f4e, 1.5));
+    const sun = new THREE.DirectionalLight(0xfff6e5, 1.8);
+    sun.position.set(-30, 50, 40);
+    scene.add(sun);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8fbf6a, roughness: 1 }));
+    scene.add(ground);
+    const camera = new THREE.PerspectiveCamera(40, 1, 1, 600);
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.maxPolarAngle = Math.PI / 2 - 0.04;
+    controls.minDistance = 15;
+    controls.maxDistance = 240;
+    const models = new THREE.Group();
+    scene.add(models);
+    const exterior = new Exterior(scene);
+
+    const clearModels = () => {
+      models.traverse((o) => {
+        o.geometry?.dispose();
+        o.material?.map?.dispose();
+        o.material?.dispose();
+      });
+      models.clear();
+    };
+
+    const show = () => {
+      setLayout(chosen);
+      clearModels();
+      const isExterior = mode === 'exterior';
+      const under = mode === String(BASEMENT);
+      exterior.layoutId = null;
+      exterior.show(isExterior);
+      ground.visible = !under;
+      ground.position.y = mode === 'all' ? -STACK_GAP - 2 : -0.1;
+      scene.background.set(under ? 0x161d24 : 0xbfe6ff);
+      const unlocked = new Set(ZONES.map((z) => z.id));
+      const floors = mode === 'all' ? [BASEMENT, 0, 1] : isExterior ? [] : [+mode];
+      for (const floor of floors) {
+        const model = buildFloorModel({ floor, unlocked });
+        if (mode === 'all') model.position.y = floor === BASEMENT ? -STACK_GAP : floor * STACK_GAP;
+        models.add(model);
+      }
+      const k = Math.max(1, 1.5 / Math.max(0.6, camera.aspect));
+      const pos = isExterior ? [-40, 24, 72] : mode === 'all' ? [22, 74, 78] : [0, 62, 44];
+      camera.position.set(pos[0] * k, pos[1] * k, pos[2] * k);
+      controls.target.set(0, isExterior ? 5 : mode === 'all' ? 4 : 0, 2);
+      controls.update();
+      el.querySelectorAll('.lp-card').forEach((c) => c.classList.toggle('active', c.dataset.id === chosen));
+      el.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    };
+
+    const resize = () => {
+      const r = canvas.parentElement.getBoundingClientRect();
+      renderer.setSize(r.width, r.height, false);
+      camera.aspect = r.width / r.height;
+      camera.updateProjectionMatrix();
+    };
+    window.addEventListener('resize', resize);
+    resize();
+    show();
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      renderer.render(scene, camera);
+    });
+
     el.onclick = (e) => {
       const card = e.target.closest('.lp-card');
-      if (card) {
-        chosen = card.dataset.id;
-        return mark();
-      }
+      const modeBtn = e.target.closest('[data-mode]');
+      if (card) chosen = card.dataset.id;
+      else if (modeBtn) mode = modeBtn.dataset.mode;
+      if (card || modeBtn) return show();
       if (e.target.id !== 'lp-ok') return;
-      el.hidden = true;
       el.onclick = null;
+      window.removeEventListener('resize', resize);
+      renderer.setAnimationLoop(null);
+      clearModels();
+      controls.dispose();
+      renderer.dispose();
+      renderer.forceContextLoss();
+      el.hidden = true;
+      el.innerHTML = '';
       resolve(chosen);
     };
   });
 }
-

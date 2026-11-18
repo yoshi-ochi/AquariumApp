@@ -2,6 +2,7 @@ import { INCOME_PER_VISITOR } from '../management/stageData.js';
 import { CREATURES } from '../expedition/creatureData.js';
 import { feed, feedCost, isHungry, hasLife } from '../expedition/husbandry.js';
 import { Backyard } from '../building/backyard.js';
+import { setCleanIntervalBoost } from '../tanks/tankCleaning.js';
 import { BackyardView } from '../building/buildingViews.js';
 import { Crowd } from '../visitors/crowd.js';
 import { CareView, EventView, ZukanView } from './lifeViews.js';
@@ -16,9 +17,10 @@ export class LifeSystems {
     Object.assign(this, { manager, economy, ops, inventory, expeditions, toast, getHome, goalEl, reportEl });
     this.state = emptyState();
     this.crowd = new Crowd({ scene: sceneMgr.scene, room, manager });
-    this.backyard = new Backyard({ manager, ops, expeditions, toast, isUnlocked });
+    this.backyard = new Backyard({ manager, ops, economy, expeditions, toast, isUnlocked });
+    expeditions.getCapacity = () => this.backyard.capacity;
     this.panels = {
-      backyard: { title: 'バックヤード', live: true, view: new BackyardView({ backyard: this.backyard, expeditions, previews, toast }) },
+      backyard: { title: 'バックヤード', live: true, view: new BackyardView({ backyard: this.backyard, expeditions, economy, previews, toast }) },
       care: { title: '飼育', live: true, view: new CareView({ manager, economy, toast, onFed: () => (this.state.flags.fed = true) }) },
       zukan: { title: '生き物図鑑', view: new ZukanView({ expeditions, previews, economy, state: this.state, toast }) },
       event: { title: 'イベント', live: true, view: new EventView({ economy, state: this.state, getStats: () => this.stats(), toast, onStart: () => (this.state.flags.event = true) }) },
@@ -53,9 +55,12 @@ export class LifeSystems {
 
   tick() {
     const s = this.stats();
+    const count = (id) => [...this.manager.objects.values()].filter((o) => o.userData.defId === id).length;
     this.ops.shops = s.shops;
     this.ops.cafes = s.cafes;
     this.ops.wageMult = 1 - this.backyard.level('welfare') * 0.05;
+    this.ops.cleanerRelief = count('cleanCenter');
+    setCleanIntervalBoost(1 + Math.min(4, count('waterPlant')) * 0.25);
     this.backyard.tick();
     this._husbandry();
     this._renderGoal(s);

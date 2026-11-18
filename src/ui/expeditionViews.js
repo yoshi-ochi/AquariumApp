@@ -1,5 +1,6 @@
 import { CREATURES, RARITY, getCreature, getDestination, travelPlan } from '../expedition/creatureData.js';
 import { tankCapacity, usedCapacity, syncLife } from '../expedition/tankLife.js';
+import { getMethod, methodsAt } from '../expedition/fishingData.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
 export const fmtTime = (s) => (s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${s % 60}秒` : ''}` : `${s}秒`);
@@ -7,9 +8,10 @@ const until = (t) => `<span data-until="${t}">${fmtTime(Math.max(0, Math.ceil((t
 
 /** 採取遠征：調査隊の状況と行き先 */
 export class ExpeditionView {
-  constructor({ economy, expeditions, toast, getHome, previews, getDiscount }) {
-    Object.assign(this, { economy, expeditions, toast, getHome, previews, getDiscount });
+  constructor({ economy, expeditions, toast, getHome, previews, getDiscount, getCapacity, fishing }) {
+    Object.assign(this, { economy, expeditions, toast, getHome, previews, getDiscount, getCapacity, fishing });
     this.focus = null; // 地図で選んだ採取地
+    this.methodId = null; // 選んだ漁法
   }
 
   html() {
@@ -24,39 +26,59 @@ export class ExpeditionView {
     const status = `<p class="gs-empty">調査隊 ${ex.trips.length}/${level}</p>${trips.join('')}`;
     const d = this.focus && getDestination(this.focus);
     if (!d) return `${status}<p class="gs-empty">地図の採取地をタップして行き先を選びます。</p>`;
-    const plan = this._plan(d);
-    const species = d.pool.map((id) => {
+    const methods = methodsAt(d);
+    if (!methods.some((m) => m.method.id === this.methodId)) this.methodId = methods[0].method.id;
+    const sel = methods.find((m) => m.method.id === this.methodId);
+    const plan = this._plan(d, sel.method);
+    const tabs = methods.map(({ method: m }) => `<button data-act="method" data-id="${m.id}" class="${m.id === this.methodId ? 'active' : ''}">${m.name}</button>`).join('');
+    const species = sel.catches.map((id) => {
       const c = getCreature(id);
       return `<div class="ex-sp"><img src="${this.previews.get(`creature:${id}`) ?? ''}" alt=""><small>${c.name}</small><small>${RARITY[c.rarity]}</small></div>`;
     }).join('');
     const locked = d.stage > level;
-    const ok = !locked && ex.canDepart(level) && this.economy.canAfford(plan.cost);
+    const full = ex.usedSlots >= this.getCapacity();
+    const ok = !locked && !full && ex.canDepart(level) && this.economy.canAfford(plan.cost);
     return `<div class="st-sum"><div class="st-head"><b>${d.name}</b><small>立地から ${plan.km.toLocaleString('ja-JP')}km</small></div><small>${d.text}</small>
+      <h4 class="gs-sub">漁法を選ぶ</h4><div class="ex-methods">${tabs}</div>
+      <small>${sel.method.how}</small>
       <div class="ex-species">${species}</div>
-      ${locked ? `<em class="gs-alert">ステージ${d.stage}で解放</em>` : `<button data-act="depart" data-id="${d.id}" class="primary" ${ok ? '' : 'disabled'}>出発 ${yen(plan.cost)} ・ ${fmtTime(plan.seconds)}</button>`}</div>${status}`;
+      <small>魚の保持 ${ex.usedSlots}/${this.getCapacity()}枠</small>
+      ${full ? '<em class="gs-alert">保持枠がいっぱいです。バックヤードで拡張してください</em>' : ''}
+      ${locked ? `<em class="gs-alert">ステージ${d.stage}で解放</em>` : `<button data-act="depart" data-id="${d.id}" class="primary" ${ok ? '' : 'disabled'}>${sel.method.name}で出港 ${yen(plan.cost)} ・ ${fmtTime(plan.seconds)}</button>`}</div>${status}`;
   }
 
   /** 研究「採取技術」の割引を反映した費用と時間 */
-  _plan(d) {
+  _plan(d, method) {
     const plan = travelPlan(d, this.getHome());
-    return { ...plan, cost: Math.round(plan.cost * (1 - this.getDiscount())) };
+    return { ...plan, cost: Math.round(plan.cost * method.cost * (1 - this.getDiscount())), seconds: Math.round(plan.seconds * method.time) };
   }
 
   act(act, id) {
     const ex = this.expeditions;
+    if (act === 'method') {
+      this.methodId = id;
+      return true;
+    }
     if (act === 'depart') {
       const d = getDestination(id);
-      const plan = this._plan(d);
-      if (ex.canDepart(this.economy.stage.level) && this.economy.spend(plan.cost)) {
-        ex.depart(d, plan.seconds);
-        this.toast(`${d.name} へ出発しました`);
-      }
+      const method = getMethod(this.methodId);
+      const plan = this._plan(d, method);
+      if (!ex.canDepart(this.economy.stage.level) || !this.economy.spend(plan.cost)) return true;
+      // 漁の作業を再現してから、待ち時間に入る
+      this.fishing.play(method.id).then(() => {
+        ex.depart(d, plan.seconds, method.id);
+        this.toast(`${d.name} で${method.name}を開始しました`);
+      });
       return true;
     }
     if (act === 'claim') {
+      const trip = ex.trips[+id];
       const caught = ex.claim(+id);
-      const names = [...new Set(caught)].map((c) => `${getCreature(c).name}×${caught.filter((x) => x === c).length}`);
-      if (names.length) this.toast(`採取成功：${names.join('、')}`, { duration: 4000 });
+      const label = (list) => [...new Set(list)].map((c) => `${getCreature(c).name}×${list.filter((x) => x === c).length}`).join('、');
+      const released = ex.released.length ? `／満杯のため放流：${label(ex.released)}` : '';
+      const text = `${label(caught) || '持ち帰れる生き物はいませんでした'}${released}`;
+      if (trip?.method) this.fishing.play(trip.method, text);
+      else this.toast(`採取成功：${text}`, { duration: 4000 });
       return true;
     }
     return false;
@@ -133,6 +155,7 @@ export class CreatureView {
     const [uid, id] = key.split(':');
     const tank = this.manager.objects.get(+uid);
     if (!tank?.userData.creatures?.[id]) return;
+    if (this.expeditions.usedSlots + getCreature(id).slots > this.expeditions.getCapacity()) return this.toast('保持枠がいっぱいです', { error: true });
     tank.userData.creatures[id]--;
     if (!tank.userData.creatures[id]) delete tank.userData.creatures[id];
     syncLife(tank);

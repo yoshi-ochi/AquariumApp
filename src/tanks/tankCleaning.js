@@ -6,13 +6,17 @@ const CARE = 'care';
 const MAX_MURK = 0.38;
 const noRaycast = () => {};
 
+/** 水質管理設備による掃除間隔の延長倍率 */
+let intervalBoost = 1;
+export const setCleanIntervalBoost = (k) => (intervalBoost = k);
+
 export const cleanSpec = (defId) => CLEANING[defId];
 
 /** 汚れ具合。1 以上で掃除が必要 */
 export function dirtLevel(tank, now = Date.now()) {
   const c = tank.userData.clean;
   if (!c) return 0;
-  return (now - c.last) / (CLEANING[tank.userData.defId].interval * 1000);
+  return (now - c.last) / (CLEANING[tank.userData.defId].interval * 1000 * intervalBoost);
 }
 
 export const isCleaning = (tank) => !!tank.userData.clean?.until;

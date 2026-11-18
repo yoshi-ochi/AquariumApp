@@ -1,15 +1,29 @@
 import { getCreature } from '../expedition/creatureData.js';
-import { ARCHIVE_BONUS, POINTS_PER_MIN, breedHours, researchCost } from './backyardData.js';
+import { ARCHIVE_BONUS, EXPAND_SLOTS, HOLD_BY_LEVEL, HOLD_PER_TANK, POINTS_PER_MIN, breedHours, researchCost } from './backyardData.js';
 
 /** バックヤードの研究室と繁殖水槽。state は保存データの一部 */
 export class Backyard {
-  constructor({ manager, ops, expeditions, toast, isUnlocked }) {
-    Object.assign(this, { manager, ops, expeditions, toast, isUnlocked });
+  constructor({ manager, ops, economy, expeditions, toast, isUnlocked }) {
+    Object.assign(this, { manager, ops, economy, expeditions, toast, isUnlocked });
     this.state = Backyard.emptyState();
   }
 
   static emptyState() {
-    return { points: 0, levels: {}, jobs: {} };
+    return { points: 0, levels: {}, jobs: {}, expansions: 0 };
+  }
+
+  get expansions() {
+    return this.state.expansions;
+  }
+
+  expand() {
+    this.state.expansions++;
+  }
+
+  /** 魚を保持できる枠の合計 */
+  get capacity() {
+    const base = HOLD_BY_LEVEL[Math.min(HOLD_BY_LEVEL.length, this.economy.stage.level) - 1];
+    return base + this._uids('holdingTank').length * HOLD_PER_TANK + this.state.expansions * EXPAND_SLOTS;
   }
 
   get points() {
@@ -59,6 +73,10 @@ export class Backyard {
   startBreeding(uid, id) {
     const c = getCreature(id);
     if (this.jobs[uid] || !this.breeders.includes(uid) || !c || !this.canBreed(c) || this.expeditions.count(id) < 2) return false;
+    if (this.expeditions.usedSlots + c.slots > this.capacity) {
+      this.toast('保持枠がいっぱいです', { error: true });
+      return false;
+    }
     this.jobs[uid] = { id, until: Date.now() + breedHours(c.rarity, this.level('breeding')) * 3600000 };
     return true;
   }

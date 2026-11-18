@@ -1,7 +1,7 @@
 import { TankManager } from '../tanks/tankManager.js';
 import { CATEGORY } from '../tanks/tankData.js';
 import { FloorPlan, CELL } from '../room/floorPlan.js';
-import { ZONES, FLOOR_COUNT, ATRIUM_TANK_POS, getZone, oldZoneOffset, zoneCenter } from './blueprint.js';
+import { ZONES, FLOOR_COUNT, BASEMENT, PLAN_FLOORS, ATRIUM_TANK_POS, getZone, oldZoneOffset, zoneCenter } from './blueprint.js';
 
 /** 自由な床形状の時代に使えていた広さに相当するエリア */
 export function zonesForLegacyStage(level) {
@@ -76,6 +76,34 @@ export function migrateToLayout({ manager, unlocked, wasBuilding, inventory, exp
     placed.push({ ...spot, hx, hz });
   }
   for (let f = 0; f < FLOOR_COUNT; f++) manager.refreshElevations(f);
+}
+
+/** 間取りの変更で置けなくなった物だけを、空いている場所へ移す */
+export function relocateInvalid({ manager, unlocked, inventory, expeditions, economy }) {
+  const plans = new Map(PLAN_FLOORS.map((f) => [f, new FloorPlan(f, unlocked)]));
+  const all = [...manager.objects.values()];
+  const riders = new Map(all.map((o) => [o, manager.getRiders(o)]));
+  const carried = new Set([...riders.values()].flat());
+  const roots = all.filter((o) => !carried.has(o) && !o.userData.embed && !manager.defOf(o).atrium);
+  const box = (o) => ({ x: o.position.x, z: o.position.z, floor: o.userData.floor, ...TankManager.footprintHalf(manager.defOf(o), o.rotation.y) });
+  const fits = (o) => plans.get(o.userData.floor).containsRect(o.position.x, o.position.z, box(o).hx, box(o).hz);
+  const placed = roots.filter(fits).map(box);
+  for (const o of roots.filter((r) => !fits(r))) {
+    const { hx, hz } = box(o);
+    const spot = findSpot([...plans.values()].filter((p) => p.floor !== BASEMENT), placed, hx, hz, !!manager.defOf(o).yardOnly);
+    if (!spot) {
+      for (const item of [o, ...riders.get(o)]) stow(item, { manager, inventory, expeditions, economy });
+      continue;
+    }
+    const [dx, dz] = [spot.x - o.position.x, spot.z - o.position.z];
+    for (const item of [o, ...riders.get(o)]) {
+      item.position.x += dx;
+      item.position.z += dz;
+      item.userData.floor = spot.floor;
+    }
+    placed.push({ ...spot, hx, hz });
+  }
+  for (const f of PLAN_FLOORS) manager.refreshElevations(f);
 }
 
 /** 置けない物を在庫とお金に戻す */

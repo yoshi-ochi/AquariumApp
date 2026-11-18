@@ -1,5 +1,6 @@
 import { mulberry32 } from '../tanks/random.js';
 import { getCreature, getDestination, RARITY_WEIGHT } from './creatureData.js';
+import { SPECIES_METHODS } from './fishingData.js';
 
 /**
  * 採取遠征の進行と、捕まえた生物の在庫。
@@ -11,6 +12,13 @@ export class Expeditions extends EventTarget {
     this.trips = [];
     this.creatures = {};
     this.seen = {}; // 図鑑：これまでに手に入れた数
+    this.getCapacity = () => Infinity;
+    this.released = []; // 満杯で放流した生き物（直前の受け取り分）
+  }
+
+  /** 在庫の生き物が使っている保持枠 */
+  get usedSlots() {
+    return Object.entries(this.creatures).reduce((s, [id, n]) => s + (getCreature(id)?.slots ?? 0) * n, 0);
   }
 
   seenCount(id) {
@@ -37,8 +45,8 @@ export class Expeditions extends EventTarget {
     return this.trips.length < stageLevel;
   }
 
-  depart(dest, seconds = dest.seconds, now = Date.now()) {
-    this.trips.push({ dest: dest.id, doneAt: now + seconds * 1000, seed: Math.floor(Math.random() * 2 ** 31) });
+  depart(dest, seconds = dest.seconds, method = null, now = Date.now()) {
+    this.trips.push({ dest: dest.id, method, doneAt: now + seconds * 1000, seed: Math.floor(Math.random() * 2 ** 31) });
     this._emit();
   }
 
@@ -52,12 +60,19 @@ export class Expeditions extends EventTarget {
     if (!trip || !this.isDone(trip, now)) return [];
     const caught = rollCatch(trip);
     this.trips.splice(index, 1);
+    this.released = [];
+    const kept = [];
     for (const id of caught) {
+      this.seen[id] = this.seenCount(id) + 1; // 放流しても図鑑には載る
+      if (this.usedSlots + getCreature(id).slots > this.getCapacity()) {
+        this.released.push(id);
+        continue;
+      }
       this.creatures[id] = this.count(id) + 1;
-      this.seen[id] = this.seenCount(id) + 1;
+      kept.push(id);
     }
     this._emit();
-    return caught;
+    return kept;
   }
 
   take(id) {
@@ -92,7 +107,9 @@ export class Expeditions extends EventTarget {
 /** 2〜4匹をレア度の重みで抽選 */
 export function rollCatch(trip) {
   const rand = mulberry32(trip.seed);
-  const pool = getDestination(trip.dest).pool.map(getCreature);
+  const all = getDestination(trip.dest).pool;
+  const usable = trip.method ? all.filter((id) => SPECIES_METHODS[id]?.includes(trip.method)) : all;
+  const pool = (usable.length ? usable : all).map(getCreature);
   const total = pool.reduce((s, c) => s + RARITY_WEIGHT[c.rarity], 0);
   const n = 2 + Math.floor(rand() * 3);
   return Array.from({ length: n }, () => {

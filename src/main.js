@@ -45,7 +45,7 @@ import { AllianceApi } from './online/allianceApi.js';
 import { AllianceView } from './ui/allianceView.js';
 import { MapPage } from './ui/mapPage.js';
 import { LifeSystems } from './game/lifeSystems.js';
-import { START_ZONES, ATRIUM_TANK_POS, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, getZone, setLayout, setWallEdits, zoneAt, zoneCenter } from './building/blueprint.js';
+import { START_ZONES, ATRIUM_TANK_POS, BASEMENT, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, getZone, setLayout, setWallEdits, zoneAt, zoneCenter } from './building/blueprint.js';
 import { ViewModes } from './building/viewModes.js';
 import { OutdoorScenery } from './building/outdoorScenery.js';
 import { WallInteraction } from './interaction/wallInteraction.js';
@@ -53,7 +53,8 @@ import { pickLayout } from './ui/layoutPicker.js';
 import { ZoneLabels } from './building/zoneLabels.js';
 import { DolphinPool } from './building/dolphinPool.js';
 import { ZoneView } from './building/buildingViews.js';
-import { migrateToLayout, zonesForLegacyStage } from './building/migrate.js';
+import { migrateToLayout, relocateInvalid, zonesForLegacyStage } from './building/migrate.js';
+import { FishingScene } from './expedition/fishingScene.js';
 import { zoneOf } from './expedition/husbandry.js';
 import { isHungry } from './expedition/husbandry.js';
 import { allianceBonus, allianceLevel } from './expedition/creatureData.js';
@@ -151,7 +152,10 @@ async function boot() {
     room.setStage(economy.stage, economy.floor, unlocked);
     pool.setLayout();
     zoneLabels.update(economy.floor, unlocked);
-    pool.setUnlocked(unlocked.has('pool'));
+    const under = economy.floor === BASEMENT;
+    room.setUnderground(under);
+    pool.setUnlocked(unlocked.has('pool') && !under);
+    scenery.group.visible = !under;
     scenery.sync(LAYOUT.id, unlocked);
     manager.extraAppeal = (unlocked.has('pool') ? POOL_APPEAL : 0) + Object.entries(OUTDOOR_APPEAL).reduce((s, [id, n]) => s + (unlocked.has(id) ? n : 0), 0);
     ensureAtriumTank();
@@ -437,7 +441,7 @@ async function boot() {
 
   /** 現在の状態を保存用データにする */
   function snapshot() {
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: { ...roomSettings, building: 2, layout: LAYOUT.id, unlocked: [...unlocked], walls: WALL_EDITS }, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: { ...roomSettings, building: 3, layout: LAYOUT.id, unlocked: [...unlocked], walls: WALL_EDITS }, objects: manager.serialize() };
   }
 
   let pendingLayout = null; // 初期設定で選んだ間取り
@@ -482,6 +486,9 @@ async function boot() {
       migrateToLayout({ manager, unlocked, wasBuilding: !!data.room?.building, inventory, expeditions, economy });
       resetLights();
       economy.setFloor(0);
+    } else if ((data.room.building ?? 0) < 3) {
+      // 管理通路の追加で置けなくなった物を移す
+      relocateInvalid({ manager, unlocked, inventory, expeditions, economy });
     }
     delete roomSettings.plan;
     manager.setFloor(economy.floor);
@@ -575,7 +582,7 @@ async function boot() {
     onVisit: (id, name) => visitAquarium(id, name),
     onChanged: () => mapPage.refresh(),
   });
-  const expeditionView = new ExpeditionView({ economy, expeditions, toast, previews, getHome: () => home, getDiscount: () => life.backyard.level('field') * 0.1 });
+  const expeditionView = new ExpeditionView({ economy, expeditions, toast, previews, getHome: () => home, getDiscount: () => life.backyard.level('field') * 0.1, getCapacity: () => life.backyard.capacity, fishing: new FishingScene($('fishing-scene')) });
   // 地図で選んだ仲間の水族館
   const placeView = {
     pin: null,

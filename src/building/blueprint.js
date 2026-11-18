@@ -9,6 +9,13 @@ export const GRID_X = 72;
 const SITE_X = 16;
 export const GRID_Z = 46;
 export const FLOOR_COUNT = 2;
+/** 地下1階のフロア番号（地上は 0, 1） */
+export const BASEMENT = 2;
+export const PLAN_FLOORS = [0, 1, BASEMENT];
+export const floorLabel = (floor) => (floor === BASEMENT ? 'B1' : `${floor + 1}F`);
+/** 展示室の壁の裏に設ける管理通路の幅（2マス = 1.8m） */
+export const SERVICE_WIDTH = 2;
+export const EXHIBIT_ZONES = ['coast', 'subtropical', 'deep', 'archive'];
 /** 1階分の高さ(m) */
 export const STORY_H = 3.6;
 
@@ -28,6 +35,10 @@ const ZONE_META = [
   { id: 'plaza', name: '屋外ひろば', floor: 0, type: OUTDOOR, open: true, stage: 1, cost: 400000, requires: 'coast', color: '#d9c49a', text: '屋外の多目的エリア。お店や水槽を自由に置ける' },
   { id: 'marine', name: '海獣エリア', floor: 0, type: OUTDOOR, open: true, stage: 2, cost: 1200000, requires: 'plaza', color: '#8aa6b8', text: 'アザラシのプールがある屋外エリア。海獣用水槽も置ける' },
   { id: 'nature', name: '自然再現エリア', floor: 0, type: OUTDOOR, open: true, stage: 3, cost: 3000000, requires: 'subtropical', color: '#7fae62', text: '磯・干潟・小川を再現した屋外エリア' },
+  { id: 'b1a', name: '地下機械室', floor: BASEMENT, type: YARD, stage: 1, cost: 0, color: '#9aa4ad', text: '水質管理と予備水槽の基本エリア' },
+  { id: 'b1b', name: '地下西ブロック', floor: BASEMENT, type: YARD, stage: 2, cost: 800000, requires: 'b1a', color: '#9aa4ad', text: '設備を増やせる地下の拡張区画' },
+  { id: 'b1c', name: '地下東ブロック', floor: BASEMENT, type: YARD, stage: 3, cost: 2500000, requires: 'b1a', color: '#9aa4ad', text: '設備を増やせる地下の拡張区画' },
+  { id: 'b1d', name: '地下南ブロック', floor: BASEMENT, type: YARD, stage: 4, cost: 8000000, requires: 'b1c', color: '#9aa4ad', text: '大規模な保持設備を置ける最大の区画' },
   { id: 'pool', name: 'イルカプール', floor: 0, type: OUTDOOR, stage: 3, cost: 8000000, color: '#54c0d8', text: '2階建ての観客席を備えたショープール' },
 ];
 
@@ -80,6 +91,8 @@ export const LAYOUTS = [
     outdoor: { plaza: [1, 19, 16, 45], marine: [1, 4, 16, 18], nature: [55, 4, 70, 45] },
     voidRect: [15, 20, 24, 29],
     links: [['entrance', 'atrium'], ['atrium', 'coast'], ['atrium', 'subtropical'], ['gallery', 'deep'], ['gallery', 'archive'], ['coast', 'plaza'], ['subtropical', 'nature']],
+    // 大ホールの裏で東西の管理通路をつなぐ
+    serviceLinks: [[1, 18, 38, 18]],
   },
   {
     id: 'pavilion',
@@ -95,6 +108,8 @@ export const LAYOUTS = [
     outdoor: { plaza: [1, 26, 18, 45], marine: [1, 4, 18, 25], nature: [53, 4, 70, 45] },
     voidRect: [15, 15, 24, 24],
     links: [['entrance', 'coast'], ['entrance', 'subtropical'], ['entrance', 'atrium'], ['gallery', 'deep'], ['gallery', 'archive'], ['coast', 'plaza'], ['subtropical', 'nature']],
+    // 離れた棟の管理通路をメインバックヤードへつなぐ渡り通路
+    serviceLinks: [[5, 25, 8, 25], [26, 13, 27, 25], [12, 13, 27, 13]],
   },
 ];
 
@@ -104,6 +119,8 @@ for (const l of LAYOUTS) {
   for (const id of Object.keys(l.rects)) l.rects[id] = l.rects[id].map(shift);
   l.voidRect = shift(l.voidRect);
   for (const [id, rect] of Object.entries(l.outdoor)) l.rects[id] = [rect];
+  l.serviceLinks = (l.serviceLinks ?? []).map(shift);
+  Object.assign(l.rects, { b1a: [[28, 20, 43, 33]], b1b: [[18, 20, 27, 33]], b1c: [[44, 20, 53, 33]], b1d: [[18, 34, 53, 43]] });
 }
 
 /** 作り付けの景観が占める区画（区画の内側に余白をとる） */

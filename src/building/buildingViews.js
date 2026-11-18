@@ -1,4 +1,5 @@
-import { ZONES, getZone } from './blueprint.js';
+import { PLAN_FLOORS, ZONES, floorLabel, getZone } from './blueprint.js';
+import { EXPAND_COST, EXPAND_SLOTS } from './backyardData.js';
 import { CREATURES, RARITY, getCreature } from '../expedition/creatureData.js';
 import { RESEARCH, BREED_HOURS, researchCost, breedHours } from './backyardData.js';
 
@@ -13,14 +14,14 @@ export class ZoneView {
   html() {
     const unlocked = this.getUnlocked();
     const level = this.economy.stage.level;
-    const rows = [0, 1].map((floor) => {
+    const rows = PLAN_FLOORS.map((floor) => {
       const items = ZONES.filter((z) => z.floor === floor).map((z) => {
         if (unlocked.has(z.id)) return `<div class="gs-row"><div class="gs-info"><b>${z.name}</b><small>${z.text}</small></div><span class="zn-open">解放済み</span></div>`;
         const lack = z.stage > level ? `ステージ${z.stage}で解放` : z.requires && !unlocked.has(z.requires) ? `先に${getZone(z.requires).name}を解放` : '';
         const ok = !lack && this.economy.canAfford(z.cost);
         return `<div class="gs-row"><div class="gs-info"><b>${z.name}</b><small>${z.text}</small>${lack ? `<small>${lack}</small>` : ''}</div><button data-act="zone-open" data-id="${z.id}" class="primary" ${ok ? '' : 'disabled'}>${yen(z.cost)}</button></div>`;
       });
-      return `<h4 class="gs-sub">${floor + 1}階</h4>${items.join('')}`;
+      return `<h4 class="gs-sub">${floorLabel(floor)}</h4>${items.join('')}`;
     });
     return rows.join('');
   }
@@ -35,8 +36,8 @@ export class ZoneView {
 
 /** バックヤード：研究と繁殖 */
 export class BackyardView {
-  constructor({ backyard, expeditions, previews, toast }) {
-    Object.assign(this, { backyard, expeditions, previews, toast });
+  constructor({ backyard, expeditions, economy, previews, toast }) {
+    Object.assign(this, { backyard, expeditions, economy, previews, toast });
   }
 
   html() {
@@ -48,7 +49,12 @@ export class BackyardView {
       return `<div class="gs-row"><div class="gs-info"><b>${r.name} Lv${lv}</b><small>${r.text}</small></div>${max ? '<span class="zn-open">最大</span>' : `<button data-act="lab-up" data-id="${r.id}" class="primary" ${b.points >= cost ? '' : 'disabled'}>${cost}pt</button>`}</div>`;
     });
     const slots = b.breeders.map((uid, i) => this._slot(uid, i));
-    return `<div class="st-sum"><div class="st-head"><b>研究ポイント ${Math.floor(b.points)}pt</b><small>${b.ratePerMin.toFixed(1)}pt/分</small></div>
+    const hold = this.expeditions;
+    const holding = `<div class="st-sum"><div class="st-head"><b>魚の保持 ${hold.usedSlots}/${b.capacity}枠</b><small>拡張 ${b.expansions}回</small></div>
+        <div class="st-bar"><i style="width:${Math.min(100, (hold.usedSlots / b.capacity) * 100)}%"></i></div>
+        <small>建物のレベル、地下の予備水槽、拡張工事で増えます。満杯だと捕れた魚を放流します。</small>
+        <button data-act="hold-expand" class="primary" ${this.economy.canAfford(EXPAND_COST) ? '' : 'disabled'}>拡張工事 +${EXPAND_SLOTS}枠 ${yen(EXPAND_COST)}</button></div>`;
+    return `${holding}<div class="st-sum"><div class="st-head"><b>研究ポイント ${Math.floor(b.points)}pt</b><small>${b.ratePerMin.toFixed(1)}pt/分</small></div>
         <small>研究室 ${b.labCount}室 ・ 研究員 ${b.researchers}人</small>
         ${b.labCount ? '' : '<em class="gs-alert">レイアウトでバックヤードに研究室を設置してください</em>'}
         ${b.labCount > b.researchers ? '<em class="gs-alert">スタッフから研究員を配置してください</em>' : ''}</div>
@@ -70,7 +76,9 @@ export class BackyardView {
 
   act(act, id) {
     const b = this.backyard;
-    if (act === 'lab-up') b.upgrade(id);
+    if (act === 'hold-expand') {
+      if (this.economy.spend(EXPAND_COST)) b.expand();
+    } else if (act === 'lab-up') b.upgrade(id);
     else if (act === 'breed') {
       const [uid, cid] = id.split(':');
       if (b.startBreeding(+uid, cid)) this.toast(`${getCreature(cid).name} の繁殖を始めました`);

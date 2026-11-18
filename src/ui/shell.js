@@ -1,4 +1,5 @@
 import { CATEGORY } from '../tanks/tankData.js';
+import { floorLabel } from '../building/blueprint.js';
 
 const $ = (id) => document.getElementById(id);
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
@@ -59,7 +60,7 @@ export class AppShell {
     const st = e.stage;
     $('menu-stats').textContent =
       `資金 ${yen(e.money)} ・ 来館者 ${e.visitors.toLocaleString('ja-JP')}人 ・ 水槽 ${this.manager.countByCategory(CATEGORY.TANK)}基`;
-    $('floor-label').textContent = `${e.floor + 1}F / ${st.maxFloors}F`;
+    $('floor-label').textContent = floorLabel(e.floor);
     $('floor-down').disabled = e.floor <= 0;
     $('floor-up').disabled = e.floor >= st.maxFloors - 1;
     $('menu-stage').textContent = `Lv${st.level} ${st.name}`;

@@ -1,4 +1,4 @@
-import { ATRIUM_VOID, CELL_SIZE, GRID_X, GRID_Z, LAYOUT, WALL_EDITS, ZONES, ZONE_TYPE, zoneHas } from '../building/blueprint.js';
+import { ATRIUM_VOID, BASEMENT, CELL_SIZE, EXHIBIT_ZONES, GRID_X, GRID_Z, LAYOUT, SERVICE_WIDTH, WALL_EDITS, ZONES, ZONE_TYPE, zoneHas } from '../building/blueprint.js';
 
 /**
  * 建物の1フロア分のマス目。形は間取り（blueprint.js）で決まり、解放済みのエリアだけ使える。
@@ -35,6 +35,36 @@ export class FloorPlan {
     });
     if (floor === ATRIUM_VOID.floor) this._fill(ATRIUM_VOID.rect, unlocked.has(ATRIUM_VOID.zone) ? CELL.VOID : CELL.LOCKED);
     this.doors = this._findDoors();
+    if (floor !== BASEMENT) this._carveService(unlocked);
+  }
+
+  /** 展示室の壁の裏に管理通路を設け、メインバックヤードへつなぐ */
+  _carveService(unlocked) {
+    const SERVICE = 100;
+    const yard = this.floor === 0 ? 'yard1' : 'yard2';
+    for (const rect of LAYOUT.serviceLinks) {
+      this._fill(rect, unlocked.has(yard) ? CELL.YARD : CELL.LOCKED);
+      for (let j = rect[1]; j <= rect[3]; j++) for (let i = rect[0]; i <= rect[2]; i++) this.zoneIds[this.idx(i, j)] = SERVICE;
+    }
+    ZONES.forEach((zone, n) => {
+      if (zone.floor !== this.floor || !EXHIBIT_ZONES.includes(zone.id) || !unlocked.has(zone.id)) return;
+      const [x0, z0, x1, z1] = zone.rects[0];
+      // 来館者の出入口は通路をまたいで残す
+      const keep = new Set();
+      for (let j = z0; j <= z1; j++) for (let i = x0; i <= x1; i++) {
+        for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (this._zoneAt(i + a, j + b) === n || !this.doors.has(this.edge(i, j, i + a, j + b))) continue;
+          for (let d = 0; d < SERVICE_WIDTH; d++) keep.add(this.idx(i - a * d, j - b * d));
+        }
+      }
+      const W = SERVICE_WIDTH;
+      for (let j = z0; j <= z1; j++) for (let i = x0; i <= x1; i++) {
+        const edge = i < x0 + W || i > x1 - W || j < z0 + W || j > z1 - W;
+        if (!edge || keep.has(this.idx(i, j))) continue;
+        this.active[this.idx(i, j)] = CELL.YARD;
+        this.zoneIds[this.idx(i, j)] = SERVICE;
+      }
+    });
   }
 
   _fill([x0, z0, x1, z1], type) {

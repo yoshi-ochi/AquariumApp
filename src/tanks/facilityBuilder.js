@@ -81,6 +81,31 @@ export function buildResearchLab(g, def) {
   }
 }
 
+/** 水質管理設備：ろ過タンクと配管 */
+export function buildWaterPlant(g, def) {
+  const { w, h, d } = def.size;
+  add(g, w, 0.12, d, mat(0x59636b), 0, 0.06, 0);
+  for (const s of [-1, 1]) {
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, h - 0.5, 16), mat(0x3f7fa8, 0.35));
+    tank.position.set((s * w) / 4, (h - 0.5) / 2 + 0.12, 0);
+    tank.castShadow = true;
+    g.add(tank);
+  }
+  add(g, w * 0.7, 0.1, 0.1, mat(0xc9d0d4), 0, h - 0.2, 0);
+  add(g, 0.5, 0.9, 0.3, mat(0xe8ecee), 0, 0.57, d / 2 - 0.2);
+  add(g, 0.1, 0.1, 0.02, mat(0x57d68d), 0, 0.85, d / 2 - 0.04);
+}
+
+/** 清掃センター：資材棚と清掃カート */
+export function buildCleanCenter(g, def) {
+  const { w, h, d } = def.size;
+  add(g, w, h, 0.08, mat(0xdfe6ea), 0, h / 2, -d / 2 + 0.04);
+  for (let r = 0; r < 3; r++) add(g, w - 0.1, 0.04, 0.32, mat(0x8d979e), 0, 0.5 + r * 0.55, -d / 2 + 0.24);
+  for (let i = 0; i < 6; i++) add(g, 0.16, 0.34, 0.16, mat([0x3f9bd6, 0xf2c14e, 0x57b98b][i % 3]), -w / 2 + 0.3 + i * 0.25, 0.7 + (i % 3) * 0.55, -d / 2 + 0.24);
+  add(g, 0.6, 0.5, 0.4, mat(0xf2c14e), 0, 0.4, d / 2 - 0.3);
+  add(g, 0.04, 1.1, 0.04, mat(0x59636b), 0.26, 0.75, d / 2 - 0.3);
+}
+
 export function buildBreedingTank(g, def) {
   const { w, h, d } = def.size;
   add(g, w, 0.55, d, mat(0x5a6670), 0, 0.275, 0);

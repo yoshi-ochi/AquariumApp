@@ -54,6 +54,7 @@ export class Room {
     // 地面は深度を書かない（2階の吹き抜けから、地面より下に置いた1階部分を見下ろすため）
     const grass = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map: getTexture('grass'), roughness: 1, depthWrite: false }));
     grass.renderOrder = -10;
+    this.grass = grass;
     grass.geometry.attributes.uv.array.forEach((_, i, a) => (a[i] *= 400)); // UV をメートル単位に
     grass.rotation.x = -Math.PI / 2;
     grass.position.y = -0.03;
@@ -163,6 +164,12 @@ export class Room {
   }
 
   // ---- 形状 -----------------------------------------------------------------
+
+  /** 地下を表示している間は地上の景色を隠す */
+  setUnderground(on) {
+    this.grass.visible = !on;
+    this.sceneMgr.scene.background.set(on ? 0x141a20 : 0xbfe6ff);
+  }
 
   /** 壁の編集中：壁を低くして交点の目印を表示する */
   setWallEditing(on) {

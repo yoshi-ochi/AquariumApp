@@ -4,7 +4,7 @@ import { CATEGORY } from './tankData.js';
 import { buildLiveRock, buildDriftwood, buildPlants } from './interiorBuilder.js';
 import { CORAL_BUILDERS } from './coralBuilder.js';
 import { MODULAR_BUILDERS } from './coralModular.js';
-import { buildSouvenirShop, buildCafe, buildResearchLab, buildBreedingTank } from './facilityBuilder.js';
+import { buildSouvenirShop, buildCafe, buildResearchLab, buildBreedingTank, buildWaterPlant, buildCleanCenter } from './facilityBuilder.js';
 import { buildAirstone } from './aeration.js';
 import { normalizeGrowth } from './growth.js';
 import { waterSurfaceMesh } from '../water/waterSurface.js';
@@ -381,6 +381,8 @@ const BUILDERS = {
   cafe: buildCafe,
   researchLab: buildResearchLab,
   breedingTank: buildBreedingTank,
+  waterPlant: buildWaterPlant,
+  cleanCenter: buildCleanCenter,
   wall: buildWall,
   entrance: buildEntrance,
   liveRock: buildLiveRock,

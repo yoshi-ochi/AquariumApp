@@ -441,5 +441,26 @@ body:not([data-view=floor]) #side-actions, body:not([data-view=floor]) #goal-car
 .lp-legend i { display: inline-block; width: 10px; height: 10px; margin-left: 7px; border-radius: 2px; }
 #lp-ok { position: sticky; bottom: 0; min-height: 48px; font-size: 16px; font-weight: 700; }
 
-.lp-shot { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; }
 .lp-wait { margin: 40vh 0 0; color: #d9eef7; text-align: center; }
+
+/* ---------- 間取りの立体プレビュー ---------- */
+.lp-stage { position: relative; height: min(46dvh, 420px); overflow: hidden; border-radius: 12px; }
+#lp-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.lp-modes { position: absolute; left: 8px; right: 8px; bottom: 8px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.lp-modes button { min-height: 38px; padding: 2px; color: #fff; background: rgba(15, 53, 80, .92); border-color: var(--bar-line); font-weight: 700; }
+.lp-modes button.active { color: #0f3550; background: var(--gold); border-color: var(--gold); }
+.lp-tip { font-size: 12px !important; }
+
+/* ---------- 漁法の再現 ---------- */
+#fishing-scene { position: fixed; inset: 0; z-index: 90; background: #0a2438; }
+#fishing-scene[hidden] { display: none; }
+#fs-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.fs-top { position: absolute; top: calc(10px + var(--safe-top)); left: 10px; right: 10px; display: flex; align-items: baseline; justify-content: space-between; padding: 8px 12px; color: #fff; background: rgba(15, 53, 80, .9); border-radius: 10px; }
+.fs-top b { font-size: 17px; }
+.fs-card { position: absolute; left: 10px; right: 10px; bottom: calc(10px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 6px; max-height: 52dvh; overflow-y: auto; padding: 12px; color: var(--text); background: rgba(255, 255, 255, .96); border-radius: 12px; }
+.fs-card p { margin: 0; font-size: 13px; line-height: 1.55; }
+.fs-card summary { font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; }
+.fs-card details p { margin-top: 6px; }
+@media (min-width: 720px) { .fs-card { right: auto; width: 420px; } }
+.ex-methods { display: flex; flex-wrap: wrap; gap: 5px; }
+.ex-methods button { min-height: 34px; padding: 3px 10px; font-size: 12px; }

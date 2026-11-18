@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CATEGORY, CATEGORY_LABELS } from './tankData.js';
 import { EMBED_RATIO_MIN, EMBED_RATIO_MAX } from '../room/embed.js';
 import { normalizeLook, PALETTE, FRAME_COLORS } from './tankLook.js';
+import { floorLabel } from '../building/blueprint.js';
 
 const yen = (n) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
 const cm = (v) => Math.round(v * 100);
@@ -103,7 +104,7 @@ export class TankCustomizer {
     const { w, h, d } = def.size;
     const isTank = def.category === CATEGORY.TANK;
     const deg = ((Math.round(THREE.MathUtils.radToDeg(obj.rotation.y)) % 360) + 360) % 360;
-    const where = obj.userData.interiorItem ? '水槽内' : `${obj.userData.floor + 1}F`;
+    const where = obj.userData.interiorItem ? '水槽内' : floorLabel(obj.userData.floor);
     this.panelEl.innerHTML = `
       <h3>${def.name}</h3>
       <div class="cat">${CATEGORY_LABELS[def.category]} · ${where}${obj.userData.embed ? ' · 壁に埋め込み中' : ''}</div>

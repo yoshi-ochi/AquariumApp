@@ -8,7 +8,7 @@ import { updateBubbles } from './aeration.js';
 import { syncLife, updateLife, lifeAppeal } from '../expedition/tankLife.js';
 import { cleanAppealFactor, updateCareVisual } from './tankCleaning.js';
 import { tankHealth } from '../expedition/husbandry.js';
-import { STORY_H } from '../building/blueprint.js';
+import { FLOOR_COUNT, STORY_H } from '../building/blueprint.js';
 
 /**
  * 館内に配置されたオブジェクトの管理。
@@ -175,7 +175,7 @@ export class TankManager {
 
   /** 吹き抜けの大水槽はどの階からも見える */
   _visibleOn(o, floor) {
-    return o.userData.floor === floor || !!this.defOf(o).atrium;
+    return o.userData.floor === floor || (!!this.defOf(o).atrium && floor < FLOOR_COUNT);
   }
 
   /** 全水槽（配置順） */

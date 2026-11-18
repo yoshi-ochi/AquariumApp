@@ -20,6 +20,7 @@ export class Operations extends EventTarget {
     this.sales = 0;
     this.required = { ...STARTING_STAFF };
     this.wageMult = 1; // 研究「労務管理」で下がる
+    this.cleanerRelief = 0; // 清掃センターで減る清掃員の必要数
     this.unpaid = false;
     this.dirtyRatio = 0;
     this._acc = 0;
@@ -79,6 +80,7 @@ export class Operations extends EventTarget {
     this._acc -= secs;
     const ctx = getContext();
     this.required = requiredStaff({ ...ctx, shops: this.shops + this.cafes });
+    this.required.cleaner = Math.max(1, this.required.cleaner - this.cleanerRelief);
     this.dirtyRatio = ctx.dirtyRatio;
     this.unpaid = !economy.pay(this.wages * secs);
     this.satisfaction += (this.targetSatisfaction - this.satisfaction) * Math.min(1, SAT_RATE * secs);
