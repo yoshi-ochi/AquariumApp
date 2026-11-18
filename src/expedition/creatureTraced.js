@@ -61,6 +61,41 @@ function surfaceDepth(a, [x, y]) {
   return 0;
 }
 
+/** 写真上の点 (x, y) を含む体の三角形から、実際の面の半幅を求める */
+function exactDepth(a, [x, y]) {
+  const v = (i, r) => [a.stations[i][r][0], a.stations[i][r][1], a.depth[i] * ROW_DEPTH[r]];
+  const inTri = (p, q, s) => {
+    const det = (q[1] - s[1]) * (p[0] - s[0]) + (s[0] - q[0]) * (p[1] - s[1]);
+    if (Math.abs(det) < 1e-9) return null;
+    const u = ((q[1] - s[1]) * (x - s[0]) + (s[0] - q[0]) * (y - s[1])) / det;
+    const w = ((s[1] - p[1]) * (x - s[0]) + (p[0] - s[0]) * (y - s[1])) / det;
+    return u >= -0.001 && w >= -0.001 && u + w <= 1.001 ? u * p[2] + w * q[2] + (1 - u - w) * s[2] : null;
+  };
+  for (let i = 0; i < a.stations.length - 1; i++) for (let r = 0; r < 4; r++) {
+    const [p, q, m, n] = [v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1)];
+    const tris = (i + r) % 2 ? [[p, m, q], [q, m, n]] : [[p, m, n], [p, n, q]];
+    for (const [e, f, g] of tris) {
+      const z = inTri(e, f, g);
+      if (z !== null) return z;
+    }
+  }
+  return surfaceDepth(a, [x, y]);
+}
+
+/** 体表に貼り付けた丸い模様。頂点ごとに実際の面の高さへ合わせるので浮き上がらない */
+function flatSpot(mesh, a, P, [x, y], r, n, hex, side) {
+  const R = r * a.photo.length;
+  const at = (px, py) => P([px, py], side * (exactDepth(a, [px, py]) + 0.0025));
+  const center = at(x, y);
+  for (let i = 0; i < n; i++) {
+    const rim = (k) => {
+      const ang = (k / n) * Math.PI * 2;
+      return at(x + Math.cos(ang) * R, y + Math.sin(ang) * R);
+    };
+    mesh.tri(center, rim(i), rim(i + 1), hex);
+  }
+}
+
 /** 模様を体表の面に埋もれさせない高さ（面の折れ目は推定値より外へ張り出すため余裕を持たせる） */
 const aboveSurface = (a, p) => surfaceDepth(a, p) * 1.16 + 0.006;
 
@@ -77,9 +112,9 @@ function tracedBody(a, c, P) {
   for (const s of [-1, 1]) {
     const v = (i, r) => P(a.stations[i][r], s * a.depth[i] * ROW_DEPTH[r]);
     const tip = P(a.snout);
-    for (let r = 0; r < 4; r++) mesh.tri(tip, v(0, r), v(0, r + 1), hexOf(0, r));
+    for (let r = 0; r < 4; r++) mesh.tri(tip, v(0, r), v(0, r + 1), s < 0 && a.ventral ? a.ventral : hexOf(0, r));
     for (let i = 0; i < a.stations.length - 1; i++) for (let r = 0; r < 4; r++) {
-      mesh.quad(v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1), hexOf(i + 1, r), (i + r) % 2);
+      mesh.quad(v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1), s < 0 && a.ventral ? a.ventral : hexOf(i + 1, r), (i + r) % 2);
     }
   }
   return mesh.build();
@@ -115,7 +150,7 @@ function tracedFin(a, f, hex, P, side) {
   const parts = [];
   if (f.rim) {
     const inner = base.map((p, i) => mix(p, outer[i], 1 - f.rim));
-    parts.push(band(base, inner, hex), band(inner, outer, RIM));
+    parts.push(band(base, inner, hex), band(inner, outer, f.rimHex ?? RIM));
   } else parts.push(band(base, outer, hex));
   if (f.clear) {
     const g = band(outer, f.clear.map((p) => P(p, tipZ)), new THREE.Color(hex).lerp(new THREE.Color(0xffffff), 0.45).getHex());
@@ -173,10 +208,11 @@ export function tracedParts(c, a) {
     for (const side of f.lift ? [-1, 1] : [1]) parts.push(...tracedFin(a, f, hex, P, side));
   }
   const face = new Mesh();
-  for (const r of a.rays ?? []) for (const s of r.lift ? [-1, 1] : [1]) tracedRay(face, a, r, P, s);
+  for (const r of a.rays ?? []) for (const s of r.lift && !r.up ? [-1, 1] : [1]) tracedRay(face, a, r, P, s);
   for (const d of a.decals ?? []) for (const s of [-1, 1]) tracedDecal(face, a, d, P, s);
   const { eye, mouth } = a;
-  for (const s of [-1, 1]) {
+  // 上面図の種は目や模様を背側だけに付ける
+  for (const s of a.topView ? [1] : [-1, 1]) {
     const [x, y] = P(eye.at);
     const z = s * aboveSurface(a, eye.at);
     disc(face, [x, y, z], eye.ring, 7, eye.iris, s);
@@ -197,11 +233,18 @@ export function tracedParts(c, a) {
         face.quad(at(line[i], hw), at(line[i], -hw), at(line[i + 1], hw), at(line[i + 1], -hw), a.lineHex ?? c.mark, i % 2);
       }
     }
+    for (const m of a.minis ?? []) flatSpot(face, a, P, m, m[2], 7, m[3], s);
     for (const d of a.dots ?? []) {
+      if (a.flatDots) {
+        flatSpot(face, a, P, d, a.dotR, a.dotR < 0.025 ? 6 : 9, a.dotHex, s);
+        continue;
+      }
       const [dx, dy] = P(d);
       disc(face, [dx, dy, s * aboveSurface(a, d)], a.dotR ?? 0.007, a.dotR ? 6 : 4, a.dotHex ?? c.mark, s);
     }
   }
   parts.push(face.build());
+  // 上面図から作った種は、画像の面を背側へ向ける
+  if (a.topView) parts.forEach((g) => g.rotateX(-Math.PI / 2));
   return parts;
 }
