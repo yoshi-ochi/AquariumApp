@@ -43,7 +43,9 @@ export function requiredStaff({ potential, tanks, creatures, level, showTanks, s
 }
 
 // ---- お土産店 ----------------------------------------------------------------
-export const SHOP_OPEN_COST = 30000;
+/** カフェ：来館者のうち1秒あたりに利用する割合と客単価 */
+export const CAFE_RATE = 0.004;
+export const CAFE_PRICE = 800;
 export const LOT_SIZE = 20;
 /** 店員1人が1秒に接客できる客数 */
 export const SALES_PER_STAFF = 0.4;

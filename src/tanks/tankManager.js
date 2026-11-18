@@ -7,6 +7,7 @@ import { applyTankLook } from './tankLook.js';
 import { updateBubbles } from './aeration.js';
 import { syncLife, updateLife, lifeAppeal } from '../expedition/tankLife.js';
 import { cleanAppealFactor, updateCareVisual } from './tankCleaning.js';
+import { tankHealth } from '../expedition/husbandry.js';
 
 /**
  * 館内に配置されたオブジェクトの管理。
@@ -24,7 +25,7 @@ export class TankManager {
 
   // ---- 追加・削除 ---------------------------------------------------------
 
-  add(defId, { x = 0, z = 0, rotY = 0, floor = this.currentFloor, uid, contents = [], embed = null, look = null, creatures = null, clean = null } = {}) {
+  add(defId, { x = 0, z = 0, rotY = 0, floor = this.currentFloor, uid, contents = [], embed = null, look = null, creatures = null, clean = null, care = null } = {}) {
     const def = getDef(defId);
     const obj = buildObject(def);
     obj.userData.uid = uid ?? this.nextUid++;
@@ -47,6 +48,7 @@ export class TankManager {
     }
     if (creatures && obj.userData.clip) {
       obj.userData.creatures = { ...creatures };
+      if (care) obj.userData.care = { ...care };
       syncLife(obj);
     }
     return obj;
@@ -237,7 +239,7 @@ export class TankManager {
       let value = this.defOf(o).appeal ?? 0;
       if (o.userData.clip) {
         for (const c of this.interiorItems(o)) value += getDef(c.userData.defId).appeal ?? 0;
-        value = (value + lifeAppeal(o)) * cleanAppealFactor(o); // 汚れた水槽は魅力が下がる
+        value = (value + lifeAppeal(o) * tankHealth(o)) * cleanAppealFactor(o); // 汚れた水槽は魅力が下がる
       }
       sum += value;
     }
@@ -320,6 +322,7 @@ export class TankManager {
       ...(o.userData.look && { look: o.userData.look }),
       ...(o.userData.creatures && { creatures: { ...o.userData.creatures } }),
       ...(o.userData.clean && { clean: { ...o.userData.clean } }),
+      ...(o.userData.care && { care: { ...o.userData.care } }),
       ...(o.userData.clip && {
         contents: this.interiorItems(o).map((c) => ({
           defId: c.userData.defId,

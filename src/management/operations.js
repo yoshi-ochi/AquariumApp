@@ -1,4 +1,4 @@
-import { ROLES, STARTING_STAFF, requiredStaff, PRODUCTS, PRICE_TIERS, BUY_RATE, SALES_PER_STAFF, LOT_SIZE, SHOP_OPEN_COST } from './opsData.js';
+import { ROLES, STARTING_STAFF, requiredStaff, PRODUCTS, PRICE_TIERS, BUY_RATE, SALES_PER_STAFF, LOT_SIZE, CAFE_RATE, CAFE_PRICE } from './opsData.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 /** 満足度が目標値へ近づく速さ（1秒あたりの割合） */
@@ -12,7 +12,9 @@ export class Operations extends EventTarget {
     super();
     this.staff = { ...STARTING_STAFF };
     this.satisfaction = 80;
-    this.shops = 0;
+    this.shops = 0; // 設置済みのお土産店（館内の配置から毎秒更新）
+    this.cafes = 0;
+    this._cafeGuests = 0;
     this.prices = {};
     this.stock = {};
     this.sales = 0;
@@ -75,7 +77,7 @@ export class Operations extends EventTarget {
     const secs = Math.floor(this._acc);
     this._acc -= secs;
     const ctx = getContext();
-    this.required = requiredStaff({ ...ctx, shops: this.shops });
+    this.required = requiredStaff({ ...ctx, shops: this.shops + this.cafes });
     this.dirtyRatio = ctx.dirtyRatio;
     this.unpaid = !economy.pay(this.wages * secs);
     this.satisfaction += (this.targetSatisfaction - this.satisfaction) * Math.min(1, SAT_RATE * secs);
@@ -83,17 +85,6 @@ export class Operations extends EventTarget {
   }
 
   // ---- お土産店 --------------------------------------------------------------
-
-  maxShops(level) {
-    return level;
-  }
-
-  openShop(economy, level) {
-    if (this.shops >= this.maxShops(level) || !economy.spend(SHOP_OPEN_COST)) return false;
-    this.shops++;
-    this._emit();
-    return true;
-  }
 
   restock(id, economy) {
     const p = PRODUCTS.find((x) => x.id === id);
@@ -117,7 +108,18 @@ export class Operations extends EventTarget {
   }
 
   _sell(secs, economy) {
+    // 店員はお土産店を優先し、余った人がカフェを担当する
     const clerks = Math.min(this.shops, this.staff.shop);
+    const baristas = Math.min(this.cafes, this.staff.shop - clerks);
+    if (baristas > 0) {
+      this._cafeGuests += Math.min(economy.visitors * CAFE_RATE * (this.satisfaction / 100), baristas * SALES_PER_STAFF) * secs;
+      const guests = Math.floor(this._cafeGuests);
+      this._cafeGuests -= guests;
+      if (guests) {
+        this.sales += guests * CAFE_PRICE;
+        economy.earn(guests * CAFE_PRICE);
+      }
+    }
     if (!clerks) return;
     const demand = economy.visitors * BUY_RATE * (this.satisfaction / 100);
     this._buyers += Math.min(demand, clerks * SALES_PER_STAFF) * secs;

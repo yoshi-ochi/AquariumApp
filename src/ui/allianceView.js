@@ -121,7 +121,7 @@ export class AllianceView {
       if (!(await api.claim(runId))) return;
       const project = JOINT_PROJECTS.find((p) => p.id === pid);
       const got = rollReward(project, runId, this.online.user.id);
-      got.forEach((c) => this.expeditions.give(c));
+      got.forEach((c) => this.expeditions.discover(c));
       this.toast(`発見：${got.map((c) => getCreature(c).name).join('、')}`, { duration: 4000 });
     }
   }

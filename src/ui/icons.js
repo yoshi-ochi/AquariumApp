@@ -16,6 +16,8 @@ const P = {
   event: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 13l1 2 2 .3-1.5 1.4.4 2.1-1.9-1-1.9 1 .4-2.1L9 15.3l2-.3z"/>',
   staff: '<circle cx="12" cy="7" r="3.5"/><path d="M5 21c.5-5 3.300-8 7-8s6.5 3 7 8"/><path d="M12 13v4"/>',
   map: '<path d="M9 4L3 6.5v14L9 18l6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v14M15 6.5v14"/>',
+  care: '<path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z"/>',
+  zukan: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 1 2-2h13v2H6"/><path d="M9 9c2-2.5 5-2.5 7 0-2 2.5-5 2.5-7 0z"/>',
   account: '<circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4.5 4-7 8-7s7.2 2.5 8 7"/>',
 };
 export const icon = (name, size = 22) =>

@@ -1,4 +1,4 @@
-import { ROLES, PRODUCTS, PRICE_TIERS, LOT_SIZE, SHOP_OPEN_COST, SALES_PER_STAFF } from '../management/opsData.js';
+import { ROLES, PRODUCTS, PRICE_TIERS, LOT_SIZE, SALES_PER_STAFF } from '../management/opsData.js';
 import { cleanSpec, dirtLevel, isCleaning, needsCleaning, startCleaning, busyCleaners } from '../tanks/tankCleaning.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
@@ -94,20 +94,19 @@ export class StaffView {
 
 /** お土産店 */
 export class ShopView {
-  constructor({ ops, economy, toast }) {
-    Object.assign(this, { ops, economy, toast });
+  constructor({ ops, economy, inventory, onPlace }) {
+    Object.assign(this, { ops, economy, inventory, onPlace });
   }
 
   html() {
     const o = this.ops;
     const level = this.economy.stage.level;
-    const max = o.maxShops(level);
-    const open = o.shops < max
-      ? `<button data-act="shop-open" class="primary" ${this.economy.canAfford(SHOP_OPEN_COST) ? '' : 'disabled'}>${o.shops ? '店舗を増やす' : 'お土産店を開く'} ${yen(SHOP_OPEN_COST)}</button>`
-      : '';
-    const head = `<div class="st-sum"><div class="st-head"><b>店舗 ${o.shops}/${max}店</b><small>売上合計 ${yen(o.sales)}</small></div>
-      <small>店員 ${o.staff.shop}人 ・ 接客 ${(Math.min(o.shops, o.staff.shop) * SALES_PER_STAFF).toFixed(1)}人/秒</small>
-      ${o.shops > o.staff.shop ? '<em class="gs-alert">店員が足りません。スタッフから配置してください</em>' : ''}${open}</div>`;
+    const need = o.shops + o.cafes;
+    const stock = this.inventory.count('souvenirShop');
+    const head = `<div class="st-sum"><div class="st-head"><b>お土産店 ${o.shops}店 ・ カフェ ${o.cafes}店</b><small>売上合計 ${yen(o.sales)}</small></div>
+      <small>店員 ${o.staff.shop}/${need}人</small>
+      ${need > o.staff.shop ? '<em class="gs-alert">店員が足りません。スタッフから配置してください</em>' : ''}
+      <div class="gs-btns"><button data-act="shop-place" data-id="souvenirShop" class="primary">お土産店を設置${stock ? `（在庫${stock}）` : ' ¥30,000'}</button><button data-act="shop-place" data-id="cafe">カフェを設置 ¥50,000</button></div></div>`;
     if (!o.shops) return head;
     const rows = PRODUCTS.map((p) => {
       if (p.stage > level) return `<div class="gs-row"><div class="gs-info"><b>${p.name}</b><small>ステージ${p.stage}で解放</small></div></div>`;
@@ -122,9 +121,11 @@ export class ShopView {
 
   act(act, id) {
     const o = this.ops;
-    if (act === 'shop-open') {
-      if (o.openShop(this.economy, this.economy.stage.level)) this.toast('お土産店を開きました');
-    } else if (act === 'shop-stock') o.restock(id, this.economy);
+    if (act === 'shop-place') {
+      this.onPlace(id);
+      return false;
+    }
+    if (act === 'shop-stock') o.restock(id, this.economy);
     else if (act === 'shop-tier') {
       const [pid, tier] = id.split(':');
       o.setTier(pid, tier);

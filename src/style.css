@@ -384,3 +384,27 @@ body.map-open #side-actions, body.map-open #hint { display: none; }
 .al-new { display: flex; gap: 6px; }
 .al-new input { flex: 1; min-width: 0; min-height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; }
 .al-leave { margin-top: 8px; color: var(--danger); }
+
+/* ---------- 目標・留守中の報告・図鑑 ---------- */
+#goal-card { position: fixed; left: 8px; top: calc(var(--hud-h) + 10px + var(--safe-top)); z-index: 15; display: flex; flex-direction: column; gap: 3px; width: min(210px, 56vw); padding: 7px 9px; color: #fff; background: rgba(15, 53, 80, .92); border: 1px solid var(--bar-line); border-radius: 10px; font-size: 12px; }
+#goal-card[hidden], body:not([data-mode=home]) #goal-card, body.map-open #goal-card, body.visiting #goal-card { display: none; }
+#goal-card small { color: #a9d3e6; font-size: 10px; }
+#goal-card button { min-height: 32px; padding: 3px 8px; font-size: 12px; }
+#offline-report { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 70; display: flex; flex-direction: column; gap: 8px; width: min(320px, calc(100vw - 32px)); padding: 16px; background: #fff; border: 3px solid var(--bar-line); border-radius: 14px; }
+#offline-report[hidden] { display: none; }
+#offline-report h3, #offline-report p { margin: 0; }
+#offline-report dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; }
+#offline-report dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#offline-report small { color: var(--muted); }
+.sa-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 4px; color: #fff; background: #ef3b3b; border: 2px solid #fff; border-radius: 10px; font-size: 11px; font-style: normal; line-height: 16px; text-align: center; }
+.sa-badge[hidden] { display: none; }
+#side-actions { gap: 6px; }
+#side-actions button { min-height: 52px; }
+.zk-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.zk-cell { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-width: 0; min-height: 76px; padding: 3px; background: #fff; border: 1px solid var(--border); border-radius: 8px; white-space: normal; }
+.zk-cell img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 5px; }
+.zk-cell small { font-size: 10px; line-height: 1.2; text-align: center; }
+.zk-cell.unknown { color: var(--muted); background: #e6edf1; }
+.zk-cell.unknown span { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; font-size: 20px; font-weight: 700; }
+.zk-detail { flex-direction: row; align-items: flex-start; gap: 10px; }
+.zk-detail img { flex: none; width: 96px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }

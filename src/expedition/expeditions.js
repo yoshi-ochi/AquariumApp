@@ -10,6 +10,22 @@ export class Expeditions extends EventTarget {
     super();
     this.trips = [];
     this.creatures = {};
+    this.seen = {}; // 図鑑：これまでに手に入れた数
+  }
+
+  seenCount(id) {
+    return this.seen[id] ?? 0;
+  }
+
+  /** 図鑑に載せる（捕獲数は増やさない） */
+  markSeen(id) {
+    this.seen[id] = Math.max(1, this.seenCount(id));
+  }
+
+  /** 新しく手に入れた生物を在庫に加える */
+  discover(id) {
+    this.seen[id] = this.seenCount(id) + 1;
+    this.give(id);
   }
 
   count(id) {
@@ -36,7 +52,10 @@ export class Expeditions extends EventTarget {
     if (!trip || !this.isDone(trip, now)) return [];
     const caught = rollCatch(trip);
     this.trips.splice(index, 1);
-    for (const id of caught) this.creatures[id] = this.count(id) + 1;
+    for (const id of caught) {
+      this.creatures[id] = this.count(id) + 1;
+      this.seen[id] = this.seenCount(id) + 1;
+    }
     this._emit();
     return caught;
   }
@@ -54,12 +73,14 @@ export class Expeditions extends EventTarget {
   }
 
   toJSON() {
-    return { trips: this.trips.map((t) => ({ ...t })), creatures: { ...this.creatures } };
+    return { trips: this.trips.map((t) => ({ ...t })), creatures: { ...this.creatures }, seen: { ...this.seen } };
   }
 
   fromJSON(data) {
     this.trips = Array.isArray(data?.trips) ? data.trips.filter((t) => getDestination(t.dest)).map((t) => ({ ...t })) : [];
     this.creatures = { ...(data?.creatures ?? {}) };
+    this.seen = { ...(data?.seen ?? {}) };
+    for (const [id, n] of Object.entries(this.creatures)) if (n > 0) this.markSeen(id);
     this._emit();
   }
 

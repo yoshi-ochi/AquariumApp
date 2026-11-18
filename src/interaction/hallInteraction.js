@@ -77,7 +77,8 @@ export class HallInteraction {
 
   /** 水槽は在庫から、それ以外は資金で設置する。不足時は理由を返す */
   _lack(def) {
-    if (def.category === CATEGORY.TANK) return this.inventory.count(def.id) > 0 ? '' : '在庫がありません';
+    if (this.inventory.count(def.id) > 0) return '';
+    if (def.category === CATEGORY.TANK) return '在庫がありません';
     return this.economy.canAfford(def.price) ? '' : '資金が足りません';
   }
 
@@ -144,8 +145,7 @@ export class HallInteraction {
     const p = this.placing;
     if (!p.ghost.visible) return;
     if (!p.valid) return this.toast(p.reason, { error: true });
-    if (p.def.category === CATEGORY.TANK) this.inventory.take(p.def.id);
-    else this.economy.spend(p.def.price);
+    if (!this.inventory.take(p.def.id)) this.economy.spend(p.def.price);
     const obj = this.manager.add(p.def.id, {
       x: p.ghost.position.x,
       z: p.ghost.position.z,

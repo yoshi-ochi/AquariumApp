@@ -45,6 +45,8 @@ import { icon } from './ui/icons.js';
 import { AllianceApi } from './online/allianceApi.js';
 import { AllianceView } from './ui/allianceView.js';
 import { MapPage } from './ui/mapPage.js';
+import { LifeSystems } from './game/lifeSystems.js';
+import { isHungry } from './expedition/husbandry.js';
 import { allianceBonus, allianceLevel } from './expedition/creatureData.js';
 import { CREATURES } from './expedition/creatureData.js';
 import { buildCreature } from './expedition/creatureBuilder.js';
@@ -420,7 +422,7 @@ async function boot() {
   /** 現在の状態を保存用データにする */
   function snapshot() {
     roomSettings.plan = room.plan.toJSON();
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: roomSettings, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: roomSettings, objects: manager.serialize() };
   }
 
   /** 保存用データから状態を復元する */
@@ -435,6 +437,7 @@ async function boot() {
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
     manager.deserialize(data.objects);
     manager.setFloor(economy.floor);
+    life.fromJSON(data.life, { own: !visiting, oldShops: data.life ? 0 : data.ops?.shops ?? 0 });
     applyRoom(true);
     shell.update();
   }
@@ -507,6 +510,10 @@ async function boot() {
 
   // ---- 上部バー・下部メニュー・アイテム ---------------------------------------
   const hud = new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
+  const life = new LifeSystems({
+    sceneMgr, room, manager, economy, ops, inventory, expeditions, previews, toast,
+    getHome: () => home, goalEl: $('goal-card'), reportEl: $('offline-report'),
+  });
   const allianceApi = new AllianceApi(online);
   const allianceView = new AllianceView({
     api: allianceApi, online, economy, expeditions, toast,
@@ -568,7 +575,8 @@ async function boot() {
       place: { title: '水族館', view: placeView },
       clean: { title: '水槽の掃除', live: true, view: new CleanView({ manager, economy, ops, toast, getTanks: () => manager.tanks, onChanged: () => shell.update() }) },
       staff: { title: 'スタッフ', live: true, view: new StaffView({ ops }) },
-      shop: { title: '店舗運営', live: true, view: new ShopView({ ops, economy, toast }) },
+      shop: { title: '店舗運営', live: true, view: new ShopView({ ops, economy, inventory, onPlace: (id) => { gameSheet.close(); mapPage.close(); if (mode !== 'hall-edit') enterHallEdit(); hall.startPlacement(id); } }) },
+      ...life.panels,
     },
     creatureView: new CreatureView({ manager, expeditions, previews, toast, onChanged: () => shell.update() }),
     onPlace: (id) => {
@@ -601,7 +609,7 @@ async function boot() {
       if (wasOpen !== `feature:${id}`) gameSheet.openFeature(id);
     },
   });
-  for (const [btn, id, ic] of [['side-clean', 'clean', 'clean'], ['side-staff', 'staff', 'staff']]) {
+  for (const [btn, id, ic] of [['side-clean', 'clean', 'clean'], ['side-care', 'care', 'care'], ['side-zukan', 'zukan', 'zukan'], ['side-staff', 'staff', 'staff']]) {
     $(btn).querySelector('.sa-ico').innerHTML = icon(ic, 24);
     $(btn).addEventListener('click', () => {
       if (visiting) return;
@@ -610,12 +618,10 @@ async function boot() {
       if (!open) gameSheet.openPanel(id);
     });
   }
-  for (const [btn, id] of [['btn-event', 'event']]) {
-    $(btn).addEventListener('click', () => {
-      shell.toggleMenu(false);
-      gameSheet.openFeature(id);
-    });
-  }
+  $('btn-event').addEventListener('click', () => {
+    shell.toggleMenu(false);
+    gameSheet.openPanel('event');
+  });
   inventory.addEventListener('change', () => catalog.refresh());
   // 外注の完成チェック（閉じている間に完成した分も受け取る）
   setInterval(() => {
@@ -629,6 +635,10 @@ async function boot() {
     $('clean-badge').textContent = dirty;
     $('side-sat').textContent = `満足度${Math.round(ops.satisfaction)}%`;
     manager.updateCare();
+    life.tick();
+    const hungry = manager.tanks.filter((t) => isHungry(t)).length;
+    $('care-badge').hidden = !hungry;
+    $('care-badge').textContent = hungry;
   }, 1000);
   $('btn-visit-end').addEventListener('click', () => {
     if (!visiting) return;
@@ -650,7 +660,7 @@ async function boot() {
   goHome();
 
   // 開発時だけ：ブラウザのコンソールから状態を調べられるようにする
-  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions, ops };
+  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions, ops, get life() { return life; }, snapshot, applySnapshot };
 
   // ---- ループ ---------------------------------------------------------------
   /**
@@ -706,7 +716,9 @@ async function boot() {
     manager.updateAeration(clock.elapsedTime);
     manager.updateLife(clock.elapsedTime);
     interior.update();
-    economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult * allyBonus()));
+    economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult * allyBonus() * life.visitorMult));
+    life.crowd.setVisible(mode !== 'interior-edit' && mode !== 'tank' && !mapPage.isOpen);
+    life.crowd.update(dt, economy.visitors, visiting ? 80 : ops.satisfaction);
     if (!visiting) ops.update(dt, opsContext, economy);
     customizer.update();
     sceneMgr.render();
@@ -718,6 +730,7 @@ async function boot() {
   // 確認用：URL に ?splash を付けるとスプラッシュを閉じない
   if (new URLSearchParams(location.search).has('splash')) return;
 
+  let lastSavedAt = null;
   // ログイン必須：完了してそのアカウントのセーブを反映するまでスプラッシュを閉じない
   if (online.enabled) {
     await runLoginGate({
@@ -727,9 +740,14 @@ async function boot() {
       onReady: async () => {
         const data = await online.load();
         if (data) applySnapshot(data);
+        lastSavedAt = data?.savedAt ?? null;
       },
     });
     autoSave.start();
+    if (lastSavedAt) {
+      life.settleOffline(lastSavedAt, ops.visitorMult);
+      autoSave.flush(); // 受け取った収入をすぐ保存（二重受け取りを防ぐ）
+    }
     allianceApi.refresh().catch((err) => console.warn(err.message)); // 同盟ボーナスの反映
     if (online.recovery) friendPanel.open(); // 再設定メールから来たら新しいパスワードの入力へ
     // 別タブでログアウトしたらこのタブも閉じる
