@@ -6,6 +6,7 @@ import { PHOTO_ANATOMY_5 } from './creatureAnatomyPhoto5.js';
 import { PHOTO_ANATOMY_6 } from './creatureAnatomyPhoto6.js';
 import { PHOTO_ANATOMY_7 } from './creatureAnatomyPhoto7.js';
 import { PHOTO_ANATOMY_8 } from './creatureAnatomyPhoto8.js';
+import { PHOTO_ANATOMY_9 } from './creatureAnatomyPhoto9.js';
 
 /**
  * 実物の真横写真からトレースした、種ごとの頂点データ（写真上のピクセル座標）。
@@ -301,4 +302,5 @@ export const ANATOMY = {
   ...PHOTO_ANATOMY_6,
   ...PHOTO_ANATOMY_7,
   ...PHOTO_ANATOMY_8,
+  ...PHOTO_ANATOMY_9,
 };

@@ -208,13 +208,20 @@ export function tracedParts(c, a) {
     for (const side of f.lift ? [-1, 1] : [1]) parts.push(...tracedFin(a, f, hex, P, side));
   }
   const face = new Mesh();
+  // シュモクザメの頭のように、体の左右へ張り出す板
+  for (const p of a.plates ?? []) {
+    for (let i = 0; i < p.a.length - 1; i++) {
+      const at = ([x, y, z]) => P([x, y], z);
+      face.quad(at(p.a[i]), at(p.a[i + 1]), at(p.b[i]), at(p.b[i + 1]), p.hex, i % 2);
+    }
+  }
   for (const r of a.rays ?? []) for (const s of r.up ? [-1] : r.lift ? [-1, 1] : [1]) tracedRay(face, a, r, P, s);
   for (const d of a.decals ?? []) for (const s of a.topView ? [-1] : [-1, 1]) tracedDecal(face, a, d, P, s);
   const { eye, mouth } = a;
   // 上面図の種は目や模様を背側だけに付ける
   for (const s of a.topView ? [-1] : [-1, 1]) {
     const [x, y] = P(eye.at);
-    const z = s * aboveSurface(a, eye.at);
+    const z = s * (eye.z ?? aboveSurface(a, eye.at));
     disc(face, [x, y, z], eye.ring, 7, eye.iris, s);
     // 虹彩の中心の盛り上がりより手前に瞳と光を重ねる
     const lift = eye.ring * 0.04 + 0.002;
@@ -233,7 +240,7 @@ export function tracedParts(c, a) {
         face.quad(at(line[i], hw), at(line[i], -hw), at(line[i + 1], hw), at(line[i + 1], -hw), a.lineHex ?? c.mark, i % 2);
       }
     }
-    for (const m of a.minis ?? []) flatSpot(face, a, P, m, m[2], 7, m[3], s);
+    for (const m of a.minis ?? []) flatSpot(face, a, P, m, m[2], a.miniSides ?? 7, m[3], s);
     for (const d of a.dots ?? []) {
       if (a.flatDots) {
         flatSpot(face, a, P, d, a.dotR, a.dotR < 0.025 ? 6 : 9, a.dotHex, s);
