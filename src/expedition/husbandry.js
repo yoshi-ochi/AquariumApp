@@ -1,9 +1,8 @@
 import { DESTINATIONS, getCreature } from './creatureData.js';
 
-/** 飼育：エサ・水温・混泳の相性・繁殖。tank.userData.care = { fed, bred, water } */
+/** 飼育：エサ・水温・混泳の相性。tank.userData.care = { fed, water } */
 const H = 3600 * 1000;
 export const FEED_INTERVAL = 8 * H;
-export const BREED_INTERVAL = 12 * H;
 export const WATER = {
   tropical: { label: '熱帯 26℃' },
   temperate: { label: '温帯 18℃' },
@@ -25,7 +24,7 @@ export const hasLife = (tank) => speciesIn(tank).length > 0;
 
 export function ensureCare(tank, now = Date.now()) {
   const list = speciesIn(tank);
-  tank.userData.care ??= { fed: now, bred: now, water: list.length ? zoneOf(list[0][0]) : 'tropical' };
+  tank.userData.care ??= { fed: now, water: list.length ? zoneOf(list[0][0]) : 'tropical' };
   return tank.userData.care;
 }
 
@@ -62,13 +61,3 @@ export function feed(tank, now = Date.now()) {
   ensureCare(tank, now).fed = now;
 }
 
-/** 条件を満たす水槽で1匹生まれる。生まれた種の id を返す */
-export function tryBreed(tank, now = Date.now()) {
-  if (!hasLife(tank) || tankHealth(tank, now) < 0.8) return null;
-  const care = ensureCare(tank, now);
-  if (now - care.bred < BREED_INTERVAL) return null;
-  const pair = speciesIn(tank).find(([id, n]) => n >= 2 && getCreature(id).rarity < 3);
-  if (!pair) return null;
-  care.bred = now;
-  return pair[0];
-}

@@ -3,6 +3,7 @@ import { getDef, CATEGORY } from '../tanks/tankData.js';
 import { buildObject, disposeObject } from '../tanks/tankBuilder.js';
 import { TankManager } from '../tanks/tankManager.js';
 import { REFUND_RATE } from '../management/stageData.js';
+import { CELL } from '../room/floorPlan.js';
 import { findNearestRun, findRunByKey, placeEmbedded, alongOf, EMBED_RATIO_MAX } from '../room/embed.js';
 
 const CLICK_TOLERANCE = 6; // px
@@ -70,7 +71,15 @@ export class HallInteraction {
   /** 床のマスに収まるか */
   _fits(def, rotY, x, z) {
     const { hx, hz } = TankManager.footprintHalf(def, rotY);
-    return this.room.plan.containsRect(x, z, hx, hz);
+    const plan = this.room.plan;
+    if (!plan.containsRect(x, z, hx, hz)) return false;
+    if (def.yardOnly && plan.typeAt(x, z) !== CELL.YARD) return false;
+    // 大水槽には重ねて置けない
+    return ![...this.manager.objects.values()].some((o) => {
+      if (!this.manager.defOf(o).atrium || plan.floor !== 0) return false;
+      const b = TankManager.footprintHalf(this.manager.defOf(o), o.rotation.y);
+      return Math.abs(o.position.x - x) < b.hx + hx && Math.abs(o.position.z - z) < b.hz + hz;
+    });
   }
 
   // ---- 新規配置 -------------------------------------------------------------
@@ -120,7 +129,7 @@ export class HallInteraction {
     p.ghost.visible = true;
     const lack = this._lack(p.def);
     p.valid = fits && !lack;
-    p.reason = !fits ? '床の上に収まりません' : lack;
+    p.reason = !fits ? (p.def.yardOnly ? 'バックヤードに設置してください' : '解放済みの床の上に置いてください') : lack;
     p.helper.box.setFromObject(p.ghost);
     p.helper.material.color.set(p.valid ? 0x4cd18a : 0xff6b6b);
     p.helper.visible = true;
@@ -164,6 +173,7 @@ export class HallInteraction {
   // ---- 選択オブジェクト操作 -------------------------------------------------
 
   rotate(obj, dir) {
+    if (this.manager.defOf(obj).atrium) return this.toast('大水槽は建物に固定されています');
     if (obj.userData.embed) return this.toast('埋め込み中の水槽は壁に向いて固定されます');
     const def = this.manager.defOf(obj);
     const angle = dir * ROTATE_STEP;
@@ -187,6 +197,7 @@ export class HallInteraction {
 
   remove(obj) {
     const def = this.manager.defOf(obj);
+    if (def.atrium) return this.toast('大水槽は建物に固定されています');
     // 水槽本体は在庫へ戻し、中身は売却する
     const isTank = def.category === CATEGORY.TANK;
     const value = (isTank ? 0 : def.price) + (obj.userData.clip ? this.manager.contentsValue(obj) : 0);
@@ -268,6 +279,7 @@ export class HallInteraction {
     const obj = this._pick();
     if (!obj) return;
     this.customizer.select(obj);
+    if (this.manager.defOf(obj).atrium) return; // 固定（選択のみ）
     const hit = this._floorHit();
     if (!hit) return;
     this.cameraCtl.setEnabled(false);

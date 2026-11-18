@@ -35,7 +35,6 @@ export function defaultRoomSettings() {
   return {
     floor: { type: 'flooring', color: '#c99d74' },
     wall: { type: 'plaster', color: '#eef0ec' },
-    lights: [defaultLight(0, 0)],
-    plan: null, // FloorPlan.toJSON()（null なら長方形）
+    lights: [defaultLight(0.45, 14.85)],
   };
 }

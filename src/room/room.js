@@ -2,8 +2,32 @@ import * as THREE from 'three';
 import { FloorPlan, CELL } from './floorPlan.js';
 import { getTexture } from './textures.js';
 import { runTheta } from './embed.js';
+import { STORY_H } from '../building/blueprint.js';
 
 const DIRT_MARGIN = 1.6;
+const RAIL_H = 1.1;
+const SHUTTER_H = 2.4;
+
+/** 未解放エリアとの境の工事用パネル */
+function stripeTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const c = canvas.getContext('2d');
+  c.fillStyle = '#f2c230';
+  c.fillRect(0, 0, 64, 64);
+  c.strokeStyle = '#2c3238';
+  c.lineWidth = 14;
+  for (let k = -64; k < 128; k += 40) {
+    c.beginPath();
+    c.moveTo(k, 64);
+    c.lineTo(k + 64, 0);
+    c.stroke();
+  }
+  const map = new THREE.CanvasTexture(canvas);
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.colorSpace = THREE.SRGBColorSpace;
+  return map;
+}
 
 /**
  * 部屋：マス目の床（館内・バックヤード）、外壁・仕切り壁（埋め込み穴あき）、室内ライト、屋外の地面。
@@ -24,10 +48,12 @@ export class Room {
     this.yardWallMat = new THREE.MeshStandardMaterial({ map: getTexture('concrete'), color: 0xd5d8da, roughness: 0.95 });
     this.yardWallMat.shadowSide = THREE.DoubleSide;
     this.alcoveMat = new THREE.MeshStandardMaterial({ map: getTexture('concrete'), color: 0xd5d8da, roughness: 0.95, side: THREE.DoubleSide });
-    this.dirtMat = new THREE.MeshStandardMaterial({ map: getTexture('dirt'), roughness: 1, side: THREE.DoubleSide });
+    this.dirtMat = new THREE.MeshStandardMaterial({ map: getTexture('dirt'), roughness: 1, side: THREE.DoubleSide, depthWrite: false });
 
     // 屋外の芝生（固定）
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map: getTexture('grass'), roughness: 1 }));
+    // 地面は深度を書かない（2階の吹き抜けから、地面より下に置いた1階部分を見下ろすため）
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map: getTexture('grass'), roughness: 1, depthWrite: false }));
+    grass.renderOrder = -10;
     grass.geometry.attributes.uv.array.forEach((_, i, a) => (a[i] *= 400)); // UV をメートル単位に
     grass.rotation.x = -Math.PI / 2;
     grass.position.y = -0.03;
@@ -40,16 +66,18 @@ export class Room {
     this.helperGroup.visible = false;
     this.group.add(this.built, this.lightGroup, this.helperGroup);
     this.lights = []; // { spot, bulb, aim, line }
-    this.gridMesh = null;
     this.holes = [];
+    this.lockedFloorMat = new THREE.MeshStandardMaterial({ color: 0x7d858b, roughness: 1 });
+    this.shutterMat = new THREE.MeshStandardMaterial({ map: stripeTexture(), roughness: 0.8, side: THREE.DoubleSide });
+    this.railMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ee, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
   }
 
   // ---- 設定 -----------------------------------------------------------------
 
-  setStage(stage, savedPlan) {
+  /** 表示するフロアと解放済みエリアを設定する */
+  setStage(stage, floor, unlocked) {
     this.stage = stage;
-    this.plan = new FloorPlan(stage, savedPlan);
-    this._buildGrid();
+    this.plan = new FloorPlan(floor, unlocked);
   }
 
   applyLook({ floor, wall }) {
@@ -138,7 +166,14 @@ export class Room {
     const plan = this.plan;
     this.built.add(this._floorMesh(plan, CELL.FLOOR, this.floorMat));
     this.built.add(this._floorMesh(plan, CELL.YARD, this.yardFloorMat));
+    this.built.add(this._floorMesh(plan, CELL.LOCKED, this.lockedFloorMat));
+    // 吹き抜けから見下ろす1階の床
+    this.built.add(this._floorMesh(plan, CELL.VOID, this.floorMat, -STORY_H));
     for (const run of plan.runs()) {
+      if (run.kind === 'shutter' || run.kind === 'rail') {
+        this.built.add(this._wallMesh(run, [], run.kind === 'rail' ? this.railMat : this.shutterMat, false, run.kind === 'rail' ? RAIL_H : SHUTTER_H));
+        continue;
+      }
       const hs = holes.filter((h) => h.key === run.key && h.along >= run.from && h.along <= run.to);
       if (run.kind === 'partition') {
         // 仕切り壁は両面：館内側は選んだ壁材、バックヤード側はコンクリート
@@ -153,10 +188,9 @@ export class Room {
     const b = plan.bounds();
     this.built.add(this._dirtMesh(b));
     this.sceneMgr.fitShadow(b.cx, b.cz, Math.max(b.w, b.d) / 2 + DIRT_MARGIN);
-    this._refreshGrid();
   }
 
-  _floorMesh(plan, type, material) {
+  _floorMesh(plan, type, material, y = 0) {
     const pos = [];
     const uv = [];
     const c = plan.cell;
@@ -164,7 +198,7 @@ export class Room {
       if (plan.at(i, j) !== type) continue;
       const [x, z] = plan.cellMin(i, j);
       for (const [qx, qz] of [[x, z], [x, z + c], [x + c, z], [x + c, z], [x, z + c], [x + c, z + c]]) {
-        pos.push(qx, 0, qz);
+        pos.push(qx, y, qz);
         uv.push(qx, -qz);
       }
     }
@@ -178,8 +212,8 @@ export class Room {
   }
 
   /** 壁1面。flip で裏向き（法線を反転）にする */
-  _wallMesh(run, holes, material, flip) {
-    const H = this.stage.wallHeight;
+  _wallMesh(run, holes, material, flip, height = this.stage.wallHeight) {
+    const H = height;
     const len = run.to - run.from;
     const mid = (run.from + run.to) / 2;
     const theta = runTheta(run) + (flip ? Math.PI : 0);
@@ -267,44 +301,8 @@ export class Room {
     geo.rotateX(Math.PI / 2); // Shape の XY → XZ
     const mesh = new THREE.Mesh(geo, this.dirtMat);
     mesh.position.y = -0.015;
+    mesh.renderOrder = -9;
     mesh.receiveShadow = true;
     return mesh;
   }
-
-  // ---- 形状編集用のマス目表示 -----------------------------------------------
-
-  _buildGrid() {
-    if (this.gridMesh) {
-      this.group.remove(this.gridMesh);
-      this.gridMesh.geometry.dispose();
-      this.gridMesh.material.dispose();
-    }
-    const plan = this.plan;
-    const geo = new THREE.PlaneGeometry(plan.cell * 0.9, plan.cell * 0.9);
-    geo.rotateX(-Math.PI / 2);
-    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false }), plan.GX * plan.GZ);
-    const m = new THREE.Matrix4();
-    for (let j = 0; j < plan.GZ; j++) for (let i = 0; i < plan.GX; i++) {
-      const [x, z] = plan.cellMin(i, j);
-      m.makeTranslation(x + plan.cell / 2, 0.02, z + plan.cell / 2);
-      mesh.setMatrixAt(plan.idx(i, j), m);
-    }
-    mesh.renderOrder = 5;
-    mesh.visible = false;
-    this.gridMesh = mesh;
-    this.group.add(mesh);
-    this._refreshGrid();
-  }
-
-  _refreshGrid() {
-    if (!this.gridMesh) return;
-    const cols = { [CELL.NONE]: new THREE.Color(0xffffff), [CELL.FLOOR]: new THREE.Color(0x4cd18a), [CELL.YARD]: new THREE.Color(0xf0a040) };
-    for (let k = 0; k < this.plan.active.length; k++) this.gridMesh.setColorAt(k, cols[this.plan.active[k]]);
-    this.gridMesh.instanceColor.needsUpdate = true;
-  }
-
-  showGrid(visible) {
-    if (this.gridMesh) this.gridMesh.visible = visible;
-  }
 }
-

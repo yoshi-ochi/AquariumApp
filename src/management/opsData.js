@@ -15,6 +15,7 @@ export const CLEANING = {
   tank180: { interval: 12 * H, staff: { crew: 3, cost: 3000, seconds: 90 }, diver: { cost: 15000, seconds: 60 } },
   round: { interval: 12 * H, staff: { crew: 3, cost: 3000, seconds: 90 }, diver: { cost: 15000, seconds: 60 } },
   tunnel: { interval: 24 * H, staff: null, diver: { cost: 80000, seconds: 180 } },
+  atriumTank: { interval: 24 * H, staff: null, diver: { cost: 200000, seconds: 240 } },
   mammal: { interval: 18 * H, staff: null, diver: { cost: 120000, seconds: 240 } },
 };
 
@@ -31,12 +32,12 @@ export const ROLES = [
 export const STARTING_STAFF = { guide: 1, keeper: 1, cleaner: 1, research: 0, show: 0, shop: 0 };
 
 /** 水族館の規模から必要な人数を求める */
-export function requiredStaff({ potential, tanks, creatures, level, showTanks, shops }) {
+export function requiredStaff({ potential, tanks, creatures, level, showTanks, shops, labs = 0 }) {
   return {
     guide: Math.max(1, Math.ceil(potential / 80)),
     keeper: Math.max(1, Math.ceil(tanks / 4) + Math.floor(creatures / 25)),
     cleaner: Math.max(1, Math.ceil(tanks / 6)),
-    research: level - 1,
+    research: Math.max(level - 1, labs),
     show: showTanks,
     shop: shops,
   };

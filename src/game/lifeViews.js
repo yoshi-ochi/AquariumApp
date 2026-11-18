@@ -29,7 +29,7 @@ export class CareView {
         ${notes.length ? `<em class="gs-alert">${notes.join('、')}</em>` : `<small>次のエサまで ${span(next)}</small>`}</div>
         <div class="gs-btns"><div class="sp-seg">${seg}</div><button data-act="care-feed" data-id="${t.userData.uid}" class="primary" ${this.economy.canAfford(cost) ? '' : 'disabled'}>エサ ${yen(cost)}</button></div></div>`;
     });
-    return `<p class="gs-empty">飼育員が足りていれば、エサやりは自動で行われます。同じ種類が2匹以上いて健康な水槽では、12時間ごとに赤ちゃんが生まれます（激レアを除く）。</p>${rows.join('') || '<p class="gs-empty">生き物を展示している水槽がありません。</p>'}`;
+    return `<p class="gs-empty">飼育員が足りていれば、エサやりは自動で行われます。繁殖はバックヤードの繁殖水槽で行います。</p>${rows.join('') || '<p class="gs-empty">生き物を展示している水槽がありません。</p>'}`;
   }
 
   act(act, id) {

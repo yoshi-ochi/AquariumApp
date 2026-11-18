@@ -68,6 +68,31 @@ export function buildSouvenirShop(g, def) {
   add(g, w * 0.72, 0.3, 0.03, mat(0x124a70), 0, h + 0.2, d / 2 - 0.02);
 }
 
+export function buildResearchLab(g, def) {
+  const { w, h, d } = def.size;
+  add(g, w, 0.82, d * 0.6, mat(0xdfe6ea), 0, 0.41, -d * 0.2);
+  add(g, 0.5, 0.36, 0.04, mat(0x1d2a33), -w * 0.22, 1.05, -d * 0.3);
+  add(g, 0.2, 0.34, 0.2, mat(0x3f7fa8), w * 0.22, 1, -d * 0.2);
+  add(g, 0.05, 0.2, 0.05, mat(0xbcc6cc), w * 0.22, 1.27, -d * 0.2);
+  add(g, w, h, 0.08, mat(0xeef2f4), 0, h / 2, -d / 2 + 0.04);
+  for (let r = 0; r < 3; r++) {
+    add(g, w - 0.2, 0.03, 0.14, mat(0xa9b4bb), 0, 1.3 + r * 0.22, -d / 2 + 0.14);
+    for (let i = 0; i < 6; i++) add(g, 0.07, 0.15, 0.07, mat([0x57b98b, 0x3f9bd6, 0xf2c14e][(i + r) % 3]), -w / 2 + 0.3 + i * 0.24, 1.39 + r * 0.22, -d / 2 + 0.14);
+  }
+}
+
+export function buildBreedingTank(g, def) {
+  const { w, h, d } = def.size;
+  add(g, w, 0.55, d, mat(0x5a6670), 0, 0.275, 0);
+  const water = new THREE.Mesh(new THREE.BoxGeometry(w - 0.08, h - 0.62, d - 0.08), new THREE.MeshStandardMaterial({ color: 0x5fb9d2, transparent: true, opacity: 0.65, roughness: 0.2, depthWrite: false }));
+  water.position.y = 0.55 + (h - 0.55) / 2;
+  g.add(water);
+  for (const s of [-1, 1]) add(g, 0.04, h - 0.55, d, mat(0x38444d), (s * (w - 0.04)) / 2, 0.55 + (h - 0.55) / 2, 0);
+  add(g, 0.04, h - 0.55, 0.04, mat(0x38444d), 0, 0.55 + (h - 0.55) / 2, 0);
+  add(g, w, 0.04, 0.04, mat(0x38444d), 0, h, d / 2);
+  add(g, w, 0.04, 0.04, mat(0x38444d), 0, h, -d / 2);
+}
+
 export function buildCafe(g, def) {
   const { w, h, d } = def.size;
   shell(g, def, 0xe9d8c2);

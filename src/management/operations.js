@@ -19,6 +19,7 @@ export class Operations extends EventTarget {
     this.stock = {};
     this.sales = 0;
     this.required = { ...STARTING_STAFF };
+    this.wageMult = 1; // 研究「労務管理」で下がる
     this.unpaid = false;
     this.dirtyRatio = 0;
     this._acc = 0;
@@ -31,7 +32,7 @@ export class Operations extends EventTarget {
   }
 
   get wages() {
-    return ROLES.reduce((s, r) => s + r.wage * this.staff[r.id], 0);
+    return ROLES.reduce((s, r) => s + r.wage * this.staff[r.id], 0) * this.wageMult;
   }
 
   /** 人員の充足度（必要な職種の重み付き平均 0〜1） */

@@ -1,6 +1,8 @@
 import { INCOME_PER_VISITOR } from '../management/stageData.js';
-import { CREATURES, getCreature } from '../expedition/creatureData.js';
-import { feed, feedCost, isHungry, tryBreed, hasLife } from '../expedition/husbandry.js';
+import { CREATURES } from '../expedition/creatureData.js';
+import { feed, feedCost, isHungry, hasLife } from '../expedition/husbandry.js';
+import { Backyard } from '../building/backyard.js';
+import { BackyardView } from '../building/buildingViews.js';
 import { Crowd } from '../visitors/crowd.js';
 import { CareView, EventView, ZukanView } from './lifeViews.js';
 import { EVENTS, GOALS, OFFLINE_MAX_HOURS, OFFLINE_RATE } from './gameData.js';
@@ -10,11 +12,13 @@ const emptyState = () => ({ goals: [], flags: {}, zukan: [], event: null, cooldo
 
 /** 目標・オフライン収入・来館者・飼育・図鑑・イベントをまとめて管理する */
 export class LifeSystems {
-  constructor({ sceneMgr, room, manager, economy, ops, inventory, expeditions, previews, toast, getHome, goalEl, reportEl }) {
+  constructor({ sceneMgr, room, manager, economy, ops, inventory, expeditions, previews, toast, getHome, goalEl, reportEl, isUnlocked }) {
     Object.assign(this, { manager, economy, ops, inventory, expeditions, toast, getHome, goalEl, reportEl });
     this.state = emptyState();
     this.crowd = new Crowd({ scene: sceneMgr.scene, room, manager });
+    this.backyard = new Backyard({ manager, ops, expeditions, toast, isUnlocked });
     this.panels = {
+      backyard: { title: 'バックヤード', live: true, view: new BackyardView({ backyard: this.backyard, expeditions, previews, toast }) },
       care: { title: '飼育', live: true, view: new CareView({ manager, economy, toast, onFed: () => (this.state.flags.fed = true) }) },
       zukan: { title: '生き物図鑑', view: new ZukanView({ expeditions, previews, economy, state: this.state, toast }) },
       event: { title: 'イベント', live: true, view: new EventView({ economy, state: this.state, getStats: () => this.stats(), toast, onStart: () => (this.state.flags.event = true) }) },
@@ -41,7 +45,8 @@ export class LifeSystems {
   /** イベント開催中の来館者倍率 */
   get visitorMult() {
     const e = this.state.event;
-    return e && e.until > Date.now() ? EVENTS.find((x) => x.id === e.id).mult : 1;
+    const event = e && e.until > Date.now() ? EVENTS.find((x) => x.id === e.id).mult : 1;
+    return event * (1 + this.backyard.level('display') * 0.05);
   }
 
   // ---- 毎秒の処理 ------------------------------------------------------------
@@ -50,20 +55,17 @@ export class LifeSystems {
     const s = this.stats();
     this.ops.shops = s.shops;
     this.ops.cafes = s.cafes;
+    this.ops.wageMult = 1 - this.backyard.level('welfare') * 0.05;
+    this.backyard.tick();
     this._husbandry();
     this._renderGoal(s);
   }
 
-  /** 飼育員が足りていれば自動でエサやり、条件が合えば繁殖 */
+  /** 飼育員が足りていれば自動でエサやり */
   _husbandry() {
     const staffed = this.ops.staff.keeper >= this.ops.required.keeper;
     for (const t of this.manager.tanks.filter(hasLife)) {
       if (staffed && isHungry(t) && this.economy.spend(feedCost(t))) feed(t);
-      const baby = tryBreed(t);
-      if (baby) {
-        this.expeditions.discover(baby);
-        this.toast(`${getCreature(baby).name} の赤ちゃんが生まれました`);
-      }
     }
   }
 
@@ -114,12 +116,14 @@ export class LifeSystems {
   // ---- 保存 ------------------------------------------------------------------
 
   toJSON() {
-    return { ...this.state };
+    return { ...this.state, backyard: this.backyard.toJSON() };
   }
 
   /** 読み込み。旧データの「開店済み店舗」は設置待ちの在庫に変換する */
   fromJSON(data, { own, oldShops = 0 } = {}) {
-    Object.assign(this.state, emptyState(), data ?? {});
+    const { backyard, ...rest } = data ?? {};
+    Object.assign(this.state, emptyState(), rest);
+    this.backyard.fromJSON(backyard);
     this._goalKey = null;
     if (!own) return;
     for (const t of this.manager.tanks) for (const id of Object.keys(t.userData.creatures ?? {})) this.expeditions.markSeen(id);

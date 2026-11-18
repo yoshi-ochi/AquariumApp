@@ -22,6 +22,7 @@ export const runTheta = (run) => Math.atan2(run.normal[0], run.normal[1]);
 export function findNearestRun(runs, x, z, maxDist = 1.2, bothSides = false, partitionOnly = false) {
   let best = null;
   for (const run of runs) {
+    if (run.kind === 'rail' || run.kind === 'shutter') continue; // 手すりや工事パネルには埋め込めない
     if (partitionOnly && run.kind !== 'partition') continue;
     const a = alongOf(run, x, z);
     if (a < run.from || a > run.to) continue;

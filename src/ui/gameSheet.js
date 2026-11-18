@@ -1,4 +1,4 @@
-import { TANK_DEFS } from '../tanks/tankData.js';
+import { PLACEABLE_TANKS as TANK_DEFS } from '../tanks/tankData.js';
 import { MAX_ORDERS, outsourceCost, outsourceSeconds } from '../management/inventory.js';
 import { icon } from './icons.js';
 

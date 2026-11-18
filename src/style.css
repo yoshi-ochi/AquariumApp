@@ -408,3 +408,5 @@ body.map-open #side-actions, body.map-open #hint { display: none; }
 .zk-cell.unknown span { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; font-size: 20px; font-weight: 700; }
 .zk-detail { flex-direction: row; align-items: flex-start; gap: 10px; }
 .zk-detail img { flex: none; width: 96px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }
+
+.zn-open { flex: none; color: var(--ok); font-size: 12px; font-weight: 700; }

@@ -1,17 +1,15 @@
 import { FLOOR_TYPES, WALL_TYPES, MAX_LIGHTS, defaultLight } from '../room/roomData.js';
 
 /**
- * 部屋の編集パネル（床・壁・照明・形状）。
+ * 部屋の編集パネル（床・壁・照明）。
  * 設定オブジェクト settings を直接書き換え、onChange(kind) で反映を依頼する。
- * kind: 'look' | 'lights' | 'shape-mode'
+ * kind: 'look' | 'lights'
  */
 export class RoomPanel {
   constructor({ el, getSettings, getPlan, onChange }) {
     Object.assign(this, { el, getSettings, getPlan, onChange });
     this.section = 'floor';
-    this.brush = 'floor';
     this.lightIndex = 0;
-    this.shapeEditing = false;
 
     el.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-act]');
@@ -29,15 +27,13 @@ export class RoomPanel {
     let body = '';
     if (this.section === 'floor') body = this._lookSection('floor', FLOOR_TYPES, s.floor);
     else if (this.section === 'wall') body = this._lookSection('wall', WALL_TYPES, s.wall);
-    else if (this.section === 'light') body = this._lightSection(s.lights);
-    else body = this._shapeSection();
-    this.el.innerHTML = `<div class="seg">${tab('floor', '床')}${tab('wall', '壁')}${tab('light', '照明')}${tab('shape', '形状')}</div>${body}`;
+    else body = this._lightSection(s.lights);
+    this.el.innerHTML = `<div class="seg">${tab('floor', '床')}${tab('wall', '壁')}${tab('light', '照明')}</div>${body}`;
   }
 
   setVisible(visible) {
     this.el.hidden = !visible;
     if (visible) this.render();
-    this._setShapeEditing(visible && this.section === 'shape');
     this.onChange('light-mode', visible && this.section === 'light');
   }
 
@@ -77,35 +73,13 @@ export class RoomPanel {
         <button data-act="light-preset" data-v="#e8f2ff">昼光色</button></div>` : ''}`;
   }
 
-  _shapeSection() {
-    const plan = this.getPlan();
-    const b = (id, label) => `<button data-act="brush" data-v="${id}" class="${this.brush === id ? 'active' : ''}">${label}</button>`;
-    return `
-      <div class="seg">${b('floor', '🟩 館内')}${b('yard', '🟧 バックヤード')}${b('erase', '⬜ 消す')}</div>
-      <p class="note">選んだ種類でマスをタップして塗ります。面積（マス数）は一定です。<br>
-      館内とバックヤードの境は仕切り壁になり、水槽の埋め込みと飼育員用ドアの設置ができます。</p>
-      <div class="row"><b>残り ${plan.remaining} マス</b><span class="note">（全 ${plan.quota} マス）</span>
-        <button data-act="shape-reset">長方形に戻す</button></div>`;
-  }
-
-  _setShapeEditing(v) {
-    if (this.shapeEditing === v) return;
-    this.shapeEditing = v;
-    this.onChange('shape-mode', v);
-  }
-
   _act(act, v) {
     const s = this.getSettings();
     if (act === 'section') {
       this.section = v;
       this.render();
-      this._setShapeEditing(v === 'shape');
       this.onChange('light-mode', v === 'light');
       return;
-    }
-    if (act === 'brush') {
-      this.brush = v;
-      return this.render();
     }
     if (act === 'floor-type') s.floor.type = v;
     else if (act === 'wall-type') s.wall.type = v;
@@ -122,7 +96,6 @@ export class RoomPanel {
       this.onChange('light-update', this.lightIndex);
       return this.render();
     }
-    else if (act === 'shape-reset') return this.onChange('shape-reset');
     this.onChange(act.startsWith('light') ? 'lights' : 'look');
     this.render();
   }
@@ -140,8 +113,5 @@ export class RoomPanel {
     this.onChange('look');
   }
 
-  /** 形状編集のマス数表示を更新 */
-  refresh() {
-    if (!this.el.hidden && this.section === 'shape') this.render();
-  }
+  refresh() {}
 }

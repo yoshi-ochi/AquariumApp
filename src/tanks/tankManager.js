@@ -8,6 +8,7 @@ import { updateBubbles } from './aeration.js';
 import { syncLife, updateLife, lifeAppeal } from '../expedition/tankLife.js';
 import { cleanAppealFactor, updateCareVisual } from './tankCleaning.js';
 import { tankHealth } from '../expedition/husbandry.js';
+import { STORY_H } from '../building/blueprint.js';
 
 /**
  * 館内に配置されたオブジェクトの管理。
@@ -21,6 +22,8 @@ export class TankManager {
     this.objects = new Map(); // uid -> root
     this.currentFloor = 0;
     this.nextUid = 1;
+    this.extraAppeal = 0; // 屋外プールなど建物の魅力
+    this.themeBonus = () => 1; // エリアのテーマに合った展示のボーナス
   }
 
   // ---- 追加・削除 ---------------------------------------------------------
@@ -33,7 +36,7 @@ export class TankManager {
     obj.userData.floor = floor;
     obj.position.set(x, 0, z);
     obj.rotation.y = rotY;
-    obj.visible = floor === this.currentFloor;
+    obj.visible = this._visibleOn(obj, this.currentFloor);
     if (embed && (def.category === CATEGORY.TANK || def.wallMount)) obj.userData.embed = { ...embed };
     if (def.category === CATEGORY.TANK) {
       obj.userData.clip = createClipUniforms(obj.userData.interior);
@@ -170,6 +173,11 @@ export class TankManager {
     }
   }
 
+  /** 吹き抜けの大水槽はどの階からも見える */
+  _visibleOn(o, floor) {
+    return o.userData.floor === floor || !!this.defOf(o).atrium;
+  }
+
   /** 全水槽（配置順） */
   get tanks() {
     return [...this.objects.values()].filter((o) => o.userData.clip);
@@ -217,7 +225,7 @@ export class TankManager {
 
   /** レイキャスト対象（現在の階のオブジェクト） */
   getPickables() {
-    return [...this.objects.values()].filter((o) => o.userData.floor === this.currentFloor);
+    return [...this.objects.values()].filter((o) => this._visibleOn(o, this.currentFloor));
   }
 
   /** メッシュから配置オブジェクトのルートを辿る */
@@ -234,12 +242,12 @@ export class TankManager {
   }
 
   totalAppeal() {
-    let sum = 0;
+    let sum = this.extraAppeal;
     for (const o of this.objects.values()) {
       let value = this.defOf(o).appeal ?? 0;
       if (o.userData.clip) {
         for (const c of this.interiorItems(o)) value += getDef(c.userData.defId).appeal ?? 0;
-        value = (value + lifeAppeal(o) * tankHealth(o)) * cleanAppealFactor(o); // 汚れた水槽は魅力が下がる
+        value = (value + lifeAppeal(o) * tankHealth(o) * this.themeBonus(o)) * cleanAppealFactor(o); // 汚れた水槽は魅力が下がる
       }
       sum += value;
     }
@@ -250,7 +258,10 @@ export class TankManager {
 
   setFloor(floor) {
     this.currentFloor = floor;
-    for (const o of this.objects.values()) o.visible = o.userData.floor === floor;
+    for (const o of this.objects.values()) {
+      o.visible = this._visibleOn(o, floor);
+      if (this.defOf(o).atrium) o.position.y = floor * -STORY_H; // 2階からは吹き抜け越しに見下ろす
+    }
   }
 
   // ---- 幾何計算 -------------------------------------------------------------
@@ -277,6 +288,7 @@ export class TankManager {
 
   /** 水槽を (x,z) に置いたときの床からの高さ */
   elevationAt(def, x, z, floor) {
+    if (def.atrium) return floor * 0;
     if (def.category !== CATEGORY.TANK) return 0;
     // 水槽台は床の上（埋め込み水槽は対象外）
     let y = 0;
@@ -290,7 +302,7 @@ export class TankManager {
 
   refreshElevations(floor = this.currentFloor) {
     for (const o of this.objects.values()) {
-      if (o.userData.floor !== floor || o.userData.embed) continue;
+      if (o.userData.floor !== floor || o.userData.embed || this.defOf(o).atrium) continue;
       o.position.y = this.elevationAt(this.defOf(o), o.position.x, o.position.z, floor);
     }
   }

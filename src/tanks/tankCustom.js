@@ -121,7 +121,7 @@ export class TankCustomizer {
         <button data-action="delete" class="danger">🗑 撤去</button>
       </div>
       ${isTank && this.allowEmbed ? this._lookSection(obj, def) : ''}
-      ${isTank && this.allowEmbed ? this._embedSection(obj) : ''}
+      ${isTank && this.allowEmbed && !def.atrium ? this._embedSection(obj) : ''}
       ${def.shape === 'liveRock' && this.getBrush ? this._sculptSection(def) : ''}
       ${def.growth && this.getGrowMode ? this._growthSection(obj, def) : ''}
       ${def.bubbles ? `<div class="section"><h4>泡の量</h4>${slider('bubbles', '泡', 0, 1, 0.05, obj.userData.bubbles ?? 0.5, '%')}</div>` : ''}`;

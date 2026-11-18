@@ -110,7 +110,7 @@ export class Crowd {
     const plan = this.room.plan;
     const floor = this.manager.currentFloor;
     const objects = [...this.manager.objects.values()].filter((o) => o.userData.floor === floor && !o.userData.embed);
-    const key = `${plan.cell}:${plan.toJSON().cells.length}:${floor}:${objects.map((o) => `${o.userData.uid},${o.position.x},${o.position.z},${o.rotation.y}`).join(';')}`;
+    const key = `${plan.signature}:${floor}:${objects.map((o) => `${o.userData.uid},${o.position.x},${o.position.z},${o.rotation.y}`).join(';')}`;
     if (key === this.gridKey && this.plan === plan) return;
     this.gridKey = key;
     this.plan = plan;

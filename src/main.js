@@ -12,12 +12,11 @@ import { TankCustomizer } from './tanks/tankCustom.js';
 import { HallInteraction } from './interaction/hallInteraction.js';
 import { InteriorInteraction } from './interaction/interiorInteraction.js';
 import { ViewInteraction } from './interaction/viewInteraction.js';
-import { ShapeInteraction } from './interaction/shapeInteraction.js';
 import { LightInteraction } from './interaction/lightInteraction.js';
 import { InteriorCamera } from './interior/interiorCamera.js';
 import { Room } from './room/room.js';
 import { CELL } from './room/floorPlan.js';
-import { defaultRoomSettings, normalizeLight } from './room/roomData.js';
+import { defaultRoomSettings, defaultLight, normalizeLight } from './room/roomData.js';
 import { findRunByKey, placeEmbedded, holeFor } from './room/embed.js';
 import { normalizeLook } from './tanks/tankLook.js';
 import { Splash } from './ui/splash.js';
@@ -46,6 +45,12 @@ import { AllianceApi } from './online/allianceApi.js';
 import { AllianceView } from './ui/allianceView.js';
 import { MapPage } from './ui/mapPage.js';
 import { LifeSystems } from './game/lifeSystems.js';
+import { START_ZONES, ATRIUM_TANK_POS, getZone, zoneAt, zoneCenter } from './building/blueprint.js';
+import { ZoneLabels } from './building/zoneLabels.js';
+import { DolphinPool } from './building/dolphinPool.js';
+import { ZoneView } from './building/buildingViews.js';
+import { migrateLegacyLayout } from './building/migrate.js';
+import { zoneOf } from './expedition/husbandry.js';
 import { isHungry } from './expedition/husbandry.js';
 import { allianceBonus, allianceLevel } from './expedition/creatureData.js';
 import { CREATURES } from './expedition/creatureData.js';
@@ -53,6 +58,9 @@ import { buildCreature } from './expedition/creatureBuilder.js';
 
 const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
+const POOL_APPEAL = 150;
+const THEME_BONUS = 1.25;
+const ENTRANCE = zoneCenter(getZone('entrance'));
 const HINT = {
   home: '水槽をタップすると近くで見られます ・ ドラッグで回転 / 2本指でズーム',
   hall: 'タップで選択・ドラッグで移動 ・ 何もない所のドラッグで視点を回転',
@@ -60,7 +68,6 @@ const HINT = {
   interior: 'ドラッグで移動（岩の上にも積める）・ はみ出した部分はガラス面でカット',
   sculpt: '岩肌をなぞって{mode} ・ 2本指で視点操作',
   grow: 'パネルの説明どおりに本体をドラッグ ・ 2本指で視点操作',
-  shape: '床のマスをタップして形を変更（面積は一定）',
 };
 
 async function boot() {
@@ -96,6 +103,20 @@ async function boot() {
 
   // ---- 部屋 -----------------------------------------------------------------
   let wallsDirty = false;
+  let unlocked = new Set(START_ZONES); // 解放済みのエリア
+  const zoneLabels = new ZoneLabels(sceneMgr.scene);
+  const pool = new DolphinPool(sceneMgr.scene);
+  manager.themeBonus = (tank) => {
+    const theme = zoneAt(tank.userData.floor, tank.position.x, tank.position.z)?.theme;
+    const ids = Object.keys(tank.userData.creatures ?? {});
+    return theme && ids.length && ids.every((id) => zoneOf(id) === theme) ? THEME_BONUS : 1;
+  };
+  /** 大水槽ホールを解放したら吹き抜けの大水槽を据え付ける */
+  function ensureAtriumTank() {
+    if (!unlocked.has('atrium') || [...manager.objects.values()].some((o) => manager.defOf(o).atrium)) return;
+    manager.add('atriumTank', { ...ATRIUM_TANK_POS, floor: 0 });
+    manager.setFloor(economy.floor);
+  }
   /** 埋め込み水槽を壁に合わせ直し、穴あきの壁を作り直す */
   function refreshRoom() {
     const runs = room.plan.runs();
@@ -122,11 +143,15 @@ async function boot() {
     wallsDirty = false;
   }
   function applyRoom(reframe) {
-    room.setStage(economy.stage, roomSettings.plan);
+    room.setStage(economy.stage, economy.floor, unlocked);
+    zoneLabels.update(economy.floor, unlocked);
+    pool.setUnlocked(unlocked.has('pool'));
+    manager.extraAppeal = unlocked.has('pool') ? POOL_APPEAL : 0;
+    ensureAtriumTank();
     room.applyLook(roomSettings);
     room.setLights(roomSettings.lights);
     refreshRoom();
-    if (reframe) cameraCtl.frameBounds(room.plan.bounds());
+    if (reframe) cameraCtl.frameBounds(room.plan.bounds(CELL.FLOOR));
   }
   applyRoom(true);
 
@@ -201,26 +226,6 @@ async function boot() {
       else if (kind === 'lights') room.setLights(roomSettings.lights);
       else if (kind === 'light-update') room.updateLight(value, roomSettings.lights[value]);
       else if (kind === 'light-mode') lightCtl.enabled = value;
-      else if (kind === 'shape-mode') {
-        shape.enabled = value;
-        hall.setEnabled(!value && mode === 'hall-edit');
-        customizer.deselect();
-        room.showGrid(value);
-        shell.setHint(value ? HINT.shape : HINT.hall);
-      } else if (kind === 'shape-reset') {
-        const saved = room.plan;
-        room.setStage(economy.stage, null);
-        if (!allObjectsFit()) {
-          room.plan = saved;
-          refreshRoom();
-          room.showGrid(true);
-          return toast('長方形に戻すと床からはみ出すオブジェがあります', { error: true });
-        }
-        room.showGrid(true);
-        roomSettings.plan = room.plan.toJSON();
-        refreshRoom();
-        roomPanel.refresh();
-      }
     },
   });
 
@@ -248,16 +253,6 @@ async function boot() {
     },
   });
 
-  /** 床形状を変えたとき・戻すときに、置いてある物がすべて床に収まるか */
-  function allObjectsFit() {
-    for (const o of manager.objects.values()) {
-      if (o.userData.embed) continue;
-      const { hx, hz } = TankManager.footprintHalf(manager.defOf(o), o.rotation.y);
-      if (!room.plan.containsRect(o.position.x, o.position.z, hx, hz)) return false;
-    }
-    return true;
-  }
-
   // ---- 操作 -----------------------------------------------------------------
   // ライトのハンドルは他の操作より先にイベントを取るため、最初に作る
   const lightCtl = new LightInteraction({
@@ -276,15 +271,6 @@ async function boot() {
     onWallsChanged: () => (wallsDirty = true),
     onTankRemoved: (tank) => {
       for (const [id, n] of Object.entries(tank.userData.creatures ?? {})) expeditions.give(id, n);
-    },
-  });
-  const shape = new ShapeInteraction({
-    sceneMgr, room, manager, toast,
-    getBrush: () => roomPanel.brush,
-    onChanged: () => {
-      roomSettings.plan = room.plan.toJSON();
-      refreshRoom();
-      roomPanel.refresh();
     },
   });
   const interiorCam = new InteriorCamera(cameraCtl);
@@ -310,8 +296,6 @@ async function boot() {
   function goHome() {
     mode = 'home';
     hall.setEnabled(false);
-    shape.enabled = false;
-    room.showGrid(false);
     room.setEditVisible(false);
     roomPanel.setVisible(false);
     customizer.deselect();
@@ -346,8 +330,6 @@ async function boot() {
     interiorFrom = from;
     focusTank = tank;
     hall.setEnabled(false);
-    shape.enabled = false;
-    room.showGrid(false);
     roomPanel.setVisible(false);
     customizer.deselect();
     customizer.allowEmbed = false;
@@ -394,14 +376,12 @@ async function boot() {
       hall.cancelPlacement();
       customizer.deselect();
       manager.setFloor(economy.floor);
-      refreshRoom();
+      applyRoom(false);
     },
     onUpgrade: () => {
       const res = economy.upgradeStage();
       if (!res.ok) return toast(res.reason, { error: true });
-      roomSettings.plan = null; // 新しい広さの長方形から
-      applyRoom(true);
-      roomPanel.refresh();
+      if (gameSheet.view) gameSheet.render();
       toast(`「${economy.stage.name}」に拡張しました！`);
     },
     onSave: () => {
@@ -421,8 +401,7 @@ async function boot() {
 
   /** 現在の状態を保存用データにする */
   function snapshot() {
-    roomSettings.plan = room.plan.toJSON();
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: roomSettings, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: { ...roomSettings, building: 1, unlocked: [...unlocked] }, objects: manager.serialize() };
   }
 
   /** 保存用データから状態を復元する */
@@ -436,6 +415,14 @@ async function boot() {
     roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
     manager.deserialize(data.objects);
+    if (data.room?.building) unlocked = new Set([...START_ZONES, ...(data.room.unlocked ?? [])]);
+    else {
+      // 自由な床形状だった旧セーブを新しい建物へ移す
+      unlocked = new Set(migrateLegacyLayout({ manager, level: economy.stage.level, inventory, expeditions, economy }));
+      roomSettings.lights = [defaultLight(ENTRANCE.x, ENTRANCE.z)];
+      economy.setFloor(0);
+    }
+    delete roomSettings.plan;
     manager.setFloor(economy.floor);
     life.fromJSON(data.life, { own: !visiting, oldShops: data.life ? 0 : data.ops?.shops ?? 0 });
     applyRoom(true);
@@ -510,7 +497,14 @@ async function boot() {
 
   // ---- 上部バー・下部メニュー・アイテム ---------------------------------------
   const hud = new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
+  /** エリアを解放して建物を作り直す */
+  function unlockZone(id) {
+    unlocked.add(id);
+    applyRoom(false);
+    toast(`${getZone(id).name} を解放しました`);
+  }
   const life = new LifeSystems({
+    isUnlocked: (id) => unlocked.has(id),
     sceneMgr, room, manager, economy, ops, inventory, expeditions, previews, toast,
     getHome: () => home, goalEl: $('goal-card'), reportEl: $('offline-report'),
   });
@@ -520,7 +514,7 @@ async function boot() {
     onVisit: (id, name) => visitAquarium(id, name),
     onChanged: () => mapPage.refresh(),
   });
-  const expeditionView = new ExpeditionView({ economy, expeditions, toast, previews, getHome: () => home });
+  const expeditionView = new ExpeditionView({ economy, expeditions, toast, previews, getHome: () => home, getDiscount: () => life.backyard.level('field') * 0.1 });
   // 地図で選んだ仲間の水族館
   const placeView = {
     pin: null,
@@ -577,6 +571,7 @@ async function boot() {
       staff: { title: 'スタッフ', live: true, view: new StaffView({ ops }) },
       shop: { title: '店舗運営', live: true, view: new ShopView({ ops, economy, inventory, onPlace: (id) => { gameSheet.close(); mapPage.close(); if (mode !== 'hall-edit') enterHallEdit(); hall.startPlacement(id); } }) },
       ...life.panels,
+      zones: { title: '館内エリア', view: new ZoneView({ economy, getUnlocked: () => unlocked, onUnlock: unlockZone }) },
     },
     creatureView: new CreatureView({ manager, expeditions, previews, toast, onChanged: () => shell.update() }),
     onPlace: (id) => {
@@ -616,6 +611,12 @@ async function boot() {
       const open = gameSheet.view === id;
       gameSheet.close();
       if (!open) gameSheet.openPanel(id);
+    });
+  }
+  for (const [btn, id] of [['btn-zones', 'zones'], ['btn-backyard', 'backyard']]) {
+    $(btn).addEventListener('click', () => {
+      shell.toggleMenu(false);
+      gameSheet.openPanel(id);
     });
   }
   $('btn-event').addEventListener('click', () => {
@@ -699,7 +700,8 @@ async function boot() {
       tanks: tanks.length,
       creatures: tanks.reduce((s, t) => s + Object.values(t.userData.creatures ?? {}).reduce((a, n) => a + n, 0), 0),
       level: economy.stage.level,
-      showTanks: tanks.filter((t) => t.userData.defId === 'mammal').length * 2 + tanks.filter((t) => t.userData.defId === 'tunnel').length,
+      showTanks: tanks.filter((t) => t.userData.defId === 'mammal').length * 2 + tanks.filter((t) => t.userData.defId === 'tunnel').length + (unlocked.has('pool') ? 4 : 0),
+      labs: life.backyard.labCount,
       dirtyRatio: tanks.length ? tanks.filter((t) => needsCleaning(t)).length / tanks.length : 0,
     };
   }
@@ -715,6 +717,7 @@ async function boot() {
     manager.updateClips();
     manager.updateAeration(clock.elapsedTime);
     manager.updateLife(clock.elapsedTime);
+    pool.update(clock.elapsedTime);
     interior.update();
     economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult * allyBonus() * life.visitorMult));
     life.crowd.setVisible(mode !== 'interior-edit' && mode !== 'tank' && !mapPage.isOpen);

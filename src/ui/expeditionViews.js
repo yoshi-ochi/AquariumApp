@@ -7,8 +7,8 @@ const until = (t) => `<span data-until="${t}">${fmtTime(Math.max(0, Math.ceil((t
 
 /** 採取遠征：調査隊の状況と行き先 */
 export class ExpeditionView {
-  constructor({ economy, expeditions, toast, getHome, previews }) {
-    Object.assign(this, { economy, expeditions, toast, getHome, previews });
+  constructor({ economy, expeditions, toast, getHome, previews, getDiscount }) {
+    Object.assign(this, { economy, expeditions, toast, getHome, previews, getDiscount });
     this.focus = null; // 地図で選んだ採取地
   }
 
@@ -24,7 +24,7 @@ export class ExpeditionView {
     const status = `<p class="gs-empty">調査隊 ${ex.trips.length}/${level}</p>${trips.join('')}`;
     const d = this.focus && getDestination(this.focus);
     if (!d) return `${status}<p class="gs-empty">地図の採取地をタップして行き先を選びます。</p>`;
-    const plan = travelPlan(d, this.getHome());
+    const plan = this._plan(d);
     const species = d.pool.map((id) => {
       const c = getCreature(id);
       return `<div class="ex-sp"><img src="${this.previews.get(`creature:${id}`) ?? ''}" alt=""><small>${c.name}</small><small>${RARITY[c.rarity]}</small></div>`;
@@ -36,11 +36,17 @@ export class ExpeditionView {
       ${locked ? `<em class="gs-alert">ステージ${d.stage}で解放</em>` : `<button data-act="depart" data-id="${d.id}" class="primary" ${ok ? '' : 'disabled'}>出発 ${yen(plan.cost)} ・ ${fmtTime(plan.seconds)}</button>`}</div>${status}`;
   }
 
+  /** 研究「採取技術」の割引を反映した費用と時間 */
+  _plan(d) {
+    const plan = travelPlan(d, this.getHome());
+    return { ...plan, cost: Math.round(plan.cost * (1 - this.getDiscount())) };
+  }
+
   act(act, id) {
     const ex = this.expeditions;
     if (act === 'depart') {
       const d = getDestination(id);
-      const plan = travelPlan(d, this.getHome());
+      const plan = this._plan(d);
       if (ex.canDepart(this.economy.stage.level) && this.economy.spend(plan.cost)) {
         ex.depart(d, plan.seconds);
         this.toast(`${d.name} へ出発しました`);

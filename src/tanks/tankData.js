@@ -23,6 +23,7 @@ export const TANK_DEFS = [
   { id: 'tank180', name: '180cm水槽', shape: 'box', size: { w: 1.8, h: 0.6, d: 0.6 }, price: 90000, appeal: 15 },
   { id: 'round', name: '円形水槽', shape: 'cylinder', size: { w: 1.2, h: 1.2, d: 1.2 }, price: 80000, appeal: 14 },
   { id: 'tunnel', name: '大型トンネル水槽', shape: 'tunnel', size: { w: 4, h: 3, d: 5 }, price: 600000, appeal: 120, requiredStage: 2 },
+  { id: 'atriumTank', name: '吹き抜け大水槽', shape: 'box', size: { w: 8, h: 6.4, d: 7 }, price: 0, appeal: 120, hidden: true, atrium: true },
   { id: 'mammal', name: '海生哺乳類用水槽', shape: 'mammal', size: { w: 5, h: 1.6, d: 4 }, landRatio: 0.35, price: 900000, appeal: 160, requiredStage: 2 },
 ].map(withCategory(CATEGORY.TANK));
 
@@ -32,6 +33,8 @@ export const STRUCTURE_DEFS = [
   { id: 'stand180', name: '水槽台 180cm', shape: 'stand', size: { w: 1.8, h: 0.7, d: 0.62 }, price: 20000, supportsTanks: true },
   { id: 'wall', name: '仕切り壁', shape: 'wall', size: { w: 3, h: 2.4, d: 0.12 }, price: 8000 },
   { id: 'staffDoor', name: '飼育員用ドア', shape: 'staffDoor', size: { w: 0.9, h: 2.05, d: 0.14 }, price: 20000, wallMount: true },
+  { id: 'researchLab', name: '研究室', shape: 'researchLab', size: { w: 1.8, h: 2, d: 1.2 }, price: 200000, yardOnly: true },
+  { id: 'breedingTank', name: '繁殖水槽', shape: 'breedingTank', size: { w: 1.6, h: 1.3, d: 0.9 }, price: 80000, yardOnly: true },
   { id: 'souvenirShop', name: 'お土産店', shape: 'souvenirShop', size: { w: 1.5, h: 1.9, d: 1.1 }, price: 30000 },
   { id: 'cafe', name: 'カフェ', shape: 'cafe', size: { w: 1.7, h: 1.9, d: 1.3 }, price: 50000 },
   { id: 'entrance', name: '館内入口', shape: 'entrance', size: { w: 3, h: 2.8, d: 0.6 }, price: 30000 },
@@ -105,8 +108,9 @@ export const GROUP_LABELS = {
 export const groupOf = (def) => def.group ?? def.category;
 
 /** 館内モードで配置できる定義 */
-export const HALL_DEFS = [...TANK_DEFS, ...STRUCTURE_DEFS];
-export const ALL_DEFS = [...HALL_DEFS, ...INTERIOR_DEFS];
+export const PLACEABLE_TANKS = TANK_DEFS.filter((d) => !d.hidden);
+export const HALL_DEFS = [...PLACEABLE_TANKS, ...STRUCTURE_DEFS];
+export const ALL_DEFS = [...TANK_DEFS, ...STRUCTURE_DEFS, ...INTERIOR_DEFS];
 
 const defMap = new Map(ALL_DEFS.map((d) => [d.id, d]));
 
