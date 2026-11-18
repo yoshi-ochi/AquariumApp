@@ -21,10 +21,12 @@
     <!-- 3Dビューポート -->
     <div id="viewport"></div>
 
+    <!-- 上部ステータスバー -->
+    <header id="hud"></header>
+
     <!-- 上部オーバーレイ -->
     <div id="top-bar">
       <div class="slot">
-        <button id="btn-menu" class="icon" aria-label="メニュー">☰</button>
         <button id="btn-back" class="icon" aria-label="戻る" hidden>←</button>
       </div>
       <div id="mode-title"></div>
@@ -46,6 +48,11 @@
         </div>
       </div>
       <div class="menu-row"><span id="menu-stage"></span><button id="btn-upgrade" class="primary">拡張</button></div>
+      <div class="menu-row">
+        <span>運営</span>
+        <button id="btn-clean">水槽の掃除</button>
+        <button id="btn-event">イベント</button>
+      </div>
       <div class="menu-row">
         <span>オンライン</span>
         <button id="btn-online" class="primary">👥 フレンド・クラウド</button>
@@ -74,6 +81,10 @@
       <div id="catalog-cards"></div>
       <div id="room-panel" hidden></div>
     </section>
+
+    <!-- 下部メインメニューとシート -->
+    <div id="game-sheet" hidden></div>
+    <nav id="bottom-nav" aria-label="メインメニュー"></nav>
 
     <!-- オンライン（アカウント・フレンド） -->
     <div id="friend-sheet" hidden></div>

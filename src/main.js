@@ -4,7 +4,8 @@ import { SceneManager } from './core/scene.js';
 import { CameraController } from './core/controls.js';
 import { generatePreviews } from './core/previewRenderer.js';
 import { Economy } from './management/economy.js';
-import { HALL_DEFS, INTERIOR_DEFS, ALL_DEFS, getDef } from './tanks/tankData.js';
+import { Inventory } from './management/inventory.js';
+import { HALL_DEFS, INTERIOR_DEFS, ALL_DEFS, CATEGORY, getDef } from './tanks/tankData.js';
 import { buildObject, disposeObject } from './tanks/tankBuilder.js';
 import { TankManager } from './tanks/tankManager.js';
 import { TankCustomizer } from './tanks/tankCustom.js';
@@ -31,6 +32,9 @@ import { LAYOUT_VERSION, downloadJSON, readLayoutFile } from './io/layoutIO.js';
 import { Online } from './online/online.js';
 import { FriendPanel } from './ui/friendPanel.js';
 import { runLoginGate } from './ui/loginGate.js';
+import { Hud } from './ui/hud.js';
+import { BottomNav } from './ui/bottomNav.js';
+import { GameSheet } from './ui/gameSheet.js';
 
 const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
@@ -52,6 +56,7 @@ async function boot() {
   const sceneMgr = new SceneManager($('viewport'));
   const cameraCtl = new CameraController(sceneMgr.camera, sceneMgr.renderer.domElement);
   const economy = new Economy();
+  const inventory = new Inventory();
   const manager = new TankManager(sceneMgr.scene);
   const room = new Room(sceneMgr.scene, sceneMgr);
   let roomSettings = defaultRoomSettings();
@@ -206,9 +211,15 @@ async function boot() {
     economy,
     onSelect: (id) => {
       const active = mode === 'interior-edit' ? interior : hall;
-      if (active.placing?.def.id === id) active.cancelPlacement();
-      else active.startPlacement(id);
+      if (active.placing?.def.id === id) return active.cancelPlacement();
+      // 水槽は在庫から設置する。無ければ取引先を開く
+      if (mode === 'hall-edit' && getDef(id).category === CATEGORY.TANK && inventory.count(id) <= 0) {
+        toast('在庫がありません。取引先から購入できます');
+        return gameSheet.openItems('supplier');
+      }
+      active.startPlacement(id);
     },
+    priceLabel: (def) => (def.category === CATEGORY.TANK ? `所持 ${inventory.count(def.id)}` : null),
     onTab: (id, extra) => {
       if (mode !== 'hall-edit') return;
       hall.cancelPlacement();
@@ -236,7 +247,7 @@ async function boot() {
   });
   const view = new ViewInteraction({ sceneMgr, manager, onTankTap: (tank) => openTank(tank) });
   const hall = new HallInteraction({
-    sceneMgr, cameraCtl, manager, economy, customizer, room, toast,
+    sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast,
     onPlacementChange: (id) => {
       catalog.setActive(id);
       shell.setHint(id ? HINT.place : HINT.hall);
@@ -388,13 +399,14 @@ async function boot() {
   /** 現在の状態を保存用データにする */
   function snapshot() {
     roomSettings.plan = room.plan.toJSON();
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), room: roomSettings, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), inventory: inventory.toJSON(), room: roomSettings, objects: manager.serialize() };
   }
 
   /** 保存用データから状態を復元する */
   function applySnapshot(data) {
     if (mode !== 'home') goHome();
     economy.fromJSON(data.economy);
+    inventory.fromJSON(data.inventory);
     roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
     manager.deserialize(data.objects);
@@ -439,6 +451,42 @@ async function boot() {
     shell.toggleMenu(false);
     friendPanel.open();
   });
+
+  // ---- 上部バー・下部メニュー・アイテム ---------------------------------------
+  new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
+  const gameSheet = new GameSheet({
+    el: $('game-sheet'), economy, inventory, previews, toast,
+    onPlace: (id) => {
+      if (mode !== 'hall-edit') enterHallEdit();
+      hall.startPlacement(id);
+    },
+  });
+  new BottomNav({
+    el: $('bottom-nav'),
+    onSelect: (id) => {
+      if (mode !== 'home' || visiting) return;
+      const wasOpen = gameSheet.view;
+      gameSheet.close();
+      friendPanel.close();
+      if (id === 'more') return shell.toggleMenu();
+      shell.toggleMenu(false);
+      if (id === 'layout') return enterHallEdit();
+      if (id === 'items') return wasOpen && !wasOpen.startsWith('feature:') ? undefined : gameSheet.openItems();
+      if (wasOpen !== `feature:${id}`) gameSheet.openFeature(id);
+    },
+  });
+  for (const [btn, id] of [['btn-clean', 'clean'], ['btn-event', 'event']]) {
+    $(btn).addEventListener('click', () => {
+      shell.toggleMenu(false);
+      gameSheet.openFeature(id);
+    });
+  }
+  inventory.addEventListener('change', () => catalog.refresh());
+  // 外注の完成チェック（閉じている間に完成した分も受け取る）
+  setInterval(() => {
+    if (visiting) return;
+    for (const id of inventory.collect()) toast(`外注の ${getDef(id).name} が完成しました`);
+  }, 1000);
   $('btn-visit-end').addEventListener('click', () => {
     if (!visiting) return;
     applySnapshot(visiting.mine);

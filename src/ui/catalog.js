@@ -7,8 +7,8 @@ const yen = (n) => `¥${n.toLocaleString('ja-JP')}`;
  * extraTabs（例：部屋）を選ぶと onTab(id) を呼び、カードの代わりに別パネルを出す。
  */
 export class Catalog {
-  constructor({ tabsEl, cardsEl, previews, economy, onSelect, onTab }) {
-    Object.assign(this, { tabsEl, cardsEl, previews, economy, onSelect, onTab });
+  constructor({ tabsEl, cardsEl, previews, economy, onSelect, onTab, priceLabel }) {
+    Object.assign(this, { tabsEl, cardsEl, previews, economy, onSelect, onTab, priceLabel });
     this.defs = [];
     this.extraTabs = [];
     this.activeTab = null;
@@ -47,6 +47,11 @@ export class Catalog {
     this.onTab?.(id, !!extra);
   }
 
+  /** 価格・在庫の表示を更新 */
+  refresh() {
+    if (this.activeTab && !this.cardsEl.hidden) this._renderCards();
+  }
+
   setActive(defId) {
     this.activeId = defId;
     this.cardsEl.querySelectorAll('.card').forEach((c) => c.classList.toggle('active', c.dataset.id === defId));
@@ -62,7 +67,7 @@ export class Catalog {
       img.alt = def.name;
       img.src = this.previews.get(def.id) ?? '';
       card.append(img);
-      card.insertAdjacentHTML('beforeend', `<span class="name">${def.name}</span><span class="price">${yen(def.price)}</span>`);
+      card.insertAdjacentHTML('beforeend', `<span class="name">${def.name}</span><span class="price">${this.priceLabel?.(def) ?? yen(def.price)}</span>`);
       this.cardsEl.append(card);
     }
     this._refreshLocks();

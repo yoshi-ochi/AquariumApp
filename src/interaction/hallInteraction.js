@@ -14,8 +14,8 @@ const ROTATE_STEP = Math.PI / 2;
  * 配置できる範囲は床のマス（FloorPlan）。埋め込み水槽は壁に沿ってのみ動く。
  */
 export class HallInteraction {
-  constructor({ sceneMgr, cameraCtl, manager, economy, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged }) {
-    Object.assign(this, { sceneMgr, cameraCtl, manager, economy, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged });
+  constructor({ sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged }) {
+    Object.assign(this, { sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged });
     this.dom = sceneMgr.renderer.domElement;
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -75,6 +75,12 @@ export class HallInteraction {
 
   // ---- 新規配置 -------------------------------------------------------------
 
+  /** 水槽は在庫から、それ以外は資金で設置する。不足時は理由を返す */
+  _lack(def) {
+    if (def.category === CATEGORY.TANK) return this.inventory.count(def.id) > 0 ? '' : '在庫がありません';
+    return this.economy.canAfford(def.price) ? '' : '資金が足りません';
+  }
+
   startPlacement(defId) {
     this.cancelPlacement();
     this.customizer.deselect();
@@ -111,9 +117,9 @@ export class HallInteraction {
     p.ghost.position.set(x, this.manager.elevationAt(p.def, x, z, this.manager.currentFloor), z);
     p.ghost.rotation.y = p.rotY;
     p.ghost.visible = true;
-    const afford = this.economy.canAfford(p.def.price);
-    p.valid = fits && afford;
-    p.reason = !fits ? '床の上に収まりません' : !afford ? '資金が足りません' : '';
+    const lack = this._lack(p.def);
+    p.valid = fits && !lack;
+    p.reason = !fits ? '床の上に収まりません' : lack;
     p.helper.box.setFromObject(p.ghost);
     p.helper.material.color.set(p.valid ? 0x4cd18a : 0xff6b6b);
     p.helper.visible = true;
@@ -126,9 +132,9 @@ export class HallInteraction {
     const placed = near && placeEmbedded(p.ghost, p.def, near.run, p.embed);
     if (!placed) p.ghost.position.set(hit.x, 0, hit.z);
     p.ghost.visible = true;
-    const afford = this.economy.canAfford(p.def.price);
-    p.valid = !!placed && afford;
-    p.reason = !placed ? 'バックヤードとの仕切り壁の近くに置いてください' : !afford ? '資金が足りません' : '';
+    const lack = this._lack(p.def);
+    p.valid = !!placed && !lack;
+    p.reason = !placed ? 'バックヤードとの仕切り壁の近くに置いてください' : lack;
     p.helper.box.setFromObject(p.ghost);
     p.helper.material.color.set(p.valid ? 0x4cd18a : 0xff6b6b);
     p.helper.visible = true;
@@ -138,7 +144,8 @@ export class HallInteraction {
     const p = this.placing;
     if (!p.ghost.visible) return;
     if (!p.valid) return this.toast(p.reason, { error: true });
-    this.economy.spend(p.def.price);
+    if (p.def.category === CATEGORY.TANK) this.inventory.take(p.def.id);
+    else this.economy.spend(p.def.price);
     const obj = this.manager.add(p.def.id, {
       x: p.ghost.position.x,
       z: p.ghost.position.z,
@@ -180,12 +187,15 @@ export class HallInteraction {
 
   remove(obj) {
     const def = this.manager.defOf(obj);
-    const value = def.price + (obj.userData.clip ? this.manager.contentsValue(obj) : 0);
+    // 水槽本体は在庫へ戻し、中身は売却する
+    const isTank = def.category === CATEGORY.TANK;
+    const value = (isTank ? 0 : def.price) + (obj.userData.clip ? this.manager.contentsValue(obj) : 0);
     const wasEmbedded = !!obj.userData.embed;
     this.customizer.deselect();
     this.manager.remove(obj);
+    if (isTank) this.inventory.add(def.id);
     this.economy.earn(Math.floor(value * REFUND_RATE));
-    this.toast(`${def.name} を撤去しました`);
+    this.toast(isTank ? `${def.name} を在庫に戻しました` : `${def.name} を撤去しました`);
     if (wasEmbedded) this.onWallsChanged?.();
     this.onChanged?.();
   }

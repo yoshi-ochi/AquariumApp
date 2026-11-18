@@ -16,7 +16,6 @@ export class AppShell {
     $('btn-back').addEventListener('click', onBack);
     $('btn-edit').addEventListener('click', onEdit);
     $('btn-done').addEventListener('click', onDone);
-    $('btn-menu').addEventListener('click', () => this.toggleMenu());
     $('floor-up').addEventListener('click', () => onFloorChange(economy.floor + 1));
     $('floor-down').addEventListener('click', () => onFloorChange(economy.floor - 1));
     $('btn-upgrade').addEventListener('click', onUpgrade);
@@ -29,7 +28,7 @@ export class AppShell {
     });
     // メニュー外をタップしたら閉じる
     document.addEventListener('pointerdown', (e) => {
-      if (!$('menu-sheet').hidden && !e.target.closest('#menu-sheet, #btn-menu')) this.toggleMenu(false);
+      if (!$('menu-sheet').hidden && !e.target.closest('#menu-sheet, #nav-more')) this.toggleMenu(false);
     });
 
     economy.addEventListener('change', () => this.update());
@@ -38,8 +37,8 @@ export class AppShell {
 
   setMode(mode, title = '') {
     this.mode = mode;
+    document.body.dataset.mode = mode;
     const editing = mode === 'hall-edit' || mode === 'interior-edit';
-    $('btn-menu').hidden = mode !== 'home' && mode !== 'hall-edit';
     $('btn-back').hidden = mode !== 'tank';
     $('btn-edit').hidden = editing;
     $('btn-done').hidden = !editing;
