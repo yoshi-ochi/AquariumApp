@@ -1,13 +1,17 @@
 import { FLOOR_TYPES, WALL_TYPES, MAX_LIGHTS, defaultLight } from '../room/roomData.js';
 
+/** 壁を自由に編集できるレベル */
+export const WALL_EDIT_LEVEL = 4;
+
 /**
  * 部屋の編集パネル（床・壁・照明）。
  * 設定オブジェクト settings を直接書き換え、onChange(kind) で反映を依頼する。
  * kind: 'look' | 'lights'
  */
 export class RoomPanel {
-  constructor({ el, getSettings, getPlan, onChange }) {
-    Object.assign(this, { el, getSettings, getPlan, onChange });
+  constructor({ el, getSettings, getPlan, getLevel, onChange }) {
+    Object.assign(this, { el, getSettings, getPlan, getLevel, onChange });
+    this.brush = 'add';
     this.section = 'floor';
     this.lightIndex = 0;
 
@@ -27,14 +31,27 @@ export class RoomPanel {
     let body = '';
     if (this.section === 'floor') body = this._lookSection('floor', FLOOR_TYPES, s.floor);
     else if (this.section === 'wall') body = this._lookSection('wall', WALL_TYPES, s.wall);
+    else if (this.section === 'walls') body = this._wallSection();
     else body = this._lightSection(s.lights);
-    this.el.innerHTML = `<div class="seg">${tab('floor', '床')}${tab('wall', '壁')}${tab('light', '照明')}</div>${body}`;
+    this.el.innerHTML = `<div class="seg">${tab('floor', '床')}${tab('wall', '壁')}${tab('light', '照明')}${tab('walls', '間取り')}</div>${body}`;
   }
 
   setVisible(visible) {
     this.el.hidden = !visible;
     if (visible) this.render();
     this.onChange('light-mode', visible && this.section === 'light');
+    this.onChange('wall-mode', visible && this._wallsOn);
+  }
+
+  get _wallsOn() {
+    return this.section === 'walls' && this.getLevel() >= WALL_EDIT_LEVEL;
+  }
+
+  _wallSection() {
+    if (this.getLevel() < WALL_EDIT_LEVEL) return `<p class="note">水族館をレベル${WALL_EDIT_LEVEL}に拡張すると、壁を自由に増やしたり撤去したりできます。</p>`;
+    const b = (id, label) => `<button data-act="brush" data-v="${id}" class="${this.brush === id ? 'active' : ''}">${label}</button>`;
+    return `<div class="seg">${b('add', '壁を追加')}${b('remove', '壁を撤去')}</div>
+      <p class="note">マス目の角を2か所タップすると、その間の壁を変更します。壁の移動は、撤去してから追加します。</p>`;
   }
 
   /** 電球のドラッグなどで照明が選ばれたとき */
@@ -79,7 +96,12 @@ export class RoomPanel {
       this.section = v;
       this.render();
       this.onChange('light-mode', v === 'light');
+      this.onChange('wall-mode', this._wallsOn);
       return;
+    }
+    if (act === 'brush') {
+      this.brush = v;
+      return this.render();
     }
     if (act === 'floor-type') s.floor.type = v;
     else if (act === 'wall-type') s.wall.type = v;

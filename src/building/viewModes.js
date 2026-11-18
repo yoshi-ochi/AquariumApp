@@ -38,8 +38,8 @@ function textSprite(text, bg, w = 6) {
  * 全館ビューでは階をタップするとその階へ移動する。
  */
 export class ViewModes {
-  constructor({ sceneMgr, cameraCtl, room, manager, labels, pool, railEl, getFloor, getUnlocked, onFloor, onModeChange }) {
-    Object.assign(this, { sceneMgr, cameraCtl, room, manager, labels, pool, railEl, getFloor, getUnlocked, onFloor, onModeChange });
+  constructor({ sceneMgr, cameraCtl, room, manager, labels, pool, scenery, railEl, getFloor, getUnlocked, onFloor, onModeChange }) {
+    Object.assign(this, { sceneMgr, cameraCtl, room, manager, labels, pool, scenery, railEl, getFloor, getUnlocked, onFloor, onModeChange });
     this.mode = 'floor';
     this.exterior = new Exterior(sceneMgr.scene);
     this.stack = new THREE.Group();
@@ -96,6 +96,7 @@ export class ViewModes {
     if (!floor && scene.fog) [this.fog, scene.fog] = [scene.fog, null];
     else if (floor && this.fog) [scene.fog, this.fog] = [this.fog, null];
     this.pool.group.visible = mode !== 'stack' && this.getUnlocked().has('pool');
+    this.scenery.group.visible = mode !== 'stack';
     if (mode === 'stack') this._buildStack();
     const c = this.cameraCtl.controls;
     c.maxDistance = floor ? this.saved?.maxDistance ?? c.maxDistance : 260;
@@ -167,13 +168,14 @@ export class ViewModes {
       const [x, z] = plan.cellMin(i, j);
       slab.setMatrixAt(k, m.makeTranslation(x + CELL_SIZE / 2, -0.15, z + CELL_SIZE / 2));
       const zone = ZONES.find((a) => a.floor === floor && zoneHas(a, i, j));
-      slab.setColorAt(k, color.set(plan.at(i, j) === CELL.LOCKED ? '#6d7780' : zone?.color ?? '#cccccc'));
+      const locked = plan.at(i, j) === CELL.LOCKED || plan.at(i, j) === CELL.LOCKED_OUT;
+      slab.setColorAt(k, color.set(locked ? '#1a2026' : zone?.color ?? '#cccccc'));
     });
     slab.userData.floor = floor;
     this.slabs.push(slab);
     g.add(slab);
     // 壁（模型なので低く）
-    const runs = plan.runs().filter((r) => r.kind !== 'rail');
+    const runs = plan.runs().filter((r) => r.kind !== 'rail' || r.side === CELL.OUT);
     const walls = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1.5, 0.14), new THREE.MeshStandardMaterial({ color: 0xf5f6f4, roughness: 0.7 }), runs.length);
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -200,7 +202,7 @@ export class ViewModes {
       g.add(items);
     }
     // 名札
-    for (const z of ZONES.filter((a) => a.floor === floor && a.type !== 'outdoor')) {
+    for (const z of ZONES.filter((a) => a.floor === floor && (a.type !== 'outdoor' || a.open))) {
       const c = zoneCenter(z);
       const s = textSprite(z.name, unlocked.has(z.id) ? 'rgba(15,53,80,.9)' : 'rgba(80,88,96,.9)');
       s.position.set(c.x, 3.4, c.z);

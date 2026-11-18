@@ -45,8 +45,10 @@ import { AllianceApi } from './online/allianceApi.js';
 import { AllianceView } from './ui/allianceView.js';
 import { MapPage } from './ui/mapPage.js';
 import { LifeSystems } from './game/lifeSystems.js';
-import { START_ZONES, ATRIUM_TANK_POS, DEFAULT_LAYOUT, LAYOUT, getZone, setLayout, zoneAt, zoneCenter } from './building/blueprint.js';
+import { START_ZONES, ATRIUM_TANK_POS, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, getZone, setLayout, setWallEdits, zoneAt, zoneCenter } from './building/blueprint.js';
 import { ViewModes } from './building/viewModes.js';
+import { OutdoorScenery } from './building/outdoorScenery.js';
+import { WallInteraction } from './interaction/wallInteraction.js';
 import { pickLayout } from './ui/layoutPicker.js';
 import { ZoneLabels } from './building/zoneLabels.js';
 import { DolphinPool } from './building/dolphinPool.js';
@@ -61,6 +63,7 @@ import { buildCreature } from './expedition/creatureBuilder.js';
 const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
 const POOL_APPEAL = 150;
+const OUTDOOR_APPEAL = { plaza: 20, marine: 60, nature: 90 };
 const THEME_BONUS = 1.25;
 const HINT = {
   home: '水槽をタップすると近くで見られます ・ ドラッグで回転 / 2本指でズーム',
@@ -107,6 +110,7 @@ async function boot() {
   let unlocked = new Set(START_ZONES); // 解放済みのエリア
   const zoneLabels = new ZoneLabels(sceneMgr.scene);
   const pool = new DolphinPool(sceneMgr.scene);
+  const scenery = new OutdoorScenery(sceneMgr.scene);
   manager.themeBonus = (tank) => {
     const theme = zoneAt(tank.userData.floor, tank.position.x, tank.position.z)?.theme;
     const ids = Object.keys(tank.userData.creatures ?? {});
@@ -148,7 +152,8 @@ async function boot() {
     pool.setLayout();
     zoneLabels.update(economy.floor, unlocked);
     pool.setUnlocked(unlocked.has('pool'));
-    manager.extraAppeal = unlocked.has('pool') ? POOL_APPEAL : 0;
+    scenery.sync(LAYOUT.id, unlocked);
+    manager.extraAppeal = (unlocked.has('pool') ? POOL_APPEAL : 0) + Object.entries(OUTDOOR_APPEAL).reduce((s, [id, n]) => s + (unlocked.has(id) ? n : 0), 0);
     ensureAtriumTank();
     room.applyLook(roomSettings);
     room.setLights(roomSettings.lights);
@@ -157,7 +162,7 @@ async function boot() {
   }
   applyRoom(true);
   const views = new ViewModes({
-    sceneMgr, cameraCtl, room, manager, pool, labels: zoneLabels, railEl: $('view-rail'),
+    sceneMgr, cameraCtl, room, manager, pool, scenery, labels: zoneLabels, railEl: $('view-rail'),
     getFloor: () => economy.floor,
     getUnlocked: () => unlocked,
     onFloor: (floor) => changeFloor(floor),
@@ -234,11 +239,18 @@ async function boot() {
     el: $('room-panel'),
     getSettings: () => roomSettings,
     getPlan: () => room.plan,
+    getLevel: () => economy.stage.level,
     onChange: (kind, value) => {
       if (kind === 'look') room.applyLook(roomSettings);
       else if (kind === 'lights') room.setLights(roomSettings.lights);
       else if (kind === 'light-update') room.updateLight(value, roomSettings.lights[value]);
       else if (kind === 'light-mode') lightCtl.enabled = value;
+      else if (kind === 'wall-mode') {
+        wallCtl.setEnabled(value);
+        room.setWallEditing(value);
+        hall.setEnabled(!value && mode === 'hall-edit');
+        if (value) customizer.deselect();
+      }
     },
   });
 
@@ -272,6 +284,14 @@ async function boot() {
     sceneMgr, cameraCtl, room,
     getSettings: () => roomSettings,
     onSelect: (i) => roomPanel.selectLight(i),
+  });
+  const wallCtl = new WallInteraction({
+    sceneMgr, room, manager, toast,
+    getBrush: () => roomPanel.brush,
+    onChanged: () => {
+      applyRoom(false);
+      room.setWallEditing(true);
+    },
   });
   const view = new ViewInteraction({ sceneMgr, manager, onTankTap: (tank) => openTank(tank) });
   const hall = new HallInteraction({
@@ -417,7 +437,7 @@ async function boot() {
 
   /** 現在の状態を保存用データにする */
   function snapshot() {
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: { ...roomSettings, building: 2, layout: LAYOUT.id, unlocked: [...unlocked] }, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: { ...roomSettings, building: 2, layout: LAYOUT.id, unlocked: [...unlocked], walls: WALL_EDITS }, objects: manager.serialize() };
   }
 
   let pendingLayout = null; // 初期設定で選んだ間取り
@@ -429,6 +449,7 @@ async function boot() {
   /** 新しいアカウント：選んだ間取りのエントランスに最初の水槽を置く */
   function startNewAquarium(layoutId) {
     setLayout(layoutId);
+    setWallEdits(null);
     unlocked = new Set(START_ZONES);
     manager.clear();
     resetLights();
@@ -446,6 +467,7 @@ async function boot() {
     if (mode !== 'home') goHome();
     views.setMode('floor');
     setLayout(data.room?.layout ?? pendingLayout ?? DEFAULT_LAYOUT);
+    setWallEdits(data.room?.layout ? data.room.walls : null);
     economy.fromJSON(data.economy);
     inventory.fromJSON(data.inventory);
     expeditions.fromJSON(data.expedition);
@@ -752,6 +774,7 @@ async function boot() {
     manager.updateAeration(clock.elapsedTime);
     manager.updateLife(clock.elapsedTime);
     pool.update(clock.elapsedTime);
+    scenery.update(clock.elapsedTime);
     interior.update();
     economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult * allyBonus() * life.visitorMult));
     views.update(dt);

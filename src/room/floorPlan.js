@@ -1,12 +1,16 @@
-import { ATRIUM_VOID, CELL_SIZE, GRID_X, GRID_Z, LAYOUT, ZONES, ZONE_TYPE, inRect, zoneHas } from '../building/blueprint.js';
+import { ATRIUM_VOID, CELL_SIZE, GRID_X, GRID_Z, LAYOUT, WALL_EDITS, ZONES, ZONE_TYPE, zoneHas } from '../building/blueprint.js';
 
 /**
- * 建物の1フロア分のマス目。形は設計図（blueprint.js）で決まり、解放済みのエリアだけ使える。
- * NONE = 建物の外、FLOOR = 展示フロア、YARD = バックヤード、LOCKED = 未解放、VOID = 吹き抜け
+ * 建物の1フロア分のマス目。形は間取り（blueprint.js）で決まり、解放済みのエリアだけ使える。
+ * NONE = 敷地外、FLOOR = 展示室、YARD = バックヤード、LOCKED = 未解放、VOID = 吹き抜け、
+ * OUT = 屋外エリア、LOCKED_OUT = 未解放の屋外エリア
  */
-export const CELL = Object.freeze({ NONE: 0, FLOOR: 1, YARD: 2, LOCKED: 3, VOID: 4 });
+export const CELL = Object.freeze({ NONE: 0, FLOOR: 1, YARD: 2, LOCKED: 3, VOID: 4, OUT: 5, LOCKED_OUT: 6 });
 
-const OPEN = (t) => t === CELL.FLOOR || t === CELL.YARD;
+const OPEN = (t) => t === CELL.FLOOR || t === CELL.YARD || t === CELL.OUT;
+const SHUT = (t) => t === CELL.LOCKED || t === CELL.LOCKED_OUT;
+/** 来館者が歩ける */
+export const WALKABLE = (t) => t === CELL.FLOOR || t === CELL.OUT;
 
 export class FloorPlan {
   constructor(floor, unlocked) {
@@ -15,23 +19,42 @@ export class FloorPlan {
     this.GX = GRID_X;
     this.GZ = GRID_Z;
     this.active = new Uint8Array(this.GX * this.GZ);
-    this.signature = `${LAYOUT.id}:${floor}:${[...unlocked].sort().join(',')}`;
+    const edits = WALL_EDITS[floor] ?? { add: [], remove: [] };
+    this.addedWalls = new Set(edits.add);
+    this.removedWalls = new Set(edits.remove);
+    this.signature = `${LAYOUT.id}:${floor}:${[...unlocked].sort().join(',')}:${edits.add.length}:${edits.remove.length}`;
     this.zoneIds = new Int8Array(this.GX * this.GZ).fill(-1);
     ZONES.forEach((zone, n) => {
-      if (zone.floor !== floor || zone.type === ZONE_TYPE.OUTDOOR) return;
-      const type = !unlocked.has(zone.id) ? CELL.LOCKED : zone.type === ZONE_TYPE.YARD ? CELL.YARD : CELL.FLOOR;
+      if (zone.floor !== floor || (zone.type === ZONE_TYPE.OUTDOOR && !zone.open)) return;
+      const open = unlocked.has(zone.id);
+      const type = zone.open ? (open ? CELL.OUT : CELL.LOCKED_OUT) : !open ? CELL.LOCKED : zone.type === ZONE_TYPE.YARD ? CELL.YARD : CELL.FLOOR;
       for (const rect of zone.rects) this._fill(rect, type);
       for (let j = 0; j < this.GZ; j++) for (let i = 0; i < this.GX; i++) if (zoneHas(zone, i, j)) this.zoneIds[this.idx(i, j)] = n;
+      // 自然再現などの作り付けの景観には物を置けない
+      if (zone.scenery && open) this._fill(zone.scenery, CELL.NONE);
     });
     if (floor === ATRIUM_VOID.floor) this._fill(ATRIUM_VOID.rect, unlocked.has(ATRIUM_VOID.zone) ? CELL.VOID : CELL.LOCKED);
     this.doors = this._findDoors();
+  }
+
+  _fill([x0, z0, x1, z1], type) {
+    for (let j = z0; j <= z1; j++) for (let i = x0; i <= x1; i++) this.active[this.idx(i, j)] = type;
+  }
+
+  idx(i, j) {
+    return j * this.GX + i;
+  }
+
+  at(i, j) {
+    return i >= 0 && j >= 0 && i < this.GX && j < this.GZ ? this.active[this.idx(i, j)] : 0;
   }
 
   _zoneAt(i, j) {
     return i >= 0 && j >= 0 && i < this.GX && j < this.GZ ? this.zoneIds[this.idx(i, j)] : -1;
   }
 
-  _edge(i0, j0, i1, j1) {
+  /** 隣り合う2マスの境目を表すキー */
+  edge(i0, j0, i1, j1) {
     const a = this.idx(i0, j0);
     const b = this.idx(i1, j1);
     return a < b ? `${a}|${b}` : `${b}|${a}`;
@@ -52,7 +75,7 @@ export class FloorPlan {
           if (!((p === na && q === nb) || (p === nb && q === na))) continue;
           const key = axis === 'v' ? `v${i}` : `h${j}`;
           if (!lines.has(key)) lines.set(key, []);
-          lines.get(key).push(this._edge(i, j, i + di, j + dj));
+          lines.get(key).push(this.edge(i, j, i + di, j + dj));
         }
       }
       const best = [...lines.values()].sort((x, y) => y.length - x.length)[0] ?? [];
@@ -62,23 +85,59 @@ export class FloorPlan {
     return doors;
   }
 
-  /** 隣のマスへ歩いて移動できるか（部屋の壁は出入口だけ通れる） */
-  passable(i0, j0, i1, j1) {
+  /** 間取り本来の状態で、その境目を通れるか */
+  _basePassable(i0, j0, i1, j1) {
     const p = this._zoneAt(i0, j0);
     const q = this._zoneAt(i1, j1);
-    return p === q || this.doors.has(this._edge(i0, j0, i1, j1));
+    if (p === q) return true;
+    if (this.at(i0, j0) === CELL.OUT && this.at(i1, j1) === CELL.OUT) return true; // 屋外どうしは地続き
+    return this.doors.has(this.edge(i0, j0, i1, j1));
   }
 
-  _fill(rect, type) {
-    for (let j = 0; j < this.GZ; j++) for (let i = 0; i < this.GX; i++) if (inRect(rect, i, j)) this.active[this.idx(i, j)] = type;
+  /** 隣のマスへ歩いて移動できるか（自由に編集した壁も反映） */
+  passable(i0, j0, i1, j1) {
+    const key = this.edge(i0, j0, i1, j1);
+    if (this.addedWalls.has(key)) return false;
+    return this.removedWalls.has(key) || this._basePassable(i0, j0, i1, j1);
   }
 
-  idx(i, j) {
-    return j * this.GX + i;
+  /** 歩けるマスがいくつに分断されているか */
+  componentCount() {
+    const seen = new Set();
+    let count = 0;
+    for (let j = 0; j < this.GZ; j++) for (let i = 0; i < this.GX; i++) {
+      if (!WALKABLE(this.at(i, j)) || seen.has(this.idx(i, j))) continue;
+      count++;
+      const queue = [[i, j]];
+      seen.add(this.idx(i, j));
+      for (let q = 0; q < queue.length; q++) {
+        const [x, z] = queue[q];
+        for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (!WALKABLE(this.at(x + a, z + b))) continue;
+          const k = this.idx(x + a, z + b);
+          if (seen.has(k) || !this.passable(x, z, x + a, z + b)) continue;
+          seen.add(k);
+          queue.push([x + a, z + b]);
+        }
+      }
+    }
+    return count;
   }
 
-  at(i, j) {
-    return i >= 0 && j >= 0 && i < this.GX && j < this.GZ ? this.active[this.idx(i, j)] : 0;
+  /** 矩形の内側を、自由に追加した壁が横切っているか */
+  crossesAddedWall(cx, cz, hx, hz) {
+    for (const key of this.addedWalls) {
+      const [a, b] = key.split('|').map(Number);
+      const [i0, j0] = [a % this.GX, Math.floor(a / this.GX)];
+      const [i1, j1] = [b % this.GX, Math.floor(b / this.GX)];
+      const [x0, z0] = this.cellMin(i1, j1);
+      const vertical = j0 === j1;
+      const inside = vertical
+        ? x0 > cx - hx && x0 < cx + hx && z0 + this.cell > cz - hz && z0 < cz + hz
+        : z0 > cz - hz && z0 < cz + hz && x0 + this.cell > cx - hx && x0 < cx + hx;
+      if (inside) return true;
+    }
+    return false;
   }
 
   cellOf(x, z) {
@@ -100,7 +159,7 @@ export class FloorPlan {
     return this.at(i, j);
   }
 
-  /** 軸平行の矩形がすべて使える床の上にあり、展示フロアとバックヤードをまたがないか */
+  /** 軸平行の矩形がすべて使える床の上にあり、部屋をまたがないか */
   containsRect(cx, cz, hx, hz) {
     const e = 1e-4;
     const step = this.cell * 0.5;
@@ -120,7 +179,7 @@ export class FloorPlan {
       type = t;
       room = n;
     }
-    return true;
+    return !this.crossesAddedWall(cx, cz, hx, hz);
   }
 
   rectOverlapsCell(cx, cz, hx, hz, i, j) {
@@ -130,22 +189,27 @@ export class FloorPlan {
 
   /**
    * 壁のラン。{ key, kind, side, axis, line, from, to, normal:[nx,nz] }
-   * kind: exterior 外壁 / partition 展示とバックヤードの仕切り / room 展示室の間の壁 / shutter 未解放エリアとの境 / rail 吹き抜けの手すり
+   * kind: exterior 外壁 / partition 展示とバックヤードの仕切り / room 展示室の間の壁 /
+   *       shutter 未解放エリアとの境 / rail 吹き抜けの手すりと屋外の柵
    */
   runs() {
     const c = this.cell;
     const runs = [];
     const classify = (a, b, i0, j0, i1, j1) => {
-      if (a === b) {
-        if (a !== CELL.FLOOR || this.passable(i0, j0, i1, j1)) return null;
-        return { kind: 'room', n: 1, side: CELL.FLOOR };
-      }
+      if (WALKABLE(a) && WALKABLE(b)) return this.passable(i0, j0, i1, j1) ? null : { kind: 'room', n: 1, side: CELL.FLOOR };
+      if (a === b) return null;
       if (a === CELL.VOID || b === CELL.VOID) {
         if (!OPEN(a) && !OPEN(b)) return { kind: 'shutter', n: a === CELL.VOID ? 1 : -1, side: CELL.LOCKED };
         return { kind: 'rail', n: OPEN(b) ? 1 : -1, side: CELL.FLOOR };
       }
-      if (a === CELL.LOCKED && OPEN(b)) return { kind: 'shutter', n: 1, side: b };
-      if (b === CELL.LOCKED && OPEN(a)) return { kind: 'shutter', n: -1, side: a };
+      if (SHUT(a) && OPEN(b)) return { kind: 'shutter', n: 1, side: b };
+      if (SHUT(b) && OPEN(a)) return { kind: 'shutter', n: -1, side: a };
+      if (SHUT(a) && SHUT(b)) return null;
+      if (a === CELL.LOCKED_OUT || b === CELL.LOCKED_OUT) return null; // 未解放の屋外には壁を立てない
+      if (a === CELL.OUT || b === CELL.OUT) {
+        if (a === CELL.YARD || b === CELL.YARD) return { kind: 'exterior', n: b === CELL.YARD ? 1 : -1, side: CELL.YARD };
+        return { kind: 'rail', n: b === CELL.OUT ? 1 : -1, side: CELL.OUT }; // 屋外の柵
+      }
       if (!a || !b) return { kind: 'exterior', n: b ? 1 : -1, side: a || b };
       return { kind: 'partition', n: b === CELL.FLOOR ? 1 : -1, side: CELL.FLOOR };
     };

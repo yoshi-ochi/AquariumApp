@@ -440,3 +440,6 @@ body:not([data-view=floor]) #side-actions, body:not([data-view=floor]) #goal-car
 .lp-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; font-size: 11px !important; }
 .lp-legend i { display: inline-block; width: 10px; height: 10px; margin-left: 7px; border-radius: 2px; }
 #lp-ok { position: sticky; bottom: 0; min-height: 48px; font-size: 16px; font-weight: 700; }
+
+.lp-shot { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; }
+.lp-wait { margin: 40vh 0 0; color: #d9eef7; text-align: center; }

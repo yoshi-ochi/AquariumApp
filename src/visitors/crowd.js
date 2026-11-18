@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { CELL } from '../room/floorPlan.js';
+import { WALKABLE } from '../room/floorPlan.js';
 import { TankManager } from '../tanks/tankManager.js';
 
 /**
@@ -124,7 +124,7 @@ export class Crowd {
     this.blocked = blocked;
     this.free = [];
     for (let j = 0; j < plan.GZ; j++) for (let i = 0; i < plan.GX; i++) {
-      if (plan.at(i, j) === CELL.FLOOR && !blocked.has(plan.idx(i, j))) this.free.push([i, j]);
+      if (WALKABLE(plan.at(i, j)) && !blocked.has(plan.idx(i, j))) this.free.push([i, j]);
     }
     // 見どころ：水槽に隣接する歩けるマス
     this.spots = this.free.filter(([i, j]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => blocked.has(plan.idx(i + a, j + b))));
@@ -132,7 +132,7 @@ export class Crowd {
   }
 
   _walkable(i, j) {
-    return this.plan.at(i, j) === CELL.FLOOR && !this.blocked.has(this.plan.idx(i, j));
+    return WALKABLE(this.plan.at(i, j)) && !this.blocked.has(this.plan.idx(i, j));
   }
 
   _center(i, j) {

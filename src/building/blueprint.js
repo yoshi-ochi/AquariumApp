@@ -4,7 +4,9 @@
  * エリアの id と解放条件は全間取りで共通、形と順路だけが間取りごとに変わる。
  */
 export const CELL_SIZE = 0.9;
-export const GRID_X = 40;
+/** 建物の左右に屋外エリアの敷地（各16マス）を持つ */
+export const GRID_X = 72;
+const SITE_X = 16;
 export const GRID_Z = 46;
 export const FLOOR_COUNT = 2;
 /** 1階分の高さ(m) */
@@ -23,7 +25,10 @@ const ZONE_META = [
   { id: 'atrium', name: '大水槽ホール', floor: 0, type: HALL, stage: 2, cost: 1500000, color: '#3f8fd0', text: '2階まで吹き抜けの大水槽を備えたホール' },
   { id: 'deep', name: '深海エリア', floor: 1, type: HALL, stage: 2, cost: 2000000, requires: 'gallery', theme: 'cold', color: '#4a5a9c', text: '冷たい海の生き物を展示すると集客+25%' },
   { id: 'archive', name: '資料エリア', floor: 1, type: HALL, stage: 2, cost: 1000000, requires: 'gallery', color: '#b79bd8', text: '研究の進み方が1.5倍になる' },
-  { id: 'pool', name: '屋外イルカプール', floor: 0, type: OUTDOOR, stage: 3, cost: 8000000, color: '#54c0d8', text: '2階建ての観客席を備えたショープール' },
+  { id: 'plaza', name: '屋外ひろば', floor: 0, type: OUTDOOR, open: true, stage: 1, cost: 400000, requires: 'coast', color: '#d9c49a', text: '屋外の多目的エリア。お店や水槽を自由に置ける' },
+  { id: 'marine', name: '海獣エリア', floor: 0, type: OUTDOOR, open: true, stage: 2, cost: 1200000, requires: 'plaza', color: '#8aa6b8', text: 'アザラシのプールがある屋外エリア。海獣用水槽も置ける' },
+  { id: 'nature', name: '自然再現エリア', floor: 0, type: OUTDOOR, open: true, stage: 3, cost: 3000000, requires: 'subtropical', color: '#7fae62', text: '磯・干潟・小川を再現した屋外エリア' },
+  { id: 'pool', name: 'イルカプール', floor: 0, type: OUTDOOR, stage: 3, cost: 8000000, color: '#54c0d8', text: '2階建ての観客席を備えたショープール' },
 ];
 
 /** 吹き抜けを囲む2階の回廊 */
@@ -41,8 +46,9 @@ export const LAYOUTS = [
       atrium: [[14, 20, 25, 36]], pool: [[3, 0, 36, 13]],
       gallery: [[14, 37, 25, 45], ...ring(14, 20, 25, 36)], yard2: [[3, 14, 36, 19]], deep: [[3, 20, 13, 41]], archive: [[26, 20, 36, 41]],
     },
+    outdoor: { plaza: [1, 26, 18, 45], marine: [1, 4, 18, 25], nature: [53, 4, 70, 45] },
     voidRect: [15, 21, 24, 35],
-    links: [['entrance', 'atrium'], ['atrium', 'coast'], ['atrium', 'subtropical'], ['entrance', 'coast'], ['entrance', 'subtropical'], ['gallery', 'deep'], ['gallery', 'archive']],
+    links: [['entrance', 'atrium'], ['atrium', 'coast'], ['atrium', 'subtropical'], ['entrance', 'coast'], ['entrance', 'subtropical'], ['gallery', 'deep'], ['gallery', 'archive'], ['coast', 'plaza'], ['subtropical', 'nature']],
   },
   {
     id: 'descent',
@@ -55,9 +61,10 @@ export const LAYOUTS = [
       yard1: [[16, 19, 38, 32]], pool: [[2, 0, 38, 18]],
       gallery: [[28, 33, 38, 45]], archive: [[14, 33, 27, 45]], deep: [[2, 33, 13, 45]], yard2: [[16, 19, 38, 32]],
     },
+    outdoor: { plaza: [1, 33, 17, 45], marine: [1, 4, 17, 32], nature: [55, 4, 70, 45] },
     voidRect: [2, 19, 15, 32],
-    links: [['entrance', 'coast'], ['coast', 'subtropical'], ['subtropical', 'atrium'], ['gallery', 'archive'], ['archive', 'deep']],
-    requires: { subtropical: 'coast', atrium: 'subtropical', deep: 'archive' },
+    links: [['entrance', 'coast'], ['coast', 'subtropical'], ['subtropical', 'atrium'], ['gallery', 'archive'], ['archive', 'deep'], ['subtropical', 'plaza'], ['entrance', 'nature']],
+    requires: { subtropical: 'coast', atrium: 'subtropical', deep: 'archive', plaza: 'subtropical', nature: 'entrance' },
   },
   {
     id: 'radial',
@@ -70,8 +77,9 @@ export const LAYOUTS = [
       yard1: [[1, 31, 13, 42], [26, 31, 38, 42]], pool: [[6, 0, 33, 17]],
       gallery: [[14, 31, 25, 45], ...ring(14, 19, 25, 30)], deep: [[1, 19, 13, 30]], archive: [[26, 19, 38, 30]], yard2: [[1, 31, 13, 42], [26, 31, 38, 42]],
     },
+    outdoor: { plaza: [1, 19, 16, 45], marine: [1, 4, 16, 18], nature: [55, 4, 70, 45] },
     voidRect: [15, 20, 24, 29],
-    links: [['entrance', 'atrium'], ['atrium', 'coast'], ['atrium', 'subtropical'], ['gallery', 'deep'], ['gallery', 'archive']],
+    links: [['entrance', 'atrium'], ['atrium', 'coast'], ['atrium', 'subtropical'], ['gallery', 'deep'], ['gallery', 'archive'], ['coast', 'plaza'], ['subtropical', 'nature']],
   },
   {
     id: 'pavilion',
@@ -84,10 +92,26 @@ export const LAYOUTS = [
       atrium: [[14, 14, 25, 25]], yard1: [[3, 14, 13, 24]], pool: [[2, 0, 37, 12]],
       gallery: [[15, 36, 24, 45], [19, 26, 20, 35], [15, 30, 18, 31], [21, 30, 24, 31], ...ring(14, 14, 25, 25)], deep: [[3, 26, 14, 40]], archive: [[25, 26, 36, 40]], yard2: [[3, 14, 13, 24]],
     },
+    outdoor: { plaza: [1, 26, 18, 45], marine: [1, 4, 18, 25], nature: [53, 4, 70, 45] },
     voidRect: [15, 15, 24, 24],
-    links: [['entrance', 'coast'], ['entrance', 'subtropical'], ['entrance', 'atrium'], ['gallery', 'deep'], ['gallery', 'archive']],
+    links: [['entrance', 'coast'], ['entrance', 'subtropical'], ['entrance', 'atrium'], ['gallery', 'deep'], ['gallery', 'archive'], ['coast', 'plaza'], ['subtropical', 'nature']],
   },
 ];
+
+// 建物の区画を敷地の中央へ寄せる（ワールド座標は変わらない）
+const shift = ([x0, z0, x1, z1]) => [x0 + SITE_X, z0, x1 + SITE_X, z1];
+for (const l of LAYOUTS) {
+  for (const id of Object.keys(l.rects)) l.rects[id] = l.rects[id].map(shift);
+  l.voidRect = shift(l.voidRect);
+  for (const [id, rect] of Object.entries(l.outdoor)) l.rects[id] = [rect];
+}
+
+/** 作り付けの景観が占める区画（区画の内側に余白をとる） */
+function sceneryRect(id, [x0, z0, x1, z1]) {
+  if (id === 'marine') return [x0 + 2, z0 + 2, x1 - 2, z1 - 5];
+  if (id === 'nature') return [x0 + 2, z0 + 2, x1 - 3, z1 - 3];
+  return null;
+}
 
 export const DEFAULT_LAYOUT = LAYOUTS[0].id;
 export const START_ZONES = ZONE_META.filter((z) => z.cost === 0).map((z) => z.id);
@@ -99,10 +123,13 @@ export let LAYOUT = LAYOUTS[0];
 export let ZONES = [];
 export let ATRIUM_VOID = null;
 export let ATRIUM_TANK_POS = null;
+/** 自由に編集した壁。{ 階: { add: [境目キー], remove: [境目キー] } } */
+export let WALL_EDITS = {};
+export const setWallEdits = (edits) => (WALL_EDITS = JSON.parse(JSON.stringify(edits ?? {})));
 
 export function setLayout(id) {
   LAYOUT = LAYOUTS.find((l) => l.id === id) ?? LAYOUTS[0];
-  ZONES = ZONE_META.map((z) => ({ ...z, rects: LAYOUT.rects[z.id], requires: LAYOUT.requires?.[z.id] ?? z.requires }));
+  ZONES = ZONE_META.map((z) => ({ ...z, rects: LAYOUT.rects[z.id], requires: LAYOUT.requires?.[z.id] ?? z.requires, scenery: z.open ? sceneryRect(z.id, LAYOUT.rects[z.id][0]) : null }));
   ATRIUM_VOID = { floor: 1, rect: LAYOUT.voidRect, zone: 'atrium' };
   ATRIUM_TANK_POS = rectCenter(LAYOUT.voidRect);
 }
@@ -131,8 +158,8 @@ const OLD_RECTS = {
 /** 旧建物でのエリアと、その中心からのずれ */
 export function oldZoneOffset(floor, x, z) {
   const [i, j] = cellAt(x, z);
-  const hit = ZONE_META.find((m) => m.floor === floor && OLD_RECTS[m.id] && inRect(OLD_RECTS[m.id], i, j));
+  const hit = ZONE_META.find((m) => m.floor === floor && OLD_RECTS[m.id] && inRect(shift(OLD_RECTS[m.id]), i, j));
   if (!hit) return null;
-  const c = rectCenter(OLD_RECTS[hit.id]);
+  const c = rectCenter(shift(OLD_RECTS[hit.id]));
   return { id: hit.id, dx: x - c.x, dz: z - c.z };
 }

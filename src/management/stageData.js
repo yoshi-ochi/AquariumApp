@@ -3,6 +3,7 @@ export const STAGES = [
   { level: 1, name: '開館したての水族館', wallHeight: 3.6, maxFloors: 2, upgradeCost: 0, visitorFactor: 4 },
   { level: 2, name: '地域の人気水族館', wallHeight: 3.6, maxFloors: 2, upgradeCost: 500000, visitorFactor: 6 },
   { level: 3, name: '大型総合水族館', wallHeight: 3.6, maxFloors: 2, upgradeCost: 3000000, visitorFactor: 9 },
+  { level: 4, name: '世界的な水族館', wallHeight: 3.6, maxFloors: 2, upgradeCost: 20000000, visitorFactor: 12 },
 ];
 
 export const STARTING_MONEY = 300000;

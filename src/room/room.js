@@ -71,8 +71,9 @@ export class Room {
     this.cutPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 3.6);
     sceneMgr.renderer.localClippingEnabled = true;
     this.roomWallMat = new THREE.MeshStandardMaterial({ roughness: 0.95, clippingPlanes: [this.cutPlane] });
-    this.lockedFloorMat = new THREE.MeshStandardMaterial({ color: 0x7d858b, roughness: 1 });
-    this.shutterMat = new THREE.MeshStandardMaterial({ map: stripeTexture(), roughness: 0.8, side: THREE.DoubleSide });
+    this.lockedFloorMat = new THREE.MeshStandardMaterial({ color: 0x11161b, roughness: 1 });
+    this.outdoorMat = new THREE.MeshStandardMaterial({ color: 0xd3cbb9, roughness: 1 });
+    this.shutterMat = new THREE.MeshStandardMaterial({ map: stripeTexture(), color: 0x5a5f64, roughness: 0.8, side: THREE.DoubleSide });
     this.railMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ee, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
   }
 
@@ -163,9 +164,32 @@ export class Room {
 
   // ---- 形状 -----------------------------------------------------------------
 
+  /** 壁の編集中：壁を低くして交点の目印を表示する */
+  setWallEditing(on) {
+    this.editingWalls = on;
+    if (this.gridLines) {
+      this.gridLines.geometry.dispose();
+      this.group.remove(this.gridLines);
+      this.gridLines = null;
+    }
+    if (!on) return;
+    const pts = [];
+    const plan = this.plan;
+    for (let j = 0; j < plan.GZ; j++) for (let i = 0; i < plan.GX; i++) {
+      if (plan.at(i, j) !== CELL.FLOOR && plan.at(i, j) !== CELL.OUT) continue;
+      const [x, z] = plan.cellMin(i, j);
+      pts.push(x, 0.04, z, x + plan.cell, 0.04, z, x, 0.04, z, x, 0.04, z + plan.cell);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.gridLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x2b8fd6, transparent: true, opacity: 0.55 }));
+    this.gridLines.raycast = () => {};
+    this.group.add(this.gridLines);
+  }
+
   /** カメラの距離に応じて展示室の壁の高さを変える */
   updateCut(distance, dt) {
-    const target = distance > 11 ? 1.25 : 3.7;
+    const target = this.editingWalls ? 0.5 : distance > 11 ? 1.25 : 3.7;
     this.cutPlane.constant += (target - this.cutPlane.constant) * Math.min(1, dt * 6);
   }
 
@@ -180,6 +204,8 @@ export class Room {
     this.built.add(this._floorMesh(plan, CELL.FLOOR, this.floorMat));
     this.built.add(this._floorMesh(plan, CELL.YARD, this.yardFloorMat));
     this.built.add(this._floorMesh(plan, CELL.LOCKED, this.lockedFloorMat));
+    this.built.add(this._floorMesh(plan, CELL.LOCKED_OUT, this.lockedFloorMat));
+    this.built.add(this._floorMesh(plan, CELL.OUT, this.outdoorMat));
     // 吹き抜けから見下ろす1階の床
     this.built.add(this._floorMesh(plan, CELL.VOID, this.floorMat, -STORY_H));
     for (const run of plan.runs()) {
