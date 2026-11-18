@@ -464,3 +464,5 @@ body:not([data-view=floor]) #side-actions, body:not([data-view=floor]) #goal-car
 @media (min-width: 720px) { .fs-card { right: auto; width: 420px; } }
 .ex-methods { display: flex; flex-wrap: wrap; gap: 5px; }
 .ex-methods button { min-height: 34px; padding: 3px 10px; font-size: 12px; }
+
+.lp-stage[hidden] { display: none; }

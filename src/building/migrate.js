@@ -86,7 +86,8 @@ export function relocateInvalid({ manager, unlocked, inventory, expeditions, eco
   const carried = new Set([...riders.values()].flat());
   const roots = all.filter((o) => !carried.has(o) && !o.userData.embed && !manager.defOf(o).atrium);
   const box = (o) => ({ x: o.position.x, z: o.position.z, floor: o.userData.floor, ...TankManager.footprintHalf(manager.defOf(o), o.rotation.y) });
-  const fits = (o) => plans.get(o.userData.floor).containsRect(o.position.x, o.position.z, box(o).hx, box(o).hz);
+  // 廃止された階（3階以上）にある物は置き直す
+  const fits = (o) => !!plans.get(o.userData.floor)?.containsRect(o.position.x, o.position.z, box(o).hx, box(o).hz);
   const placed = roots.filter(fits).map(box);
   for (const o of roots.filter((r) => !fits(r))) {
     const { hx, hz } = box(o);

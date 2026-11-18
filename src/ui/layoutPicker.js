@@ -20,39 +20,107 @@ export function pickLayout(el) {
       <button id="lp-ok" class="primary">この間取りで始める</button></div>`;
     el.hidden = false;
 
-    const canvas = el.querySelector('#lp-canvas');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xbfe6ff);
-    scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x6b8f4e, 1.5));
-    const sun = new THREE.DirectionalLight(0xfff6e5, 1.8);
-    sun.position.set(-30, 50, 40);
-    scene.add(sun);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8fbf6a, roughness: 1 }));
-    scene.add(ground);
-    const camera = new THREE.PerspectiveCamera(40, 1, 1, 600);
-    const controls = new OrbitControls(camera, canvas);
-    controls.enableDamping = true;
-    controls.maxPolarAngle = Math.PI / 2 - 0.04;
-    controls.minDistance = 15;
-    controls.maxDistance = 240;
-    const models = new THREE.Group();
-    scene.add(models);
-    const exterior = new Exterior(scene);
-
-    const clearModels = () => {
-      models.traverse((o) => {
-        o.geometry?.dispose();
-        o.material?.map?.dispose();
-        o.material?.dispose();
-      });
-      models.clear();
+    // 3D表示に失敗しても、間取りの選択と決定は必ずできるようにする
+    let preview = null;
+    const mark = () => {
+      el.querySelectorAll('.lp-card').forEach((c) => c.classList.toggle('active', c.dataset.id === chosen));
+      el.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
     };
+    const refresh = () => {
+      mark();
+      try {
+        preview?.show(chosen, mode);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    el.onclick = (e) => {
+      const card = e.target.closest('.lp-card');
+      const modeBtn = e.target.closest('[data-mode]');
+      if (card) chosen = card.dataset.id;
+      else if (modeBtn) mode = modeBtn.dataset.mode;
+      if (card || modeBtn) return refresh();
+      const ok = e.target.closest('#lp-ok');
+      if (!ok) return;
+      el.onclick = null;
+      ok.disabled = true;
+      ok.textContent = '準備しています…';
+      // 押した表示を先に描いてから、重い後片付けと読み込みに進む
+      requestAnimationFrame(() => setTimeout(() => {
+        try {
+          preview?.dispose();
+        } catch (err) {
+          console.error(err);
+        }
+        el.hidden = true;
+        el.innerHTML = '';
+        resolve(chosen);
+      }, 30));
+    };
+    mark();
+    try {
+      preview = createPreview(el.querySelector('#lp-canvas'));
+      preview.show(chosen, mode);
+    } catch (err) {
+      console.error(err);
+      el.querySelector('.lp-stage').hidden = true;
+      el.querySelector('.lp-tip').textContent = 'この端末では立体表示を利用できません。説明を見て間取りを選んでください。';
+    }
+  });
+}
 
-    const show = () => {
-      setLayout(chosen);
+/** 立体プレビュー。操作があったときだけ描画して端末の負荷を抑える */
+function createPreview(canvas) {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xbfe6ff);
+  scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x6b8f4e, 1.5));
+  const sun = new THREE.DirectionalLight(0xfff6e5, 1.8);
+  sun.position.set(-30, 50, 40);
+  scene.add(sun);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8fbf6a, roughness: 1 }));
+  scene.add(ground);
+  const camera = new THREE.PerspectiveCamera(40, 1, 1, 600);
+  const controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.maxPolarAngle = Math.PI / 2 - 0.04;
+  controls.minDistance = 15;
+  controls.maxDistance = 240;
+  const models = new THREE.Group();
+  scene.add(models);
+  const exterior = new Exterior(scene);
+  let dirty = true;
+  controls.addEventListener('change', () => (dirty = true));
+
+  const clearModels = () => {
+    models.traverse((o) => {
+      o.geometry?.dispose();
+      o.material?.map?.dispose();
+      o.material?.dispose();
+    });
+    models.clear();
+  };
+  const resize = () => {
+    const r = canvas.parentElement.getBoundingClientRect();
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / r.height;
+    camera.updateProjectionMatrix();
+    dirty = true;
+  };
+  window.addEventListener('resize', resize);
+  resize();
+  renderer.setAnimationLoop(() => {
+    controls.update();
+    if (!dirty) return;
+    dirty = false;
+    renderer.render(scene, camera);
+  });
+
+  return {
+    show(layoutId, mode) {
+      setLayout(layoutId);
       clearModels();
       const isExterior = mode === 'exterior';
       const under = mode === String(BASEMENT);
@@ -73,41 +141,15 @@ export function pickLayout(el) {
       camera.position.set(pos[0] * k, pos[1] * k, pos[2] * k);
       controls.target.set(0, isExterior ? 5 : mode === 'all' ? 4 : 0, 2);
       controls.update();
-      el.querySelectorAll('.lp-card').forEach((c) => c.classList.toggle('active', c.dataset.id === chosen));
-      el.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
-    };
-
-    const resize = () => {
-      const r = canvas.parentElement.getBoundingClientRect();
-      renderer.setSize(r.width, r.height, false);
-      camera.aspect = r.width / r.height;
-      camera.updateProjectionMatrix();
-    };
-    window.addEventListener('resize', resize);
-    resize();
-    show();
-    renderer.setAnimationLoop(() => {
-      controls.update();
-      renderer.render(scene, camera);
-    });
-
-    el.onclick = (e) => {
-      const card = e.target.closest('.lp-card');
-      const modeBtn = e.target.closest('[data-mode]');
-      if (card) chosen = card.dataset.id;
-      else if (modeBtn) mode = modeBtn.dataset.mode;
-      if (card || modeBtn) return show();
-      if (e.target.id !== 'lp-ok') return;
-      el.onclick = null;
+      dirty = true;
+    },
+    dispose() {
       window.removeEventListener('resize', resize);
       renderer.setAnimationLoop(null);
       clearModels();
       controls.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
-      el.hidden = true;
-      el.innerHTML = '';
-      resolve(chosen);
-    };
-  });
+    },
+  };
 }

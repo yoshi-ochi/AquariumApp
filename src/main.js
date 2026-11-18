@@ -75,6 +75,11 @@ const HINT = {
   grow: 'パネルの説明どおりに本体をドラッグ ・ 2本指で視点操作',
 };
 
+// 古いブラウザ向け：角丸の描画を四角で代用する
+CanvasRenderingContext2D.prototype.roundRect ??= function roundRect(x, y, w, h) {
+  this.rect(x, y, w, h);
+};
+
 async function boot() {
   const startedAt = performance.now();
   const splash = new Splash({ root: $('splash'), canvas: $('splash-canvas'), bar: $('splash-bar'), label: $('splash-label') });
@@ -771,6 +776,8 @@ async function boot() {
 
   const clock = new THREE.Clock();
   sceneMgr.renderer.setAnimationLoop(() => {
+    // 間取りを選んでいる間は裏の館内を描画しない
+    if (!$('layout-picker').hidden) return;
     const dt = Math.min(clock.getDelta(), 0.1);
     updateViewShift();
     if (wallsDirty) refreshRoom();
@@ -810,12 +817,13 @@ async function boot() {
       onReady: async () => {
         const data = await online.load();
         // 間取りが未設定なら最初に選んでもらう
-        if (!data?.room?.layout) {
+        // 読み込みの再試行では選び直しを求めない
+        if (!data?.room?.layout && !pendingLayout) {
           pendingLayout = await pickLayout($('layout-picker'));
           layoutChosen = true;
         }
         if (data) applySnapshot(data);
-        else startNewAquarium(pendingLayout);
+        else startNewAquarium(pendingLayout ?? DEFAULT_LAYOUT);
         lastSavedAt = data?.savedAt ?? null;
       },
     });
