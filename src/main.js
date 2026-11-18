@@ -28,8 +28,6 @@ import { WAVE_PARAMS, bakeWaves, waveCacheKey } from './water/waveBaker.js';
 import { loadCached, saveCached } from './water/waveCache.js';
 import { setWaveData, updateWater } from './water/waterSurface.js';
 import { LAYOUT_VERSION, downloadJSON, readLayoutFile } from './io/layoutIO.js';
-import { CloudStore } from './io/cloudStore.js';
-import { unlock } from './auth/gate.js';
 import { Online } from './online/online.js';
 import { FriendPanel } from './ui/friendPanel.js';
 
@@ -501,38 +499,10 @@ async function boot() {
 
   const wait = MIN_SPLASH_MS - (performance.now() - startedAt);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  splash.setProgress(1, 'パスワードを入力してください');
+  splash.setProgress(1, '読み込み中…');
   // 確認用：URL に ?splash を付けるとスプラッシュを閉じない
   if (new URLSearchParams(location.search).has('splash')) return;
 
-  // ---- パスワード → クラウド保存（プライベートリポジトリ）への接続 ----------------
-  const cred = await unlock();
-  if (cred) {
-    const cloud = new CloudStore(cred);
-    $('cloud-row').hidden = false;
-    $('btn-cloud-save').addEventListener('click', async () => {
-      try {
-        toast('クラウドに保存中…');
-        await cloud.save(snapshot());
-        toast('クラウドに保存しました');
-      } catch (err) {
-        toast(err.message, { error: true });
-      }
-    });
-    const loadCloud = async (quiet) => {
-      try {
-        const data = await cloud.load();
-        if (!data) return quiet || toast('クラウドにまだ保存がありません');
-        applySnapshot(data);
-        toast('クラウドから読み込みました');
-      } catch (err) {
-        toast(err.message, { error: true });
-      }
-    };
-    $('btn-cloud-load').addEventListener('click', () => loadCloud(false));
-    splash.setProgress(1, 'クラウドのデータを読み込み中…');
-    if (!online.enabled) await loadCloud(true); // 最後に保存したレイアウトで始める
-  }
   // オンラインにログイン済みなら、そのセーブで始める
   try {
     if (await online.restore()) {
