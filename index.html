@@ -91,6 +91,12 @@
     <!-- フレンドの水族館を訪問中 -->
     <div id="visit-bar" hidden><span id="visit-label"></span><button id="btn-visit-end" class="pill accent">自分の水族館へ戻る</button></div>
 
+    <!-- 別の端末で更新されたとき -->
+    <div id="save-conflict" role="alertdialog" hidden>
+      <p>別の端末でデータが更新されました。自動保存を止めています。</p>
+      <div><button id="btn-conflict-load" class="primary">最新を読み込む</button><button id="btn-conflict-keep">この端末で上書き</button></div>
+    </div>
+
     <div id="hint"></div>
     <div id="toast"></div>
 

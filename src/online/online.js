@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { SaveConflict } from './autoSave.js';
 
 /**
  * オンライン機能（Supabase）：アカウント・セーブ・フレンド。
@@ -115,13 +116,24 @@ export class Online {
 
   // ---- セーブ ----------------------------------------------------------------
 
-  async save(data) {
-    this._check(await this.sb.from('saves').upsert({ user_id: this.user.id, data, updated_at: new Date().toISOString() }));
+  /** 前回の読込・保存以降に別の端末が更新していたら SaveConflict。force なら上書き */
+  async save(data, force = false) {
+    const row = { user_id: this.user.id, data, updated_at: new Date().toISOString() };
+    const table = this.sb.from('saves');
+    let res;
+    if (force) res = await table.upsert(row).select('updated_at');
+    else if (this.rev) res = await table.update(row).eq('user_id', this.user.id).eq('updated_at', this.rev).select('updated_at');
+    else res = await table.insert(row).select('updated_at');
+    if (res.error?.code === '23505') throw new SaveConflict('別の端末で更新されています');
+    const rows = this._check(res);
+    if (!rows.length) throw new SaveConflict('別の端末で更新されています');
+    this.rev = rows[0].updated_at;
   }
 
   /** 自分（id 省略）またはフレンドのセーブ。無ければ null */
   async load(id = this.user.id) {
-    const rows = this._check(await this.sb.from('saves').select('data').eq('user_id', id).limit(1));
+    const rows = this._check(await this.sb.from('saves').select('data, updated_at').eq('user_id', id).limit(1));
+    if (id === this.user.id) this.rev = rows[0]?.updated_at ?? null;
     return rows[0]?.data ?? null;
   }
 

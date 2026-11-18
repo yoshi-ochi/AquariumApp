@@ -7,8 +7,8 @@ import { accountHtml, accountAction } from './accountView.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export class FriendPanel {
-  constructor({ el, online, toast, onSave, onLoad, onVisit, onSignOut }) {
-    Object.assign(this, { el, online, toast, onSave, onLoad, onVisit, onSignOut });
+  constructor({ el, online, toast, onSave, onLoad, onVisit, onSignOut, beforeSignOut }) {
+    Object.assign(this, { el, online, toast, onSave, onLoad, onVisit, onSignOut, beforeSignOut });
     this.view = 'main';
     this.busy = false;
     el.addEventListener('click', (e) => {
@@ -78,6 +78,7 @@ export class FriendPanel {
       } else if (act === 'email' || act === 'password') {
         this.toast(await accountAction(act, o, this.el));
       } else if (act === 'signout') {
+        await this.beforeSignOut();
         await o.signOut();
         return this.onSignOut();
       } else if (act === 'rename') {

@@ -326,3 +326,16 @@ body:not([data-mode=home]) #game-sheet { bottom: 0; padding-bottom: calc(12px + 
 .gs-sub { margin: 8px 2px 0; font-size: 13px; color: var(--muted); }
 #bottom-nav button.has-badge { position: relative; }
 #bottom-nav button.has-badge::after { content: ''; position: absolute; top: 8px; left: calc(50% + 10px); width: 10px; height: 10px; border-radius: 50%; background: #ff5a5a; border: 2px solid var(--bar); }
+
+/* ---------- 自動保存 ---------- */
+#hud-account { position: relative; }
+#hud-save { position: absolute; left: 32px; top: 32px; width: 12px; height: 12px; border-radius: 50%; background: #58d68d; border: 2px solid var(--bar); }
+#hud-save[data-state=dirty] { background: var(--gold); }
+#hud-save[data-state=saving] { background: var(--aqua); }
+#hud-save[data-state=error], #hud-save[data-state=conflict] { background: #ff5a5a; }
+body.editing #hud-save, body[data-mode=tank] #hud-save { left: 18px; top: 15px; width: 10px; height: 10px; }
+#save-conflict { position: fixed; left: 50%; top: calc(var(--hud-h) + 10px + var(--safe-top)); transform: translateX(-50%); z-index: 60; width: min(360px, calc(100vw - 20px)); padding: 12px; background: #fff; border: 2px solid #ff5a5a; border-radius: 12px; }
+#save-conflict[hidden] { display: none; }
+#save-conflict p { margin: 0 0 10px; }
+#save-conflict div { display: flex; gap: 8px; }
+#save-conflict button { flex: 1; }

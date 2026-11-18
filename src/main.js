@@ -30,6 +30,7 @@ import { loadCached, saveCached } from './water/waveCache.js';
 import { setWaveData, updateWater } from './water/waterSurface.js';
 import { LAYOUT_VERSION, downloadJSON, readLayoutFile } from './io/layoutIO.js';
 import { Online } from './online/online.js';
+import { AutoSave } from './online/autoSave.js';
 import { FriendPanel } from './ui/friendPanel.js';
 import { runLoginGate } from './ui/loginGate.js';
 import { Hud } from './ui/hud.js';
@@ -429,14 +430,36 @@ async function boot() {
   // ---- オンライン：クラウド保存・フレンド・訪問 -------------------------------
   const online = new Online();
   let visiting = null; // { mine: 自分のスナップショット }
+  const autoSave = new AutoSave({
+    save: (data, force) => online.save(data, force),
+    getSnapshot: () => snapshot(),
+    isPaused: () => !!visiting || !online.user,
+    onState: (s) => hud.setSaveState(s),
+    onConflict: () => ($('save-conflict').hidden = false),
+  });
+  $('btn-conflict-load').addEventListener('click', async () => {
+    try {
+      const data = await online.load();
+      if (data) applySnapshot(data);
+      autoSave.markLoaded();
+      $('save-conflict').hidden = true;
+      toast('最新のデータを読み込みました');
+    } catch (err) {
+      toast(err.message, { error: true });
+    }
+  });
+  $('btn-conflict-keep').addEventListener('click', async () => {
+    $('save-conflict').hidden = true;
+    if (await autoSave.overwrite()) toast('この端末の内容で保存しました');
+    else toast('保存できませんでした', { error: true });
+  });
   const friendPanel = new FriendPanel({
     el: $('friend-sheet'),
     online,
     toast,
     onSave: async () => {
       if (visiting) return toast('訪問中は保存できません', { error: true });
-      toast('クラウドに保存中…');
-      await online.save(snapshot());
+      await autoSave.saveNow();
       toast('クラウドに保存しました');
     },
     onLoad: async () => {
@@ -444,6 +467,7 @@ async function boot() {
       const data = await online.load();
       if (!data) return toast('クラウドにまだ保存がありません');
       applySnapshot(data);
+      autoSave.markLoaded();
       toast('クラウドから読み込みました');
     },
     onVisit: async (id, name) => {
@@ -456,6 +480,7 @@ async function boot() {
       $('visit-bar').hidden = false;
       toast(`${name} さんの水族館を訪問中`);
     },
+    beforeSignOut: () => autoSave.flush(),
     onSignOut: () => location.reload(), // スプラッシュのログインへ戻る
   });
   $('btn-online').addEventListener('click', () => {
@@ -464,7 +489,7 @@ async function boot() {
   });
 
   // ---- 上部バー・下部メニュー・アイテム ---------------------------------------
-  new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
+  const hud = new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
   const gameSheet = new GameSheet({
     el: $('game-sheet'), economy, inventory, expeditions, previews, toast,
     expeditionView: new ExpeditionView({ economy, expeditions, toast }),
@@ -581,6 +606,7 @@ async function boot() {
         if (data) applySnapshot(data);
       },
     });
+    autoSave.start();
     if (online.recovery) friendPanel.open(); // 再設定メールから来たら新しいパスワードの入力へ
     // 別タブでログアウトしたらこのタブも閉じる
     online.sb.auth.onAuthStateChange((event) => event === 'SIGNED_OUT' && location.reload());
