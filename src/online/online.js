@@ -8,16 +8,30 @@ import { createClient } from '@supabase/supabase-js';
 const URL_ = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+const JA = [
+  [/invalid login credentials/i, 'メールアドレスまたはパスワードが違います'],
+  [/email not confirmed/i, 'メールの確認が済んでいません。届いたメールのリンクを開いてください'],
+  [/already registered/i, 'このメールアドレスは登録済みです'],
+  [/rate limit|too many/i, '操作が多すぎます。しばらく待ってからお試しください'],
+  [/password should be|weak/i, 'パスワードは6文字以上にしてください'],
+  [/different from the old/i, '現在と違うパスワードを入力してください'],
+  [/valid email|invalid format|missing email/i, 'メールアドレスを正しく入力してください'],
+  [/failed to fetch|network/i, '通信できませんでした。接続を確認してください'],
+];
+const ja = (m) => JA.find(([re]) => re.test(m))?.[1] ?? m;
+const HOME = () => location.origin + location.pathname;
+
 export class Online {
   constructor() {
     this.enabled = !!(URL_ && KEY);
+    this.recovery = location.hash.includes('type=recovery'); // 再設定メールから来た（現在のパスワード不要）
     this.sb = this.enabled ? createClient(URL_, KEY) : null;
     this.user = null;
     this.profile = null;
   }
 
   _check(res) {
-    if (res.error) throw new Error(res.error.message);
+    if (res.error) throw new Error(ja(res.error.message));
     return res.data;
   }
 
@@ -32,8 +46,48 @@ export class Online {
     return this.user;
   }
 
+  /** Supabase 側で有効になっている外部ログイン */
+  async providers() {
+    try {
+      const res = await fetch(`${URL_}/auth/v1/settings`, { headers: { apikey: KEY } });
+      const { external = {} } = await res.json();
+      return ['google', 'apple'].filter((p) => external[p]);
+    } catch {
+      return [];
+    }
+  }
+
+  async oauth(provider) {
+    this._check(await this.sb.auth.signInWithOAuth({ provider, options: { redirectTo: HOME() } }));
+  }
+
+  async resetPassword(email) {
+    this._check(await this.sb.auth.resetPasswordForEmail(email, { redirectTo: HOME() }));
+  }
+
+  /** メール＋パスワードでログインできるアカウントか */
+  get hasPassword() {
+    if (this.recovery) return false;
+    return !!this.user?.identities?.some((i) => i.provider === 'email') || !!this.user?.app_metadata?.providers?.includes('email');
+  }
+
+  async changeEmail(email) {
+    this._check(await this.sb.auth.updateUser({ email }, { emailRedirectTo: HOME() }));
+  }
+
+  async changePassword(current, password) {
+    if (this.hasPassword) {
+      // 端末を離れた隙に変更されないよう、現在のパスワードを確認
+      const res = await this.sb.auth.signInWithPassword({ email: this.user.email, password: current });
+      if (res.error) throw new Error('現在のパスワードが違います');
+    }
+    const data = this._check(await this.sb.auth.updateUser({ password }));
+    this.user = data.user;
+    this.recovery = false;
+  }
+
   async signUp(email, password, name) {
-    const data = this._check(await this.sb.auth.signUp({ email, password, options: { data: { name } } }));
+    const data = this._check(await this.sb.auth.signUp({ email, password, options: { data: { name }, emailRedirectTo: HOME() } }));
     this.user = data.session?.user ?? null; // メール確認が有効なら session は null
     if (this.user) await this._loadProfile();
     return !!this.user;
@@ -46,7 +100,7 @@ export class Online {
   }
 
   async signOut() {
-    await this.sb.auth.signOut();
+    await this.sb.auth.signOut({ scope: 'local' }); // この端末だけログアウト
     this.user = this.profile = null;
   }
 

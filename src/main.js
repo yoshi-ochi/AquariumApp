@@ -30,6 +30,7 @@ import { setWaveData, updateWater } from './water/waterSurface.js';
 import { LAYOUT_VERSION, downloadJSON, readLayoutFile } from './io/layoutIO.js';
 import { Online } from './online/online.js';
 import { FriendPanel } from './ui/friendPanel.js';
+import { runLoginGate } from './ui/loginGate.js';
 
 const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
@@ -432,6 +433,7 @@ async function boot() {
       $('visit-bar').hidden = false;
       toast(`${name} さんの水族館を訪問中`);
     },
+    onSignOut: () => location.reload(), // スプラッシュのログインへ戻る
   });
   $('btn-online').addEventListener('click', () => {
     shell.toggleMenu(false);
@@ -503,14 +505,20 @@ async function boot() {
   // 確認用：URL に ?splash を付けるとスプラッシュを閉じない
   if (new URLSearchParams(location.search).has('splash')) return;
 
-  // オンラインにログイン済みなら、そのセーブで始める
-  try {
-    if (await online.restore()) {
-      const data = await online.load();
-      if (data) applySnapshot(data);
-    }
-  } catch (err) {
-    console.error(err);
+  // ログイン必須：完了してそのアカウントのセーブを反映するまでスプラッシュを閉じない
+  if (online.enabled) {
+    await runLoginGate({
+      online,
+      host: $('login-host'),
+      setLabel: (t) => splash.setProgress(1, t),
+      onReady: async () => {
+        const data = await online.load();
+        if (data) applySnapshot(data);
+      },
+    });
+    if (online.recovery) friendPanel.open(); // 再設定メールから来たら新しいパスワードの入力へ
+    // 別タブでログアウトしたらこのタブも閉じる
+    online.sb.auth.onAuthStateChange((event) => event === 'SIGNED_OUT' && location.reload());
   }
   await splash.hide();
 }

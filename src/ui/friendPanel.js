@@ -2,11 +2,14 @@
  * オンライン（アカウント・クラウド保存・フレンド・訪問）のシート。
  * 操作は online（src/online/online.js）と、main から渡すコールバックに委ねる。
  */
+import { accountHtml, accountAction } from './accountView.js';
+
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export class FriendPanel {
-  constructor({ el, online, toast, onSave, onLoad, onVisit }) {
-    Object.assign(this, { el, online, toast, onSave, onLoad, onVisit });
+  constructor({ el, online, toast, onSave, onLoad, onVisit, onSignOut }) {
+    Object.assign(this, { el, online, toast, onSave, onLoad, onVisit, onSignOut });
+    this.view = 'main';
     this.busy = false;
     el.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-act]');
@@ -15,6 +18,7 @@ export class FriendPanel {
   }
 
   open() {
+    this.view = this.online.recovery ? 'account' : 'main';
     this.el.hidden = false;
     this.render();
   }
@@ -29,13 +33,8 @@ export class FriendPanel {
       this.el.innerHTML = `${this._head()}<p class="muted">オンライン機能はまだ設定されていません（Supabase の接続情報が必要です）。</p>`;
       return;
     }
-    if (!o.user) {
-      this.el.innerHTML = `${this._head()}
-        <p class="muted">ログインすると、クラウド保存とフレンドの水族館の訪問ができます。</p>
-        <input id="fp-name" placeholder="表示名（新規登録時）" maxlength="24" autocomplete="nickname">
-        <input id="fp-email" type="email" placeholder="メールアドレス" autocomplete="email">
-        <input id="fp-pass" type="password" placeholder="パスワード（6文字以上）" autocomplete="current-password">
-        <div class="fp-row"><button data-act="signin" class="primary">ログイン</button><button data-act="signup">新規登録</button></div>`;
+    if (this.view === 'account') {
+      this.el.innerHTML = `${this._head()}${accountHtml(o)}`;
       return;
     }
     this.el.innerHTML = `${this._head()}<p class="muted">読み込み中…</p>`;
@@ -51,9 +50,7 @@ export class FriendPanel {
     const section = (title, arr, buttons) =>
       arr.length ? `<h4>${title}</h4><ul class="fp-list">${arr.map((f) => item(f, buttons)).join('')}</ul>` : '';
     this.el.innerHTML = `${this._head()}
-      <div class="fp-me">
-        <input id="fp-rename" value="${esc(p.name)}" maxlength="24" aria-label="表示名"><button data-act="rename">変更</button>
-      </div>
+      <div class="fp-me"><b class="fp-name">${esc(p.name)}</b><button data-act="account">アカウント設定</button></div>
       <div class="fp-me">フレンドコード <b class="fp-code">${esc(p.friend_code)}</b><button data-act="copy">コピー</button></div>
       <div class="fp-row"><button data-act="save" class="primary">☁ 保存</button><button data-act="load">☁ 読込</button></div>
       <h4>フレンドを追加</h4>
@@ -76,14 +73,13 @@ export class FriendPanel {
     const val = (k) => this.el.querySelector(`#fp-${k}`)?.value.trim() ?? '';
     this.busy = true;
     try {
-      if (act === 'signin') {
-        await o.signIn(val('email'), val('pass'));
-        this.toast(`ようこそ ${o.profile.name} さん`);
-      } else if (act === 'signup') {
-        const ok = await o.signUp(val('email'), val('pass'), val('name') || 'プレイヤー');
-        this.toast(ok ? '登録しました' : '確認メールを送りました。メールのリンクを開いてからログインしてください');
+      if (act === 'account' || act === 'account-back') {
+        this.view = act === 'account' ? 'account' : 'main';
+      } else if (act === 'email' || act === 'password') {
+        this.toast(await accountAction(act, o, this.el));
       } else if (act === 'signout') {
         await o.signOut();
+        return this.onSignOut();
       } else if (act === 'rename') {
         await o.rename(val('rename') || 'プレイヤー');
         this.toast('表示名を変更しました');

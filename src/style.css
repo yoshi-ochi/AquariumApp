@@ -225,3 +225,19 @@ body.has-selection #room-panel { display: none; }
 }
 #visit-bar[hidden] { display: none; }
 body.visiting #btn-edit, body.visiting #menu-sheet .menu-row:not(.stats) { display: none; }
+
+/* ---------- スプラッシュのログイン ---------- */
+.splash-ui { max-height: 92vh; overflow-y: auto; }
+#login-form { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+#login-form input { min-height: 42px; padding: 0 12px; font-size: 16px; color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.3); border-radius: 10px; }
+#login-form input::placeholder { color: #a9bfd3; }
+#login-form input:focus { outline: none; border-color: #6fd3ff; }
+#login-form button { min-height: 42px; border-radius: 10px; font-weight: 700; }
+.lg-row { display: flex; gap: 8px; }
+.lg-row button { flex: 1; }
+#login-form .lg-main { background: #2b8fd6; border-color: #2b8fd6; color: #fff; }
+#login-form .lg-social { background: #fff; color: #1f2d3a; }
+#login-form .lg-link { min-height: 28px; background: none; border: 0; color: #a9d8f5; font-weight: 400; font-size: 12px; }
+.lg-or { margin: 0; color: #8fa9c0; font-size: 12px; }
+#lg-msg { margin: 0; min-height: 1em; color: #ffd27a; font-size: 12px; }
+.fp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
