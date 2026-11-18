@@ -5,6 +5,7 @@ import { createClipUniforms, updateClipUniforms, applyClip, floorAt } from './ta
 import { encodePositions, applyEncodedPositions } from '../interior/sculpt.js';
 import { applyTankLook } from './tankLook.js';
 import { updateBubbles } from './aeration.js';
+import { syncLife, updateLife, lifeAppeal } from '../expedition/tankLife.js';
 
 /**
  * 館内に配置されたオブジェクトの管理。
@@ -22,7 +23,7 @@ export class TankManager {
 
   // ---- 追加・削除 ---------------------------------------------------------
 
-  add(defId, { x = 0, z = 0, rotY = 0, floor = this.currentFloor, uid, contents = [], embed = null, look = null } = {}) {
+  add(defId, { x = 0, z = 0, rotY = 0, floor = this.currentFloor, uid, contents = [], embed = null, look = null, creatures = null } = {}) {
     const def = getDef(defId);
     const obj = buildObject(def);
     obj.userData.uid = uid ?? this.nextUid++;
@@ -41,6 +42,10 @@ export class TankManager {
     this.refreshElevations(floor);
     for (const item of contents) {
       if (hasDef(item.defId)) this.createInterior(obj, item.defId, item);
+    }
+    if (creatures && obj.userData.clip) {
+      obj.userData.creatures = { ...creatures };
+      syncLife(obj);
     }
     return obj;
   }
@@ -161,6 +166,11 @@ export class TankManager {
     }
   }
 
+  /** 現在の階の展示生物を泳がせる */
+  updateLife(time) {
+    for (const tank of this.objects.values()) if (tank.userData.clip && tank.visible) updateLife(tank, time);
+  }
+
   /** 全水槽のクリップ用逆行列を更新（水槽の移動・回転に追従） */
   updateClips() {
     for (const o of this.objects.values()) {
@@ -213,7 +223,10 @@ export class TankManager {
     let sum = 0;
     for (const o of this.objects.values()) {
       sum += this.defOf(o).appeal ?? 0;
-      if (o.userData.clip) for (const c of this.interiorItems(o)) sum += getDef(c.userData.defId).appeal ?? 0;
+      if (o.userData.clip) {
+        for (const c of this.interiorItems(o)) sum += getDef(c.userData.defId).appeal ?? 0;
+        sum += lifeAppeal(o);
+      }
     }
     return sum;
   }
@@ -292,6 +305,7 @@ export class TankManager {
       rotY: round(o.rotation.y),
       ...(o.userData.embed && { embed: { ...o.userData.embed } }),
       ...(o.userData.look && { look: o.userData.look }),
+      ...(o.userData.creatures && { creatures: { ...o.userData.creatures } }),
       ...(o.userData.clip && {
         contents: this.interiorItems(o).map((c) => ({
           defId: c.userData.defId,

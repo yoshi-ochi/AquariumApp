@@ -320,3 +320,9 @@ body:not([data-mode=home]) #game-sheet { bottom: 0; padding-bottom: calc(12px + 
 .gs-soon b { padding: 3px 12px; color: #fff; background: var(--bar-2); border-radius: 11px; font-size: 12px; }
 @media (min-width: 900px) { #game-sheet { left: 12px; right: auto; width: 480px; } }
 .card.active .price { color: #fff; }
+
+.gs-tabs { grid-template-columns: repeat(4, 1fr); }
+.gs-tabs button { padding: 8px 2px; }
+.gs-sub { margin: 8px 2px 0; font-size: 13px; color: var(--muted); }
+#bottom-nav button.has-badge { position: relative; }
+#bottom-nav button.has-badge::after { content: ''; position: absolute; top: 8px; left: calc(50% + 10px); width: 10px; height: 10px; border-radius: 50%; background: #ff5a5a; border: 2px solid var(--bar); }

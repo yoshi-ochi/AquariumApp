@@ -35,6 +35,10 @@ import { runLoginGate } from './ui/loginGate.js';
 import { Hud } from './ui/hud.js';
 import { BottomNav } from './ui/bottomNav.js';
 import { GameSheet } from './ui/gameSheet.js';
+import { ExpeditionView, CreatureView } from './ui/expeditionViews.js';
+import { Expeditions } from './expedition/expeditions.js';
+import { CREATURES } from './expedition/creatureData.js';
+import { buildCreature } from './expedition/creatureBuilder.js';
 
 const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
@@ -57,6 +61,7 @@ async function boot() {
   const cameraCtl = new CameraController(sceneMgr.camera, sceneMgr.renderer.domElement);
   const economy = new Economy();
   const inventory = new Inventory();
+  const expeditions = new Expeditions();
   const manager = new TankManager(sceneMgr.scene);
   const room = new Room(sceneMgr.scene, sceneMgr);
   let roomSettings = defaultRoomSettings();
@@ -66,6 +71,8 @@ async function boot() {
     dispose: disposeObject,
     onProgress: (i, n, def) => splash.setProgress(i / n, `${def.name} を撮影中… (${i}/${n})`),
   });
+  const creatureShots = await generatePreviews(CREATURES, buildCreature, { dispose: disposeObject });
+  for (const [id, url] of creatureShots) previews.set(`creature:${id}`, url);
   const waveKey = waveCacheKey();
   let waves = await loadCached(waveKey);
   if (!waves) {
@@ -254,6 +261,9 @@ async function boot() {
     },
     onChanged: () => shell.update(),
     onWallsChanged: () => (wallsDirty = true),
+    onTankRemoved: (tank) => {
+      for (const [id, n] of Object.entries(tank.userData.creatures ?? {})) expeditions.give(id, n);
+    },
   });
   const shape = new ShapeInteraction({
     sceneMgr, room, manager, toast,
@@ -399,7 +409,7 @@ async function boot() {
   /** 現在の状態を保存用データにする */
   function snapshot() {
     roomSettings.plan = room.plan.toJSON();
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), inventory: inventory.toJSON(), room: roomSettings, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), room: roomSettings, objects: manager.serialize() };
   }
 
   /** 保存用データから状態を復元する */
@@ -407,6 +417,7 @@ async function boot() {
     if (mode !== 'home') goHome();
     economy.fromJSON(data.economy);
     inventory.fromJSON(data.inventory);
+    expeditions.fromJSON(data.expedition);
     roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
     manager.deserialize(data.objects);
@@ -455,7 +466,9 @@ async function boot() {
   // ---- 上部バー・下部メニュー・アイテム ---------------------------------------
   new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
   const gameSheet = new GameSheet({
-    el: $('game-sheet'), economy, inventory, previews, toast,
+    el: $('game-sheet'), economy, inventory, expeditions, previews, toast,
+    expeditionView: new ExpeditionView({ economy, expeditions, toast }),
+    creatureView: new CreatureView({ manager, expeditions, previews, toast, onChanged: () => shell.update() }),
     onPlace: (id) => {
       if (mode !== 'hall-edit') enterHallEdit();
       hall.startPlacement(id);
@@ -466,12 +479,14 @@ async function boot() {
     onSelect: (id) => {
       if (mode !== 'home' || visiting) return;
       const wasOpen = gameSheet.view;
+      const itemsOpen = gameSheet.isItems;
       gameSheet.close();
       friendPanel.close();
       if (id === 'more') return shell.toggleMenu();
       shell.toggleMenu(false);
       if (id === 'layout') return enterHallEdit();
-      if (id === 'items') return wasOpen && !wasOpen.startsWith('feature:') ? undefined : gameSheet.openItems();
+      if (id === 'items') return itemsOpen ? undefined : gameSheet.openItems();
+      if (id === 'expedition') return wasOpen === 'expedition' ? undefined : gameSheet.openExpedition();
       if (wasOpen !== `feature:${id}`) gameSheet.openFeature(id);
     },
   });
@@ -486,6 +501,7 @@ async function boot() {
   setInterval(() => {
     if (visiting) return;
     for (const id of inventory.collect()) toast(`外注の ${getDef(id).name} が完成しました`);
+    $('nav-expedition').classList.toggle('has-badge', expeditions.trips.some((t) => expeditions.isDone(t)));
   }, 1000);
   $('btn-visit-end').addEventListener('click', () => {
     if (!visiting) return;
@@ -506,7 +522,7 @@ async function boot() {
   goHome();
 
   // 開発時だけ：ブラウザのコンソールから状態を調べられるようにする
-  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy };
+  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions };
 
   // ---- ループ ---------------------------------------------------------------
   /**
@@ -541,6 +557,7 @@ async function boot() {
     cameraCtl.update();
     manager.updateClips();
     manager.updateAeration(clock.elapsedTime);
+    manager.updateLife(clock.elapsedTime);
     interior.update();
     economy.update(dt, manager.totalAppeal());
     customizer.update();

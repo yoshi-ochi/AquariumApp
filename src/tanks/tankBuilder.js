@@ -284,7 +284,7 @@ function buildMammalTank(g, def) {
   slope.position.set(landX - landW / 2 - 0.25, t + landH * 0.6, 0);
   slope.rotation.z = 0.5;
   g.add(slope);
-  g.userData.interior = { shape: 'box', floorY: t + 0.06, halfW: w / 2 - t, halfD: d / 2 - t, waterTop: t + waterH };
+  g.userData.interior = { shape: 'box', floorY: t + 0.06, halfW: w / 2 - t, halfD: d / 2 - t, waterTop: t + waterH, swim: { cx: -w / 2 + t + poolW / 2, halfW: poolW / 2 } };
 }
 
 function buildStand(g, def) {

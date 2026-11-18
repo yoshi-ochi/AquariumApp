@@ -1,0 +1,105 @@
+import * as THREE from 'three';
+import { disposeObject } from '../tanks/tankBuilder.js';
+import { mulberry32 } from '../tanks/random.js';
+import { getCreature } from './creatureData.js';
+import { buildCreature } from './creatureBuilder.js';
+
+/** 水槽内の展示生物：収容枠の計算、モデルの同期、遊泳アニメーション */
+const LIFE = 'life';
+
+/** 水量に応じた収容枠 */
+export function tankCapacity(def) {
+  const { w, h, d } = def.size;
+  return Math.min(60, Math.max(2, Math.round(w * h * d * 60)));
+}
+
+const sumBy = (tank, key) => Object.entries(tank.userData.creatures ?? {}).reduce((s, [id, n]) => s + (getCreature(id)?.[key] ?? 0) * n, 0);
+export const usedCapacity = (tank) => sumBy(tank, 'slots');
+export const lifeAppeal = (tank) => sumBy(tank, 'appeal');
+
+/** 泳げる範囲（水槽ローカル）。トンネル水槽はアーチより上、哺乳類用は水域のみ */
+function swimBox(I) {
+  const k = I.shape === 'cylinder' ? 0.68 : 0.86;
+  const y0 = I.tunnel ? I.tunnel.straightH + I.tunnel.r + 0.08 : I.floorY + 0.03;
+  return { cx: I.swim?.cx ?? 0, hx: (I.swim?.halfW ?? I.halfW) * k, hz: I.halfD * k, y0, y1: Math.max(y0 + 0.01, I.waterTop - 0.03) };
+}
+
+/** tank.userData.creatures に合わせてモデルを作り直す */
+export function syncLife(tank) {
+  const old = tank.getObjectByName(LIFE);
+  if (old) {
+    tank.remove(old);
+    disposeObject(old);
+  }
+  const group = new THREE.Group();
+  group.name = LIFE;
+  tank.add(group);
+  const box = swimBox(tank.userData.interior);
+  const room = Math.min(box.hx, box.hz) * 1.4; // 大きな生物は水槽に収まる大きさに縮める
+  let index = 0;
+  for (const [id, n] of Object.entries(tank.userData.creatures ?? {})) {
+    const c = getCreature(id);
+    if (!c) continue;
+    for (let i = 0; i < n; i++) {
+      const fish = buildCreature(c);
+      const rand = mulberry32(tank.userData.uid * 131 + index++ * 977);
+      const scale = Math.min(1, room / c.len);
+      fish.scale.setScalar(scale);
+      const margin = (c.len * scale) / 2;
+      const ax = Math.max(0.01, (box.hx - margin) * (0.45 + rand() * 0.55));
+      const az = Math.max(0.01, (box.hz - margin) * (0.45 + rand() * 0.55));
+      const velocity = (0.05 + rand() * 0.07) * (c.shape === 'jelly' ? 0.35 : 1); // m/秒
+      fish.userData.swim = {
+        ax,
+        az,
+        speed: velocity / Math.max(ax, az),
+        dir: rand() < 0.5 ? 1 : -1,
+        p1: rand() * 6.28,
+        p2: rand() * 6.28,
+        p3: rand() * 6.28,
+        cy: box.y0 + (box.y1 - box.y0) * (0.3 + rand() * 0.4),
+        ay: (box.y1 - box.y0) * 0.2,
+        cx: box.cx,
+        wag: 6 + rand() * 4,
+      };
+      group.add(fish);
+    }
+  }
+}
+
+function pathAt(s, t, out) {
+  const a = t * s.speed * s.dir;
+  out.x = s.cx + Math.cos(a + s.p1) * s.ax;
+  out.z = Math.sin(a + s.p1 + Math.sin(a * 0.5 + s.p2) * 0.4) * s.az;
+  out.y = s.cy + Math.sin(a * 1.7 + s.p3) * s.ay;
+  return out;
+}
+
+const cur = { x: 0, y: 0, z: 0 };
+const next = { x: 0, y: 0, z: 0 };
+
+export function updateLife(tank, time) {
+  const group = tank.getObjectByName(LIFE);
+  if (!group) return;
+  for (const fish of group.children) {
+    const s = fish.userData.swim;
+    const u = fish.userData;
+    pathAt(s, time, cur);
+    pathAt(s, time + 0.08, next);
+    fish.position.set(cur.x, cur.y, cur.z);
+    if (u.bell) {
+      // クラゲ：拍動しながら漂う（向きは変えない）
+      const k = 1 + Math.sin(time * 2.4 + s.p1) * 0.12;
+      u.bell.scale.set(k, 2 - k, k);
+      continue;
+    }
+    fish.rotation.y = Math.atan2(-(next.z - cur.z), next.x - cur.x);
+    if (u.wingL) {
+      const f = Math.sin(time * 1.8 + s.p1) * 0.4;
+      u.wingL.rotation.x = f;
+      u.wingR.rotation.x = -f;
+    } else if (u.tail) {
+      u.tail.rotation.y = Math.sin(time * s.wag + s.p2) * 0.5;
+    }
+  }
+}

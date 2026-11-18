@@ -14,8 +14,8 @@ const ROTATE_STEP = Math.PI / 2;
  * 配置できる範囲は床のマス（FloorPlan）。埋め込み水槽は壁に沿ってのみ動く。
  */
 export class HallInteraction {
-  constructor({ sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged }) {
-    Object.assign(this, { sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged });
+  constructor({ sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged, onTankRemoved }) {
+    Object.assign(this, { sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged, onTankRemoved });
     this.dom = sceneMgr.renderer.domElement;
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -192,6 +192,7 @@ export class HallInteraction {
     const value = (isTank ? 0 : def.price) + (obj.userData.clip ? this.manager.contentsValue(obj) : 0);
     const wasEmbedded = !!obj.userData.embed;
     this.customizer.deselect();
+    if (isTank) this.onTankRemoved?.(obj); // 展示中の生物は在庫へ戻す
     this.manager.remove(obj);
     if (isTank) this.inventory.add(def.id);
     this.economy.earn(Math.floor(value * REFUND_RATE));
