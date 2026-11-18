@@ -81,6 +81,10 @@ export class FriendPanel {
         await this.beforeSignOut();
         await o.signOut();
         return this.onSignOut();
+      } else if (act === 'delete-account') {
+        if (val('delete-confirm') !== '削除') return this.toast('確認欄に「削除」と入力してください', { error: true });
+        await o.deleteAccount();
+        return this.onSignOut();
       } else if (act === 'rename') {
         await o.rename(val('rename') || 'プレイヤー');
         this.toast('表示名を変更しました');

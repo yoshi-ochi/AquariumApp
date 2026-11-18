@@ -12,7 +12,10 @@ export function accountHtml(online) {
     <h4>パスワード</h4>
     ${hasPw ? '<input id="fp-pass-cur" type="password" placeholder="現在のパスワード" autocomplete="current-password" aria-label="現在のパスワード">' : '<p class="muted">パスワードを設定すると、メールアドレスでもログインできます。</p>'}
     <input id="fp-pass-new" type="password" placeholder="新しいパスワード（6文字以上）" autocomplete="new-password" aria-label="新しいパスワード">
-    <div class="fp-row end"><button data-act="password" class="primary">${hasPw ? '変更' : '設定'}</button></div>`;
+    <div class="fp-row end"><button data-act="password" class="primary">${hasPw ? '変更' : '設定'}</button></div>
+    <h4>アカウント削除</h4>
+    <p class="muted">水族館のセーブデータ、フレンド、同盟の所属など、サーバー上のすべてのデータを削除します。元に戻せません。</p>
+    <div class="fp-me"><input id="fp-delete-confirm" placeholder="確認のため「削除」と入力" autocomplete="off" aria-label="確認のため削除と入力"><button data-act="delete-account" class="danger">アカウントを削除</button></div>`;
 }
 
 /** 処理したら完了メッセージを返す。対象外の操作は null */

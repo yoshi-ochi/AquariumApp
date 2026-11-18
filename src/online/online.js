@@ -105,6 +105,22 @@ export class Online {
     this.user = this.profile = null;
   }
 
+  /** アカウントとサーバー上の全データを削除し、この端末のログイン情報も消す */
+  async deleteAccount() {
+    const { error } = await this.sb.rpc('delete_my_account');
+    if (error) {
+      const missing = error.code === 'PGRST202' || /could not find the function/i.test(error.message);
+      throw new Error(missing ? 'アカウント削除は現在ご利用いただけません' : ja(error.message));
+    }
+    this.user = this.profile = null; // 以後の自動保存を止める
+    try {
+      await this.sb.auth.signOut({ scope: 'local' });
+    } catch (err) {
+      console.warn(err.message);
+    }
+    Object.keys(localStorage).filter((k) => k.startsWith('sb-')).forEach((k) => localStorage.removeItem(k));
+  }
+
   async _loadProfile() {
     this.profile = this._check(await this.sb.from('profiles').select('*').eq('id', this.user.id).single());
   }
