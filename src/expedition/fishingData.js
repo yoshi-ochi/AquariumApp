@@ -149,6 +149,12 @@ export const SPECIES_METHODS = {
   // 駿河湾の深海
   kinmedai: ['tatenawa', 'longline'], mizuuo: ['longline', 'trawl'], mendako: ['trawl'], ryugu: ['setnet'],
   takaashi: ['gill', 'pots', 'trawl'], ogusoku: ['pots'], sakuraebi: ['boatseine'], tachiuo: ['tatenawa', 'trawl', 'setnet'],
+  harisenbon: ['diving', 'setnet'],
+  bashou: ['longline', 'troll'],
+  suzuki: ['setnet', 'gill'],
+  karei: ['trawl', 'gill'],
+  nokogiri: ['trawl'],
+  chochin: ['trawl'],
   // ガラパゴス諸島
   gingame: ['pole', 'diving'], kingangel: ['diving'], galashark: ['longline'], hammer: ['longline', 'setnet'], madaraotobi: ['setnet', 'longline'],
 };

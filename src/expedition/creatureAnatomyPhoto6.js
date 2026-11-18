@@ -100,7 +100,7 @@ export const PHOTO_ANATOMY_6 = {
     mouth: [[60, 392], [66, 394]],
   },
   tatsu: {
-    photo: { origin: [92, 386], slope: 0, length: 1250 },
+    photo: { origin: [-35, 660], slope: 0, length: 1250 },
     snout: [92, 386],
     stations: [
       [[111.8, 359.8], [114.4, 369.5], [117.0, 379.1], [119.6, 388.8], [122.1, 398.5]],
