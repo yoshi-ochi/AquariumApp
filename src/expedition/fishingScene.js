@@ -48,7 +48,7 @@ class School {
   }
 }
 
-function buildBoat() {
+function buildBoat(hullColor = 0x1f5f8b) {
   const g = new THREE.Group();
   const white = new THREE.MeshStandardMaterial({ color: 0xf1f3f2, roughness: 0.5 });
   const hullShape = new THREE.Shape();
@@ -58,7 +58,7 @@ function buildBoat() {
   hullShape.quadraticCurveTo(6, -0.6, 6.6, 0);
   hullShape.quadraticCurveTo(6, 0.6, 3, 1.5);
   hullShape.closePath();
-  const hull = new THREE.Mesh(new THREE.ExtrudeGeometry(hullShape, { depth: 1.6, bevelEnabled: false }).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x1f5f8b, roughness: 0.5 }));
+  const hull = new THREE.Mesh(new THREE.ExtrudeGeometry(hullShape, { depth: 1.6, bevelEnabled: false }).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: hullColor, roughness: 0.5 }));
   hull.position.y = -0.5;
   const house = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.8, 2), white);
   house.position.set(-1.6, 2, 0);
@@ -119,15 +119,19 @@ export class FishingScene {
     bed.geometry.computeVertexNormals();
     bed.position.y = BED;
     group.add(bed, water, sea);
-    const boat = buildBoat();
-    group.add(boat);
-    boat.place = (x, z, yaw) => {
-      boat.position.x = x;
-      boat.position.z = z;
-      boat.rotation.y = yaw;
+    const makeBoat = (hull) => {
+      const b = buildBoat(hull);
+      group.add(b);
+      b.place = (x, z, yaw) => {
+        b.position.x = x;
+        b.position.z = z;
+        b.rotation.y = yaw;
+      };
+      return b;
     };
+    const boat = makeBoat();
     const school = new School(group);
-    const update = GEAR[method.id]({ group, boat, school, bed, scene });
+    const update = GEAR[method.id]({ group, boat, makeBoat, school, bed, scene });
     const camera = new THREE.PerspectiveCamera(46, 1, 0.5, 300);
     this.view = { scene, camera, sea, boat, school, update };
     this.stepIndex = 0;

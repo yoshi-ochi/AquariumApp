@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FORMS } from './creatureForms.js';
+import { extraSoftParts } from './creatureSoft.js';
 
 /**
  * 展示生物のローポリモデル。+X が頭、原点が体の中心。
@@ -194,6 +195,8 @@ function fishParts(c, f) {
 
 /** クラゲ・クリオネ・メンダコ・イカ・エイ */
 function softParts(c) {
+  const extra = extraSoftParts(c, { grid, fin, solid, tint });
+  if (extra) return extra;
   const { body, belly, fin: finC } = c.colors;
   const parts = [];
   if (c.form === 'jelly') {
@@ -285,7 +288,7 @@ if (uMode < 0.5) {
   transformed.z += sin(position.x * 7.0 * uWave + uTime * 7.0) * 0.075 * amp;
 } else if (uMode < 1.5) {
   transformed.y += sin(uTime * 2.2 + position.x * 2.0) * 0.5 * abs(position.z) * abs(position.z) * 1.4;
-} else {
+} else if (uMode < 2.5) {
   float pulse = 1.0 + sin(uTime * 2.4) * 0.13 * smoothstep(-0.2, 0.3, position.y);
   transformed.xz *= pulse;
   transformed.y *= 2.0 - pulse;

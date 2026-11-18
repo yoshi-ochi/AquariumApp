@@ -48,6 +48,47 @@ export const CREATURES = [
   c('kingangel', 'キングエンゼルフィッシュ', 'disc', 0.3, 2, 3, 9, 0x20345e, 0x2f4a80, 0xf0b52c, { pat: 'bands', bands: 1, mark: 0xf2f2ea }),
   c('galashark', 'ガラパゴスザメ', 'shark', 1.6, 2, 30, 32, 0x7a858c, 0xe6eaec, 0x667077),
   c('hammer', 'アカシュモクザメ', 'hammer', 1.8, 3, 36, 50, 0x858f94, 0xe8ecee, 0x70797e),
+  // 水族館の定番（相模湾）
+  c('madai', 'マダイ', 'perch', 0.4, 1, 3, 2.5, 0xd8606a, 0xf2c8c0, 0xc24a55, { pat: 'spots', mark: 0x4fa8d8 }),
+  c('hirame', 'ヒラメ', 'flat', 0.5, 2, 4, 4, 0x7a6a4c, 0xf1eee4, 0x5a4c36),
+  c('madako', 'マダコ', 'octopus', 0.5, 1, 3, 3, 0x9a5a48, 0xd9a08c, 0x86493a),
+  c('iseebi', 'イセエビ', 'lobster', 0.25, 2, 2, 5, 0xa3392c, 0xd98a5c, 0x7c2a22),
+  c('utsubo', 'ウツボ', 'eel', 0.7, 1, 5, 3, 0x6e5a32, 0xc9b98a, 0x54462a, { pat: 'mottle', mark: 0x3a2f1c }),
+  c('tatsu', 'タツノオトシゴ', 'seahorse', 0.08, 2, 1, 4, 0xc9a24a, 0xe6cf8e, 0xe8d9a8),
+  c('nekozame', 'ネコザメ', 'shark', 0.7, 2, 8, 7, 0x8a7a62, 0xe6dfd0, 0x6f614c, { pat: 'bands', bands: 6, mark: 0x4d4234 }),
+  c('akaei', 'アカエイ', 'ray', 0.6, 2, 8, 6, 0x8a5a3a, 0xf0d8c0, 0x6f4730),
+  // 三陸沖
+  c('maiwashi', 'マイワシ', 'tuna', 0.18, 1, 1, 0.8, 0x3f6f96, 0xe8eef2, 0x35587a, { pat: 'lateral', mark: 0x1f2f40 }),
+  c('katsuo', 'カツオ', 'tuna', 0.5, 1, 6, 4, 0x2a4468, 0xdfe7ec, 0x22364f, { pat: 'bands', bands: 5, mark: 0x8fa9bd }),
+  c('zuwai', 'ズワイガニ', 'crab', 0.4, 2, 3, 6, 0xc2603a, 0xeac9a8, 0xa84e2e, { longLegs: true }),
+  c('surume', 'スルメイカ', 'squid', 0.3, 1, 2, 3, 0xb56a58, 0xe8c4b4, 0x98523f),
+  c('ankou', 'アンコウ', 'lump', 0.6, 3, 8, 15, 0x5c5340, 0xbdb39a, 0x463f30, { pat: 'mottle', mark: 0x38322a }),
+  c('mizudako', 'ミズダコ', 'octopus', 0.9, 2, 8, 10, 0xa84f3c, 0xdfa48e, 0x8c4031),
+  // 慶良間諸島
+  c('chinanago', 'チンアナゴ', 'garden', 0.35, 1, 1, 2.5, 0xe8e2cc, 0xf6f2e4, 0x2a2a2a),
+  c('deba', 'デバスズメダイ', 'clown', 0.07, 1, 1, 0.7, 0x5fd0c4, 0x9be6dc, 0x46b0a6),
+  c('hanamino', 'ハナミノカサゴ', 'moorish', 0.28, 2, 2, 5, 0xc4583e, 0xf0dcc8, 0xa84630, { pat: 'bands', bands: 7, mark: 0xf4ece0 }),
+  c('otohime', 'オトヒメエビ', 'lobster', 0.07, 2, 1, 3, 0xf0ece0, 0xffffff, 0xc23a3a),
+  c('budai', 'アオブダイ', 'hump', 0.5, 2, 5, 6, 0x2f7fb0, 0x6fb6d0, 0x24648c),
+  // オホーツク海
+  c('taraba', 'タラバガニ', 'crab', 0.8, 2, 6, 9, 0xa8452f, 0xe0b090, 0x8c3724, { longLegs: true }),
+  c('kegani', 'ケガニ', 'crab', 0.2, 1, 2, 3, 0xa8603c, 0xe0bc94, 0x8c4e30),
+  c('sake', 'シロザケ', 'tuna', 0.7, 1, 8, 5, 0x6f8494, 0xe6ecef, 0x566878),
+  c('nishin', 'ニシン', 'tuna', 0.3, 1, 3, 2, 0x3f6480, 0xe6edf1, 0x34526a),
+  // 小笠原諸島
+  c('kuromaguro', 'クロマグロ', 'tuna', 1.8, 3, 40, 80, 0x1f3350, 0xdfe6ea, 0x23364f),
+  c('buri', 'ブリ', 'tuna', 0.8, 1, 10, 6, 0x4a6f8a, 0xe6edf0, 0xd8c04a, { pat: 'lateral', mark: 0xd8c04a }),
+  c('jinbei', 'ジンベエザメ', 'shark', 1.9, 3, 60, 200, 0x3f5468, 0xe6ebee, 0x34475a, { pat: 'spots', mark: 0xeef2f4 }),
+  // グレートバリアリーフ
+  c('tamakai', 'タマカイ', 'grouper', 1.5, 3, 30, 35, 0x5e6048, 0xb9b794, 0x4a4c38, { pat: 'mottle', mark: 0x2f3024 }),
+  c('hanahige', 'ハナヒゲウツボ', 'eel', 0.9, 2, 6, 7, 0x2747b8, 0xf0dc4a, 0xf0dc4a),
+  // 駿河湾の深海
+  c('takaashi', 'タカアシガニ', 'crab', 1.2, 2, 15, 20, 0xc4623e, 0xefd0b0, 0xe0a070, { longLegs: true }),
+  c('ogusoku', 'オオグソクムシ', 'lobster', 0.35, 2, 3, 9, 0xb9b3a2, 0xdcd6c6, 0x98927f),
+  c('sakuraebi', 'サクラエビ', 'lobster', 0.05, 1, 1, 1.5, 0xf08a8a, 0xf9c4c4, 0xe06c6c),
+  c('tachiuo', 'タチウオ', 'ribbon', 1, 1, 8, 5, 0xdfe6ea, 0xf4f7f8, 0xbfd0d8),
+  // ガラパゴス諸島
+  c('madaraotobi', 'マダラトビエイ', 'ray', 0.9, 2, 15, 14, 0x2a3442, 0xeef1f3, 0x1e2632),
   // 合同調査の限定種
   c('seela', 'シーラカンス', 'coelacanth', 1.4, 3, 28, 70, 0x2b4a6e, 0x6f8ba8, 0x223c5a, { pat: 'spots', mark: 0xd8e2ea }),
   c('demenigisu', 'デメニギス', 'barreleye', 0.15, 3, 3, 40, 0x2c2c33, 0x4a4a55, 0x1e1e24, { bigEye: true, iris: 0x7cf0a8 }),
@@ -59,14 +100,14 @@ export const CREATURES = [
 export const getCreature = (id) => CREATURES.find((x) => x.id === id);
 
 export const DESTINATIONS = [
-  { id: 'iso', name: '相模湾', text: '黒潮が寄せる、はじめての採取地', stage: 1, cost: 3000, seconds: 60, lat: 35.1, lon: 139.4, pool: ['mejina', 'kasago', 'hakofugu', 'ishidai'] },
-  { id: 'sanriku', name: '三陸沖', text: '親潮と黒潮がぶつかる豊かな漁場', stage: 1, cost: 8000, seconds: 120, lat: 39.4, lon: 142.6, pool: ['ainame', 'madara', 'sanma', 'mola'] },
-  { id: 'reef', name: '慶良間諸島', text: '色あざやかな熱帯魚が暮らすサンゴ礁', stage: 1, cost: 12000, seconds: 180, lat: 26.2, lon: 127.3, pool: ['kakure', 'nanyouhagi', 'chocho', 'tsunodashi'] },
-  { id: 'okhotsk', name: 'オホーツク海', text: '流氷の下で暮らす冷たい海の生き物', stage: 2, cost: 30000, seconds: 300, lat: 44.7, lon: 145.6, pool: ['hokke', 'fuusen', 'clione', 'ookamiuo'] },
-  { id: 'ocean', name: '小笠原諸島', text: '大型の回遊魚に出会える外洋', stage: 2, cost: 60000, seconds: 600, lat: 27.1, lon: 142.2, pool: ['maaji', 'mizukurage', 'shiira', 'manta'] },
-  { id: 'gbr', name: 'グレートバリアリーフ', text: '世界最大のサンゴ礁', stage: 2, cost: 80000, seconds: 900, lat: -18.3, lon: 147.7, pool: ['tsubame', 'hagi2', 'tsumaguro', 'napoleon'] },
-  { id: 'deep', name: '駿河湾の深海', text: '日本一深い湾に潜む珍しい生き物', stage: 3, cost: 300000, seconds: 1800, lat: 33.9, lon: 137.9, pool: ['kinmedai', 'mizuuo', 'mendako', 'ryugu'] },
-  { id: 'galapagos', name: 'ガラパゴス諸島', text: '大型のサメが群れる絶海の孤島', stage: 3, cost: 500000, seconds: 2400, lat: -0.7, lon: -90.6, pool: ['gingame', 'kingangel', 'galashark', 'hammer'] },
+  { id: 'iso', name: '相模湾', text: '黒潮が寄せる、はじめての採取地', stage: 1, cost: 3000, seconds: 60, lat: 35.1, lon: 139.4, pool: ['mejina', 'kasago', 'hakofugu', 'ishidai', 'madai', 'hirame', 'madako', 'iseebi', 'utsubo', 'tatsu', 'nekozame', 'akaei'] },
+  { id: 'sanriku', name: '三陸沖', text: '親潮と黒潮がぶつかる豊かな漁場', stage: 1, cost: 8000, seconds: 120, lat: 39.4, lon: 142.6, pool: ['ainame', 'madara', 'sanma', 'mola', 'maiwashi', 'katsuo', 'zuwai', 'surume', 'ankou', 'mizudako'] },
+  { id: 'reef', name: '慶良間諸島', text: '色あざやかな熱帯魚が暮らすサンゴ礁', stage: 1, cost: 12000, seconds: 180, lat: 26.2, lon: 127.3, pool: ['kakure', 'nanyouhagi', 'chocho', 'tsunodashi', 'chinanago', 'deba', 'hanamino', 'otohime', 'budai'] },
+  { id: 'okhotsk', name: 'オホーツク海', text: '流氷の下で暮らす冷たい海の生き物', stage: 2, cost: 30000, seconds: 300, lat: 44.7, lon: 145.6, pool: ['hokke', 'fuusen', 'clione', 'ookamiuo', 'taraba', 'kegani', 'sake', 'nishin'] },
+  { id: 'ocean', name: '小笠原諸島', text: '大型の回遊魚に出会える外洋', stage: 2, cost: 60000, seconds: 600, lat: 27.1, lon: 142.2, pool: ['maaji', 'mizukurage', 'shiira', 'manta', 'kuromaguro', 'buri', 'jinbei'] },
+  { id: 'gbr', name: 'グレートバリアリーフ', text: '世界最大のサンゴ礁', stage: 2, cost: 80000, seconds: 900, lat: -18.3, lon: 147.7, pool: ['tsubame', 'hagi2', 'tsumaguro', 'napoleon', 'tamakai', 'hanahige'] },
+  { id: 'deep', name: '駿河湾の深海', text: '日本一深い湾に潜む珍しい生き物', stage: 3, cost: 300000, seconds: 1800, lat: 33.9, lon: 137.9, pool: ['kinmedai', 'mizuuo', 'mendako', 'ryugu', 'takaashi', 'ogusoku', 'sakuraebi', 'tachiuo'] },
+  { id: 'galapagos', name: 'ガラパゴス諸島', text: '大型のサメが群れる絶海の孤島', stage: 3, cost: 500000, seconds: 2400, lat: -0.7, lon: -90.6, pool: ['gingame', 'kingangel', 'galashark', 'hammer', 'madaraotobi'] },
 ];
 
 export const getDestination = (id) => DESTINATIONS.find((d) => d.id === id);

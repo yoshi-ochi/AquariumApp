@@ -3,6 +3,7 @@ import { disposeObject } from '../tanks/tankBuilder.js';
 import { mulberry32 } from '../tanks/random.js';
 import { getCreature } from './creatureData.js';
 import { buildCreature } from './creatureBuilder.js';
+import { BENTHIC_FORMS, STATIONARY_FORMS } from './creatureSoft.js';
 
 /** 水槽内の展示生物：収容枠の計算、モデルの同期、遊泳アニメーション */
 const LIFE = 'life';
@@ -48,7 +49,10 @@ export function syncLife(tank) {
       const margin = (c.len * scale) / 2;
       const ax = Math.max(0.01, (box.hx - margin) * (0.45 + rand() * 0.55));
       const az = Math.max(0.01, (box.hz - margin) * (0.45 + rand() * 0.55));
-      const velocity = (0.05 + rand() * 0.07) * (c.form === 'jelly' || c.form === 'dumbo' || c.form === 'clione' ? 0.35 : 1); // m/秒
+      const drifting = c.form === 'jelly' || c.form === 'dumbo' || c.form === 'clione';
+      const benthic = BENTHIC_FORMS.has(c.form);
+      const fixed = STATIONARY_FORMS.has(c.form);
+      const velocity = (0.05 + rand() * 0.07) * (fixed ? 0 : benthic ? 0.15 : drifting ? 0.35 : 1); // m/秒
       fish.userData.swim = {
         ax,
         az,
@@ -57,12 +61,12 @@ export function syncLife(tank) {
         p1: rand() * 6.28,
         p2: rand() * 6.28,
         p3: rand() * 6.28,
-        cy: box.y0 + (box.y1 - box.y0) * (0.3 + rand() * 0.4),
-        ay: (box.y1 - box.y0) * 0.2,
+        cy: benthic ? box.y0 : box.y0 + (box.y1 - box.y0) * (0.3 + rand() * 0.4),
+        ay: benthic || fixed ? 0 : (box.y1 - box.y0) * 0.2,
         cx: box.cx,
         tempo: 0.8 + rand() * 0.5,
       };
-      fish.userData.still = c.form === 'jelly' || c.form === 'dumbo' || c.form === 'clione'; // 向きを変えず漂う
+      fish.userData.still = drifting || fixed; // 向きを変えず漂う
       group.add(fish);
     }
   }
