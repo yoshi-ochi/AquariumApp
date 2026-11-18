@@ -364,3 +364,23 @@ body.visiting #side-actions { display: none; }
 .st-ctl button { width: 38px; padding: 0; font-size: 18px; }
 .sp-seg { display: grid; grid-template-columns: repeat(3, 1fr); flex: 1 1 150px; gap: 3px; }
 .sp-seg button { min-height: 34px; padding: 2px; font-size: 12px; }
+
+/* ---------- 地図 ---------- */
+#map-page { position: fixed; left: 0; right: 0; top: calc(var(--hud-h) + var(--safe-top)); bottom: calc(var(--nav-h) + var(--safe-bottom)); z-index: 16; background: #123f60; }
+#map-page[hidden] { display: none; }
+#map-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#map-tools { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+#map-tools button { min-height: 36px; padding: 4px 12px; pointer-events: auto; font-weight: 700; }
+#map-note { position: absolute; top: 56px; left: 8px; right: 8px; margin: 0; padding: 8px 10px; color: #fff; background: var(--bar); border: 1px solid var(--aqua); border-radius: 8px; font-size: 12px; }
+#map-note[hidden] { display: none; }
+#map-legend { position: absolute; left: 8px; bottom: 8px; display: flex; align-items: center; gap: 4px; margin: 0; padding: 4px 8px; color: #fff; background: rgba(15, 53, 80, .86); border-radius: 8px; font-size: 11px; pointer-events: none; }
+#map-legend i { display: inline-block; width: 9px; height: 9px; margin-left: 6px; border-radius: 50%; }
+#map-legend i:first-child { margin-left: 0; }
+body.map-open #side-actions, body.map-open #hint { display: none; }
+.ex-species { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.ex-sp { display: flex; flex-direction: column; align-items: center; min-width: 0; text-align: center; }
+.ex-sp img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }
+.ex-sp small { max-width: 100%; font-size: 10px; line-height: 1.25; }
+.al-new { display: flex; gap: 6px; }
+.al-new input { flex: 1; min-width: 0; min-height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; }
+.al-leave { margin-top: 8px; color: var(--danger); }

@@ -1,4 +1,4 @@
-import { CREATURES, DESTINATIONS, RARITY, getCreature, getDestination } from '../expedition/creatureData.js';
+import { CREATURES, RARITY, getCreature, getDestination, travelPlan } from '../expedition/creatureData.js';
 import { tankCapacity, usedCapacity, syncLife } from '../expedition/tankLife.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
@@ -7,8 +7,9 @@ const until = (t) => `<span data-until="${t}">${fmtTime(Math.max(0, Math.ceil((t
 
 /** 採取遠征：調査隊の状況と行き先 */
 export class ExpeditionView {
-  constructor({ economy, expeditions, toast }) {
-    Object.assign(this, { economy, expeditions, toast });
+  constructor({ economy, expeditions, toast, getHome, previews }) {
+    Object.assign(this, { economy, expeditions, toast, getHome, previews });
+    this.focus = null; // 地図で選んだ採取地
   }
 
   html() {
@@ -20,20 +21,28 @@ export class ExpeditionView {
         ? `<div class="gs-row"><div class="gs-info"><b>${d.name}</b><small>調査隊が帰還しました</small></div><button data-act="claim" data-id="${i}" class="primary">受け取る</button></div>`
         : `<div class="gs-row"><div class="gs-info"><b>${d.name}</b><small>採取中 ・ 残り ${until(t.doneAt)}</small></div></div>`;
     });
-    const dests = DESTINATIONS.map((d) => {
-      if (d.stage > level) return `<div class="gs-row"><div class="gs-info"><b>${d.name}</b><small>ステージ${d.stage}で解放</small></div></div>`;
-      const ok = ex.canDepart(level) && this.economy.canAfford(d.cost);
-      return `<div class="gs-row"><div class="gs-info"><b>${d.name}</b><small>${d.text}</small><small>${yen(d.cost)} ・ ${fmtTime(d.seconds)}</small></div><button data-act="depart" data-id="${d.id}" class="primary" ${ok ? '' : 'disabled'}>出発</button></div>`;
-    });
-    return `<p class="gs-empty">調査隊 ${ex.trips.length}/${level}</p>${trips.join('')}<h4 class="gs-sub">行き先</h4>${dests.join('')}`;
+    const status = `<p class="gs-empty">調査隊 ${ex.trips.length}/${level}</p>${trips.join('')}`;
+    const d = this.focus && getDestination(this.focus);
+    if (!d) return `${status}<p class="gs-empty">地図の採取地をタップして行き先を選びます。</p>`;
+    const plan = travelPlan(d, this.getHome());
+    const species = d.pool.map((id) => {
+      const c = getCreature(id);
+      return `<div class="ex-sp"><img src="${this.previews.get(`creature:${id}`) ?? ''}" alt=""><small>${c.name}</small><small>${RARITY[c.rarity]}</small></div>`;
+    }).join('');
+    const locked = d.stage > level;
+    const ok = !locked && ex.canDepart(level) && this.economy.canAfford(plan.cost);
+    return `<div class="st-sum"><div class="st-head"><b>${d.name}</b><small>立地から ${plan.km.toLocaleString('ja-JP')}km</small></div><small>${d.text}</small>
+      <div class="ex-species">${species}</div>
+      ${locked ? `<em class="gs-alert">ステージ${d.stage}で解放</em>` : `<button data-act="depart" data-id="${d.id}" class="primary" ${ok ? '' : 'disabled'}>出発 ${yen(plan.cost)} ・ ${fmtTime(plan.seconds)}</button>`}</div>${status}`;
   }
 
   act(act, id) {
     const ex = this.expeditions;
     if (act === 'depart') {
       const d = getDestination(id);
-      if (ex.canDepart(this.economy.stage.level) && this.economy.spend(d.cost)) {
-        ex.depart(d);
+      const plan = travelPlan(d, this.getHome());
+      if (ex.canDepart(this.economy.stage.level) && this.economy.spend(plan.cost)) {
+        ex.depart(d, plan.seconds);
         this.toast(`${d.name} へ出発しました`);
       }
       return true;

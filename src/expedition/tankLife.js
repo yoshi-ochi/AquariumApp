@@ -48,7 +48,7 @@ export function syncLife(tank) {
       const margin = (c.len * scale) / 2;
       const ax = Math.max(0.01, (box.hx - margin) * (0.45 + rand() * 0.55));
       const az = Math.max(0.01, (box.hz - margin) * (0.45 + rand() * 0.55));
-      const velocity = (0.05 + rand() * 0.07) * (c.shape === 'jelly' ? 0.35 : 1); // m/秒
+      const velocity = (0.05 + rand() * 0.07) * (c.form === 'jelly' || c.form === 'dumbo' || c.form === 'clione' ? 0.35 : 1); // m/秒
       fish.userData.swim = {
         ax,
         az,
@@ -60,8 +60,9 @@ export function syncLife(tank) {
         cy: box.y0 + (box.y1 - box.y0) * (0.3 + rand() * 0.4),
         ay: (box.y1 - box.y0) * 0.2,
         cx: box.cx,
-        wag: 6 + rand() * 4,
+        tempo: 0.8 + rand() * 0.5,
       };
+      fish.userData.still = c.form === 'jelly' || c.form === 'dumbo' || c.form === 'clione'; // 向きを変えず漂う
       group.add(fish);
     }
   }
@@ -87,19 +88,8 @@ export function updateLife(tank, time) {
     pathAt(s, time, cur);
     pathAt(s, time + 0.08, next);
     fish.position.set(cur.x, cur.y, cur.z);
-    if (u.bell) {
-      // クラゲ：拍動しながら漂う（向きは変えない）
-      const k = 1 + Math.sin(time * 2.4 + s.p1) * 0.12;
-      u.bell.scale.set(k, 2 - k, k);
-      continue;
-    }
+    u.uni.uTime.value = time * s.tempo + s.p2;
+    if (fish.userData.still) continue;
     fish.rotation.y = Math.atan2(-(next.z - cur.z), next.x - cur.x);
-    if (u.wingL) {
-      const f = Math.sin(time * 1.8 + s.p1) * 0.4;
-      u.wingL.rotation.x = f;
-      u.wingR.rotation.x = -f;
-    } else if (u.tail) {
-      u.tail.rotation.y = Math.sin(time * s.wag + s.p2) * 0.5;
-    }
   }
 }

@@ -42,6 +42,10 @@ import { Operations } from './management/operations.js';
 import { CleanView, StaffView, ShopView } from './ui/opsViews.js';
 import { finishCleaning, needsCleaning } from './tanks/tankCleaning.js';
 import { icon } from './ui/icons.js';
+import { AllianceApi } from './online/allianceApi.js';
+import { AllianceView } from './ui/allianceView.js';
+import { MapPage } from './ui/mapPage.js';
+import { allianceBonus, allianceLevel } from './expedition/creatureData.js';
 import { CREATURES } from './expedition/creatureData.js';
 import { buildCreature } from './expedition/creatureBuilder.js';
 
@@ -68,6 +72,7 @@ async function boot() {
   const inventory = new Inventory();
   const expeditions = new Expeditions();
   const ops = new Operations();
+  let home = null; // 自分の立地 { lat, lon }
   const manager = new TankManager(sceneMgr.scene);
   const room = new Room(sceneMgr.scene, sceneMgr);
   let roomSettings = defaultRoomSettings();
@@ -415,7 +420,7 @@ async function boot() {
   /** 現在の状態を保存用データにする */
   function snapshot() {
     roomSettings.plan = room.plan.toJSON();
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), room: roomSettings, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: roomSettings, objects: manager.serialize() };
   }
 
   /** 保存用データから状態を復元する */
@@ -425,6 +430,7 @@ async function boot() {
     inventory.fromJSON(data.inventory);
     expeditions.fromJSON(data.expedition);
     ops.fromJSON(data.ops);
+    if (!visiting) home = data.home ?? null;
     roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
     manager.deserialize(data.objects);
@@ -436,6 +442,20 @@ async function boot() {
   // ---- オンライン：クラウド保存・フレンド・訪問 -------------------------------
   const online = new Online();
   let visiting = null; // { mine: 自分のスナップショット }
+  /** フレンド・同盟の仲間の水族館を訪問する */
+  async function visitAquarium(id, name) {
+    const data = await online.load(id);
+    if (!data) return toast(`${name} さんはまだ水族館を保存していません`, { error: true });
+    if (!visiting) visiting = { mine: snapshot() };
+    gameSheet.close();
+    mapPage.close();
+    applySnapshot(data);
+    document.body.classList.add('visiting');
+    $('visit-label').textContent = `${name} さんの水族館`;
+    $('visit-bar').hidden = false;
+    toast(`${name} さんの水族館を訪問中`);
+  }
+
   const autoSave = new AutoSave({
     save: (data, force) => online.save(data, force),
     getSnapshot: () => snapshot(),
@@ -476,16 +496,7 @@ async function boot() {
       autoSave.markLoaded();
       toast('クラウドから読み込みました');
     },
-    onVisit: async (id, name) => {
-      const data = await online.load(id);
-      if (!data) return toast(`${name} さんはまだ水族館を保存していません`, { error: true });
-      if (!visiting) visiting = { mine: snapshot() };
-      applySnapshot(data);
-      document.body.classList.add('visiting');
-      $('visit-label').textContent = `${name} さんの水族館`;
-      $('visit-bar').hidden = false;
-      toast(`${name} さんの水族館を訪問中`);
-    },
+    onVisit: (id, name) => visitAquarium(id, name),
     beforeSignOut: () => autoSave.flush(),
     onSignOut: () => location.reload(), // スプラッシュのログインへ戻る
   });
@@ -496,10 +507,65 @@ async function boot() {
 
   // ---- 上部バー・下部メニュー・アイテム ---------------------------------------
   const hud = new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
+  const allianceApi = new AllianceApi(online);
+  const allianceView = new AllianceView({
+    api: allianceApi, online, economy, expeditions, toast,
+    onVisit: (id, name) => visitAquarium(id, name),
+    onChanged: () => mapPage.refresh(),
+  });
+  const expeditionView = new ExpeditionView({ economy, expeditions, toast, previews, getHome: () => home });
+  // 地図で選んだ仲間の水族館
+  const placeView = {
+    pin: null,
+    html() {
+      const name = String(this.pin?.label ?? '').replace(/[&<>"']/g, '');
+      return `<div class="st-sum"><b>${name} さんの水族館</b><small>${this.pin?.kind === 'ally' ? '同盟の仲間' : 'フレンド'}</small><button data-act="place-visit" class="primary">訪問する</button></div>`;
+    },
+    act(act) {
+      if (act !== 'place-visit') return false;
+      visitAquarium(this.pin.id, this.pin.label).catch((err) => toast(err.message, { error: true }));
+      return true;
+    },
+  };
+  const mapPage = new MapPage({
+    el: $('map-page'), toast,
+    getHome: () => home,
+    getLevel: () => economy.stage.level,
+    isTripDone: (dest) => expeditions.trips.some((t) => t.dest === dest && expeditions.isDone(t)),
+    loadPlaces: async () => {
+      if (!online.user) return [];
+      await allianceApi.refresh();
+      const allies = (allianceApi.state?.members ?? []).filter((m) => m.id !== online.user.id).map((m) => ({ ...m, kind: 'ally' }));
+      const { friends } = await online.friends();
+      const others = friends.filter((f) => !allies.some((a) => a.id === f.id));
+      const places = await allianceApi.places(others.map((f) => f.id));
+      return [...allies, ...places.map((p) => ({ ...p, kind: 'friend' }))];
+    },
+    onDest: (id) => {
+      expeditionView.focus = id;
+      gameSheet.openPanel('expedition');
+    },
+    onPlace: (pin) => {
+      placeView.pin = pin;
+      gameSheet.openPanel('place');
+    },
+    onTrips: () => {
+      expeditionView.focus = null;
+      gameSheet.openPanel('expedition');
+    },
+    onHomeSet: async (p) => {
+      home = p;
+      mapPage.refresh();
+      toast('立地を設定しました');
+      if (online.user) await allianceApi.setLocation(p).catch((err) => console.error(err));
+    },
+  });
   const gameSheet = new GameSheet({
     el: $('game-sheet'), economy, inventory, expeditions, ops, previews, toast,
     panels: {
-      expedition: { title: '採取遠征', view: new ExpeditionView({ economy, expeditions, toast }) },
+      expedition: { title: '採取遠征', view: expeditionView },
+      ally: { title: '同盟水族館', view: allianceView },
+      place: { title: '水族館', view: placeView },
       clean: { title: '水槽の掃除', live: true, view: new CleanView({ manager, economy, ops, toast, getTanks: () => manager.tanks, onChanged: () => shell.update() }) },
       staff: { title: 'スタッフ', live: true, view: new StaffView({ ops }) },
       shop: { title: '店舗運営', live: true, view: new ShopView({ ops, economy, toast }) },
@@ -518,11 +584,20 @@ async function boot() {
       const itemsOpen = gameSheet.isItems;
       gameSheet.close();
       friendPanel.close();
+      if (id === 'map') return mapPage.toggle();
       if (id === 'more') return shell.toggleMenu();
       shell.toggleMenu(false);
-      if (id === 'layout') return enterHallEdit();
+      if (id === 'layout') {
+        mapPage.close();
+        return enterHallEdit();
+      }
+      if (id === 'ally') {
+        if (wasOpen === 'ally') return;
+        gameSheet.openPanel('ally');
+        return allianceView.load(() => gameSheet.view === 'ally' && gameSheet.render());
+      }
       if (id === 'items') return itemsOpen ? undefined : gameSheet.openItems();
-      if (id === 'expedition' || id === 'shop') return wasOpen === id ? undefined : gameSheet.openPanel(id);
+      if (id === 'shop') return wasOpen === id ? undefined : gameSheet.openPanel(id);
       if (wasOpen !== `feature:${id}`) gameSheet.openFeature(id);
     },
   });
@@ -546,7 +621,8 @@ async function boot() {
   setInterval(() => {
     if (visiting) return;
     for (const id of inventory.collect()) toast(`外注の ${getDef(id).name} が完成しました`);
-    $('nav-expedition').classList.toggle('has-badge', expeditions.trips.some((t) => expeditions.isDone(t)));
+    $('nav-map').classList.toggle('has-badge', expeditions.trips.some((t) => expeditions.isDone(t)));
+    mapPage.refresh();
     for (const t of finishCleaning(manager.tanks)) toast(`${manager.defOf(t).name} の掃除が終わりました`);
     const dirty = manager.tanks.filter((t) => needsCleaning(t)).length;
     $('clean-badge').hidden = !dirty;
@@ -556,8 +632,9 @@ async function boot() {
   }, 1000);
   $('btn-visit-end').addEventListener('click', () => {
     if (!visiting) return;
-    applySnapshot(visiting.mine);
+    const mine = visiting.mine;
     visiting = null;
+    applySnapshot(mine);
     document.body.classList.remove('visiting');
     $('visit-bar').hidden = true;
     toast('自分の水族館に戻りました');
@@ -598,6 +675,12 @@ async function boot() {
     }
   }
 
+  /** 同盟に入っている間の来館者ボーナス */
+  function allyBonus() {
+    const a = allianceApi.state?.alliance;
+    return a ? allianceBonus(allianceLevel(a.xp)) : 1;
+  }
+
   /** 必要人員の計算に使う水族館の規模 */
   function opsContext() {
     const tanks = manager.tanks;
@@ -623,7 +706,7 @@ async function boot() {
     manager.updateAeration(clock.elapsedTime);
     manager.updateLife(clock.elapsedTime);
     interior.update();
-    economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult));
+    economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult * allyBonus()));
     if (!visiting) ops.update(dt, opsContext, economy);
     customizer.update();
     sceneMgr.render();
@@ -647,6 +730,7 @@ async function boot() {
       },
     });
     autoSave.start();
+    allianceApi.refresh().catch((err) => console.warn(err.message)); // 同盟ボーナスの反映
     if (online.recovery) friendPanel.open(); // 再設定メールから来たら新しいパスワードの入力へ
     // 別タブでログアウトしたらこのタブも閉じる
     online.sb.auth.onAuthStateChange((event) => event === 'SIGNED_OUT' && location.reload());

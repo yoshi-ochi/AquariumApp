@@ -21,8 +21,8 @@ export class Expeditions extends EventTarget {
     return this.trips.length < stageLevel;
   }
 
-  depart(dest, now = Date.now()) {
-    this.trips.push({ dest: dest.id, doneAt: now + dest.seconds * 1000, seed: Math.floor(Math.random() * 2 ** 31) });
+  depart(dest, seconds = dest.seconds, now = Date.now()) {
+    this.trips.push({ dest: dest.id, doneAt: now + seconds * 1000, seed: Math.floor(Math.random() * 2 ** 31) });
     this._emit();
   }
 

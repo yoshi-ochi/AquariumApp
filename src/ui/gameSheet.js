@@ -8,7 +8,6 @@ const TABS = [['stock', '所持品'], ['creatures', '生物'], ['supplier', '取
 
 /** 今後追加する機能の案内 */
 export const FEATURES = {
-  ally: ['ally', '同盟水族館', 'ほかの水族館と同盟を組み、協力して運営します。'],
   event: ['event', 'イベント開催', '館内イベントを開いて、来館者を増やします。'],
 };
 
@@ -20,7 +19,7 @@ export class GameSheet {
     this._beat = 0;
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-act]');
-      if (b) this._act(b.dataset.act, b.dataset.id);
+      if (b) this._act(b.dataset.act, b.dataset.id, b);
     });
     inventory.addEventListener('change', () => this.view && this.render());
     expeditions.addEventListener('change', () => this.view && this.render());
@@ -134,7 +133,7 @@ export class GameSheet {
     else if (this.panels[this.view]?.live && ++this._beat % 3 === 0) this.render(); // 満足度などを更新
   }
 
-  _act(act, id) {
+  _act(act, id, b) {
     const def = TANK_DEFS.find((d) => d.id === id);
     if (act === 'close') return this.close();
     if (act === 'tab') {
@@ -142,7 +141,7 @@ export class GameSheet {
       this.creatureView.picking = null;
       return this.render();
     }
-    if ((this.panels[this.view]?.view ?? this.creatureView).act(act, id)) return this.render();
+    if ((this.panels[this.view]?.view ?? this.creatureView).act(act, id, b, () => this.view && this.render())) return this.render();
     if (act === 'place') {
       this.close();
       return this.onPlace(id);
