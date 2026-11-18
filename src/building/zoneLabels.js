@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ZONES, zoneCenter } from './blueprint.js';
+import { ZONES, getZone, zoneCenter } from './blueprint.js';
 
 /** 未解放エリアの上に出す名札 */
 function labelTexture(text) {
@@ -28,8 +28,7 @@ export class ZoneLabels {
     scene.add(this.group);
     this.items = ZONES.map((zone) => {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(`未解放 ${zone.name}`), depthTest: false, depthWrite: false }));
-      const { x, z } = zoneCenter(zone);
-      s.position.set(x, 2.4, z);
+      s.position.y = 2.4;
       s.scale.set(7.3, 1.6, 1);
       s.renderOrder = 900;
       s.raycast = () => {};
@@ -39,6 +38,11 @@ export class ZoneLabels {
   }
 
   update(floor, unlocked) {
-    for (const { zone, sprite } of this.items) sprite.visible = zone.floor === floor && !unlocked.has(zone.id);
+    for (const { zone, sprite } of this.items) {
+      const { x, z } = zoneCenter(getZone(zone.id));
+      sprite.position.x = x;
+      sprite.position.z = z;
+      sprite.visible = zone.floor === floor && !unlocked.has(zone.id);
+    }
   }
 }

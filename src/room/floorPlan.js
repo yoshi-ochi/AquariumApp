@@ -1,4 +1,4 @@
-import { ATRIUM_VOID, CELL_SIZE, GRID_X, GRID_Z, ZONES, ZONE_TYPE, inRect } from '../building/blueprint.js';
+import { ATRIUM_VOID, CELL_SIZE, GRID_X, GRID_Z, LAYOUT, ZONES, ZONE_TYPE, inRect, zoneHas } from '../building/blueprint.js';
 
 /**
  * 建物の1フロア分のマス目。形は設計図（blueprint.js）で決まり、解放済みのエリアだけ使える。
@@ -15,13 +15,58 @@ export class FloorPlan {
     this.GX = GRID_X;
     this.GZ = GRID_Z;
     this.active = new Uint8Array(this.GX * this.GZ);
-    this.signature = `${floor}:${[...unlocked].sort().join(',')}`;
-    for (const zone of ZONES) {
-      if (zone.floor !== floor || zone.type === ZONE_TYPE.OUTDOOR) continue;
+    this.signature = `${LAYOUT.id}:${floor}:${[...unlocked].sort().join(',')}`;
+    this.zoneIds = new Int8Array(this.GX * this.GZ).fill(-1);
+    ZONES.forEach((zone, n) => {
+      if (zone.floor !== floor || zone.type === ZONE_TYPE.OUTDOOR) return;
       const type = !unlocked.has(zone.id) ? CELL.LOCKED : zone.type === ZONE_TYPE.YARD ? CELL.YARD : CELL.FLOOR;
-      this._fill(zone.rect, type);
-    }
+      for (const rect of zone.rects) this._fill(rect, type);
+      for (let j = 0; j < this.GZ; j++) for (let i = 0; i < this.GX; i++) if (zoneHas(zone, i, j)) this.zoneIds[this.idx(i, j)] = n;
+    });
     if (floor === ATRIUM_VOID.floor) this._fill(ATRIUM_VOID.rect, unlocked.has(ATRIUM_VOID.zone) ? CELL.VOID : CELL.LOCKED);
+    this.doors = this._findDoors();
+  }
+
+  _zoneAt(i, j) {
+    return i >= 0 && j >= 0 && i < this.GX && j < this.GZ ? this.zoneIds[this.idx(i, j)] : -1;
+  }
+
+  _edge(i0, j0, i1, j1) {
+    const a = this.idx(i0, j0);
+    const b = this.idx(i1, j1);
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+  }
+
+  /** 順路でつながるエリアの境に、幅4マスの出入口をあける */
+  _findDoors() {
+    const doors = new Set();
+    for (const [a, b] of LAYOUT.links) {
+      const na = ZONES.findIndex((z) => z.id === a);
+      const nb = ZONES.findIndex((z) => z.id === b);
+      if (ZONES[na].floor !== this.floor || ZONES[nb].floor !== this.floor) continue;
+      const lines = new Map();
+      for (let j = 0; j < this.GZ; j++) for (let i = 0; i < this.GX; i++) {
+        for (const [di, dj, axis] of [[1, 0, 'v'], [0, 1, 'h']]) {
+          const p = this._zoneAt(i, j);
+          const q = this._zoneAt(i + di, j + dj);
+          if (!((p === na && q === nb) || (p === nb && q === na))) continue;
+          const key = axis === 'v' ? `v${i}` : `h${j}`;
+          if (!lines.has(key)) lines.set(key, []);
+          lines.get(key).push(this._edge(i, j, i + di, j + dj));
+        }
+      }
+      const best = [...lines.values()].sort((x, y) => y.length - x.length)[0] ?? [];
+      const start = Math.max(0, Math.floor(best.length / 2) - 2);
+      best.slice(start, start + 4).forEach((e) => doors.add(e));
+    }
+    return doors;
+  }
+
+  /** 隣のマスへ歩いて移動できるか（部屋の壁は出入口だけ通れる） */
+  passable(i0, j0, i1, j1) {
+    const p = this._zoneAt(i0, j0);
+    const q = this._zoneAt(i1, j1);
+    return p === q || this.doors.has(this._edge(i0, j0, i1, j1));
   }
 
   _fill(rect, type) {
@@ -66,11 +111,14 @@ export class FloorPlan {
     for (let z = cz - hz + e; z < cz + hz - e; z += step) zs.push(z);
     zs.push(cz + hz - e);
     let type = null;
+    let room = null;
     for (const x of xs) for (const z of zs) {
       const [i, j] = this.cellOf(x, z);
       const t = this.at(i, j);
-      if (!OPEN(t) || (type !== null && t !== type)) return false;
+      const n = this._zoneAt(i, j);
+      if (!OPEN(t) || (type !== null && (t !== type || n !== room))) return false;
       type = t;
+      room = n;
     }
     return true;
   }
@@ -82,13 +130,16 @@ export class FloorPlan {
 
   /**
    * 壁のラン。{ key, kind, side, axis, line, from, to, normal:[nx,nz] }
-   * kind: exterior 外壁 / partition 展示とバックヤードの仕切り / shutter 未解放エリアとの境 / rail 吹き抜けの手すり
+   * kind: exterior 外壁 / partition 展示とバックヤードの仕切り / room 展示室の間の壁 / shutter 未解放エリアとの境 / rail 吹き抜けの手すり
    */
   runs() {
     const c = this.cell;
     const runs = [];
-    const classify = (a, b) => {
-      if (a === b) return null;
+    const classify = (a, b, i0, j0, i1, j1) => {
+      if (a === b) {
+        if (a !== CELL.FLOOR || this.passable(i0, j0, i1, j1)) return null;
+        return { kind: 'room', n: 1, side: CELL.FLOOR };
+      }
       if (a === CELL.VOID || b === CELL.VOID) {
         if (!OPEN(a) && !OPEN(b)) return { kind: 'shutter', n: a === CELL.VOID ? 1 : -1, side: CELL.LOCKED };
         return { kind: 'rail', n: OPEN(b) ? 1 : -1, side: CELL.FLOOR };
@@ -113,12 +164,14 @@ export class FloorPlan {
       });
     };
     const same = (p, q) => p && q && p.kind === q.kind && p.n === q.n && p.side === q.side;
-    const scan = (axis, lines, len, cellA, cellB) => {
+    const scan = (axis, lines, len, posA, posB) => {
       for (let l = 0; l <= lines; l++) {
         let cur = null;
         let start = 0;
         for (let s = 0; s <= len; s++) {
-          const cls = s < len ? classify(cellA(s, l), cellB(s, l)) : null;
+          const [i0, j0] = posA(s, l);
+          const [i1, j1] = posB(s, l);
+          const cls = s < len ? classify(this.at(i0, j0), this.at(i1, j1), i0, j0, i1, j1) : null;
           if (cur && same(cur, cls)) continue;
           if (cur) push(axis, l, cur, start, s);
           cur = cls;
@@ -126,8 +179,8 @@ export class FloorPlan {
         }
       }
     };
-    scan('x', this.GZ, this.GX, (s, l) => this.at(s, l - 1), (s, l) => this.at(s, l)); // z = 一定 の線
-    scan('z', this.GX, this.GZ, (s, l) => this.at(l - 1, s), (s, l) => this.at(l, s)); // x = 一定 の線
+    scan('x', this.GZ, this.GX, (s, l) => [s, l - 1], (s, l) => [s, l]); // z = 一定 の線
+    scan('z', this.GX, this.GZ, (s, l) => [l - 1, s], (s, l) => [l, s]); // x = 一定 の線
     return runs;
   }
 

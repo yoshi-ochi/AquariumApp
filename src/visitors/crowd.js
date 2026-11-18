@@ -151,7 +151,7 @@ export class Crowd {
       if (plan.idx(i, j) === goal) break;
       for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const k = plan.idx(i + a, j + b);
-        if (prev.has(k) || !this._walkable(i + a, j + b)) continue;
+        if (prev.has(k) || !this._walkable(i + a, j + b) || !plan.passable(i, j, i + a, j + b)) continue;
         prev.set(k, plan.idx(i, j));
         queue.push([i + a, j + b]);
       }

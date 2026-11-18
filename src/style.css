@@ -410,3 +410,33 @@ body.map-open #side-actions, body.map-open #hint { display: none; }
 .zk-detail img { flex: none; width: 96px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }
 
 .zn-open { flex: none; color: var(--ok); font-size: 12px; font-weight: 700; }
+
+/* ---------- 表示切り替え ---------- */
+#view-rail { position: fixed; left: 8px; bottom: calc(var(--nav-h) + 56px + var(--safe-bottom)); z-index: 16; display: none; flex-direction: column; overflow: hidden; background: var(--bar); border: 2px solid var(--bar-line); border-radius: 14px; }
+body[data-mode=home] #view-rail { display: flex; }
+body.visiting #view-rail { display: flex; }
+body.map-open #view-rail { display: none; }
+#view-rail button { width: 50px; min-height: 42px; padding: 0; color: #d9eef7; background: none; border: 0; border-radius: 0; font-size: 12px; font-weight: 700; }
+#view-rail button + button { border-top: 1px solid var(--bar-2); }
+#view-rail button.active { color: #0f3550; background: var(--gold); }
+body:not([data-view=floor]) #side-actions, body:not([data-view=floor]) #goal-card, body:not([data-view=floor]) #hint { display: none; }
+
+/* ---------- 間取りの選択 ---------- */
+#layout-picker { position: fixed; inset: 0; z-index: 120; overflow-y: auto; padding: calc(16px + var(--safe-top)) 12px calc(16px + var(--safe-bottom)); color: #fff; background: #0a2438; user-select: none; }
+#layout-picker[hidden] { display: none; }
+.lp-box { display: flex; flex-direction: column; gap: 10px; max-width: 760px; margin: 0 auto; }
+.lp-box h2 { margin: 0; font-size: 22px; }
+.lp-box p { margin: 0; color: #a9d3e6; font-size: 13px; }
+.lp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; }
+.lp-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; color: #fff; text-align: left; white-space: normal; background: #123f60; border: 2px solid #2f7aa3; border-radius: 12px; }
+.lp-card.active { color: #fff; background: #17557f; border-color: var(--gold); }
+.lp-card b { font-size: 16px; }
+.lp-card small { color: #d9eef7; font-size: 12px; line-height: 1.45; }
+.lp-card .lp-from { color: #a9d3e6; font-size: 11px; }
+.lp-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lp-plans figure { margin: 0; text-align: center; }
+.lp-plans svg { display: block; width: 100%; background: #0d2f47; border-radius: 6px; }
+.lp-plans figcaption { color: #a9d3e6; font-size: 11px; }
+.lp-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; font-size: 11px !important; }
+.lp-legend i { display: inline-block; width: 10px; height: 10px; margin-left: 7px; border-radius: 2px; }
+#lp-ok { position: sticky; bottom: 0; min-height: 48px; font-size: 16px; font-weight: 700; }

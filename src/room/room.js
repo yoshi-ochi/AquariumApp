@@ -67,6 +67,10 @@ export class Room {
     this.group.add(this.built, this.lightGroup, this.helperGroup);
     this.lights = []; // { spot, bulb, aim, line }
     this.holes = [];
+    // 展示室の間の壁は、引いて見るときだけ腰の高さで切って部屋の中を見せる
+    this.cutPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 3.6);
+    sceneMgr.renderer.localClippingEnabled = true;
+    this.roomWallMat = new THREE.MeshStandardMaterial({ roughness: 0.95, clippingPlanes: [this.cutPlane] });
     this.lockedFloorMat = new THREE.MeshStandardMaterial({ color: 0x7d858b, roughness: 1 });
     this.shutterMat = new THREE.MeshStandardMaterial({ map: stripeTexture(), roughness: 0.8, side: THREE.DoubleSide });
     this.railMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ee, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
@@ -89,6 +93,9 @@ export class Room {
     this.wallMat.map = getTexture(wall.type);
     this.wallMat.color.set(wall.color);
     this.wallMat.needsUpdate = true;
+    this.roomWallMat.map = this.wallMat.map;
+    this.roomWallMat.color.copy(this.wallMat.color);
+    this.roomWallMat.needsUpdate = true;
   }
 
   /** ライトを作り直す（数が変わるとき） */
@@ -156,6 +163,12 @@ export class Room {
 
   // ---- 形状 -----------------------------------------------------------------
 
+  /** カメラの距離に応じて展示室の壁の高さを変える */
+  updateCut(distance, dt) {
+    const target = distance > 11 ? 1.25 : 3.7;
+    this.cutPlane.constant += (target - this.cutPlane.constant) * Math.min(1, dt * 6);
+  }
+
   /** 床・壁・土を作り直す。holes: [{ key, along, width, bottom, top }] */
   rebuild(holes = this.holes) {
     this.holes = holes;
@@ -175,7 +188,10 @@ export class Room {
         continue;
       }
       const hs = holes.filter((h) => h.key === run.key && h.along >= run.from && h.along <= run.to);
-      if (run.kind === 'partition') {
+      if (run.kind === 'room') {
+        this.built.add(this._wallMesh(run, hs, this.roomWallMat, false));
+        this.built.add(this._wallMesh(run, hs, this.roomWallMat, true));
+      } else if (run.kind === 'partition') {
         // 仕切り壁は両面：館内側は選んだ壁材、バックヤード側はコンクリート
         this.built.add(this._wallMesh(run, hs, this.wallMat, false));
         this.built.add(this._wallMesh(run, hs, this.yardWallMat, true));

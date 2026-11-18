@@ -45,11 +45,13 @@ import { AllianceApi } from './online/allianceApi.js';
 import { AllianceView } from './ui/allianceView.js';
 import { MapPage } from './ui/mapPage.js';
 import { LifeSystems } from './game/lifeSystems.js';
-import { START_ZONES, ATRIUM_TANK_POS, getZone, zoneAt, zoneCenter } from './building/blueprint.js';
+import { START_ZONES, ATRIUM_TANK_POS, DEFAULT_LAYOUT, LAYOUT, getZone, setLayout, zoneAt, zoneCenter } from './building/blueprint.js';
+import { ViewModes } from './building/viewModes.js';
+import { pickLayout } from './ui/layoutPicker.js';
 import { ZoneLabels } from './building/zoneLabels.js';
 import { DolphinPool } from './building/dolphinPool.js';
 import { ZoneView } from './building/buildingViews.js';
-import { migrateLegacyLayout } from './building/migrate.js';
+import { migrateToLayout, zonesForLegacyStage } from './building/migrate.js';
 import { zoneOf } from './expedition/husbandry.js';
 import { isHungry } from './expedition/husbandry.js';
 import { allianceBonus, allianceLevel } from './expedition/creatureData.js';
@@ -60,7 +62,6 @@ const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
 const POOL_APPEAL = 150;
 const THEME_BONUS = 1.25;
-const ENTRANCE = zoneCenter(getZone('entrance'));
 const HINT = {
   home: '水槽をタップすると近くで見られます ・ ドラッグで回転 / 2本指でズーム',
   hall: 'タップで選択・ドラッグで移動 ・ 何もない所のドラッグで視点を回転',
@@ -144,6 +145,7 @@ async function boot() {
   }
   function applyRoom(reframe) {
     room.setStage(economy.stage, economy.floor, unlocked);
+    pool.setLayout();
     zoneLabels.update(economy.floor, unlocked);
     pool.setUnlocked(unlocked.has('pool'));
     manager.extraAppeal = unlocked.has('pool') ? POOL_APPEAL : 0;
@@ -154,6 +156,17 @@ async function boot() {
     if (reframe) cameraCtl.frameBounds(room.plan.bounds(CELL.FLOOR));
   }
   applyRoom(true);
+  const views = new ViewModes({
+    sceneMgr, cameraCtl, room, manager, pool, labels: zoneLabels, railEl: $('view-rail'),
+    getFloor: () => economy.floor,
+    getUnlocked: () => unlocked,
+    onFloor: (floor) => changeFloor(floor),
+    onModeChange: (m) => {
+      view.enabled = m === 'floor' && mode === 'home';
+      document.body.dataset.view = m;
+    },
+  });
+  document.body.dataset.view = 'floor';
 
   // ---- 選択パネル・カタログ ---------------------------------------------------
   const customizer = new TankCustomizer({
@@ -299,7 +312,7 @@ async function boot() {
     room.setEditVisible(false);
     roomPanel.setVisible(false);
     customizer.deselect();
-    view.enabled = true;
+    view.enabled = views.mode === 'floor';
     shell.setMode('home');
     shell.setHint(HINT.home);
   }
@@ -315,6 +328,7 @@ async function boot() {
   }
 
   function enterHallEdit() {
+    views.setMode('floor');
     mode = 'hall-edit';
     view.enabled = false;
     customizer.allowEmbed = true;
@@ -357,6 +371,14 @@ async function boot() {
     }
   }
 
+  function changeFloor(floor) {
+    if (!economy.setFloor(floor)) return;
+    hall.cancelPlacement();
+    customizer.deselect();
+    manager.setFloor(economy.floor);
+    applyRoom(false);
+  }
+
   const shell = new AppShell({
     economy,
     manager,
@@ -371,13 +393,7 @@ async function boot() {
       else if (mode === 'tank') enterInteriorEdit(focusTank, 'tank');
     },
     onDone,
-    onFloorChange: (floor) => {
-      if (!economy.setFloor(floor)) return;
-      hall.cancelPlacement();
-      customizer.deselect();
-      manager.setFloor(economy.floor);
-      applyRoom(false);
-    },
+    onFloorChange: (floor) => views.goFloor(floor),
     onUpgrade: () => {
       const res = economy.upgradeStage();
       if (!res.ok) return toast(res.reason, { error: true });
@@ -401,12 +417,35 @@ async function boot() {
 
   /** 現在の状態を保存用データにする */
   function snapshot() {
-    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: { ...roomSettings, building: 1, unlocked: [...unlocked] }, objects: manager.serialize() };
+    return { version: LAYOUT_VERSION, savedAt: new Date().toISOString(), economy: economy.toJSON(), life: life.toJSON(), inventory: inventory.toJSON(), expedition: expeditions.toJSON(), ops: ops.toJSON(), ...(home && { home }), room: { ...roomSettings, building: 2, layout: LAYOUT.id, unlocked: [...unlocked] }, objects: manager.serialize() };
+  }
+
+  let pendingLayout = null; // 初期設定で選んだ間取り
+  function resetLights() {
+    const c = zoneCenter(getZone('entrance'));
+    roomSettings.lights = [defaultLight(c.x, c.z)];
+  }
+
+  /** 新しいアカウント：選んだ間取りのエントランスに最初の水槽を置く */
+  function startNewAquarium(layoutId) {
+    setLayout(layoutId);
+    unlocked = new Set(START_ZONES);
+    manager.clear();
+    resetLights();
+    economy.setFloor(0);
+    manager.setFloor(0);
+    applyRoom(false);
+    const b = room.plan.bounds(CELL.FLOOR);
+    manager.add('stand60', { x: b.cx, z: b.z0 + 0.3 });
+    manager.add('tank60', { x: b.cx, z: b.z0 + 0.3 });
+    applyRoom(true);
   }
 
   /** 保存用データから状態を復元する */
   function applySnapshot(data) {
     if (mode !== 'home') goHome();
+    views.setMode('floor');
+    setLayout(data.room?.layout ?? pendingLayout ?? DEFAULT_LAYOUT);
     economy.fromJSON(data.economy);
     inventory.fromJSON(data.inventory);
     expeditions.fromJSON(data.expedition);
@@ -415,11 +454,11 @@ async function boot() {
     roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
     manager.deserialize(data.objects);
-    if (data.room?.building) unlocked = new Set([...START_ZONES, ...(data.room.unlocked ?? [])]);
-    else {
-      // 自由な床形状だった旧セーブを新しい建物へ移す
-      unlocked = new Set(migrateLegacyLayout({ manager, level: economy.stage.level, inventory, expeditions, economy }));
-      roomSettings.lights = [defaultLight(ENTRANCE.x, ENTRANCE.z)];
+    unlocked = new Set([...START_ZONES, ...(data.room?.building ? data.room.unlocked ?? [] : zonesForLegacyStage(economy.stage.level))]);
+    if (!data.room?.layout) {
+      // 間取りを選ぶ前のセーブを、選んだ間取りへ移す
+      migrateToLayout({ manager, unlocked, wasBuilding: !!data.room?.building, inventory, expeditions, economy });
+      resetLights();
       economy.setFloor(0);
     }
     delete roomSettings.plan;
@@ -651,17 +690,12 @@ async function boot() {
     toast('自分の水族館に戻りました');
   });
 
-  // 初期レイアウト（無料）：バックヤードとの仕切り壁の前に水槽台＋60cm水槽、右寄りに飼育員用ドア
-  const b = room.plan.bounds(CELL.FLOOR);
-  manager.add('stand60', { x: b.x0 + 0.6, z: b.z0 + 0.2 });
-  manager.add('tank60', { x: b.x0 + 0.6, z: b.z0 + 0.2 });
-  const doorRun = room.plan.runs().find((r) => r.kind === 'partition');
-  if (doorRun) manager.add('staffDoor', { embed: { key: doorRun.key, along: doorRun.to - 0.8, ratio: 0.5, bottom: 0 } });
-  refreshRoom();
+  // 初期レイアウト（無料）：エントランスに水槽台＋60cm水槽
+  startNewAquarium(DEFAULT_LAYOUT);
   goHome();
 
   // 開発時だけ：ブラウザのコンソールから状態を調べられるようにする
-  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions, ops, get life() { return life; }, snapshot, applySnapshot };
+  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions, ops, get life() { return life; }, snapshot, applySnapshot, get views() { return views; }, startNewAquarium };
 
   // ---- ループ ---------------------------------------------------------------
   /**
@@ -720,7 +754,9 @@ async function boot() {
     pool.update(clock.elapsedTime);
     interior.update();
     economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult * allyBonus() * life.visitorMult));
-    life.crowd.setVisible(mode !== 'interior-edit' && mode !== 'tank' && !mapPage.isOpen);
+    views.update(dt);
+    room.updateCut(sceneMgr.camera.position.distanceTo(cameraCtl.controls.target), dt);
+    life.crowd.setVisible(views.mode === 'floor' && mode !== 'interior-edit' && mode !== 'tank' && !mapPage.isOpen);
     life.crowd.update(dt, economy.visitors, visiting ? 80 : ops.satisfaction);
     if (!visiting) ops.update(dt, opsContext, economy);
     customizer.update();
@@ -734,6 +770,7 @@ async function boot() {
   if (new URLSearchParams(location.search).has('splash')) return;
 
   let lastSavedAt = null;
+  let layoutChosen = false;
   // ログイン必須：完了してそのアカウントのセーブを反映するまでスプラッシュを閉じない
   if (online.enabled) {
     await runLoginGate({
@@ -742,11 +779,18 @@ async function boot() {
       setLabel: (t) => splash.setProgress(1, t),
       onReady: async () => {
         const data = await online.load();
+        // 間取りが未設定なら最初に選んでもらう
+        if (!data?.room?.layout) {
+          pendingLayout = await pickLayout($('layout-picker'));
+          layoutChosen = true;
+        }
         if (data) applySnapshot(data);
+        else startNewAquarium(pendingLayout);
         lastSavedAt = data?.savedAt ?? null;
       },
     });
     autoSave.start();
+    if (layoutChosen) autoSave.saveNow().catch((err) => console.warn(err.message));
     if (lastSavedAt) {
       life.settleOffline(lastSavedAt, ops.visitorMult);
       autoSave.flush(); // 受け取った収入をすぐ保存（二重受け取りを防ぐ）
@@ -755,6 +799,8 @@ async function boot() {
     if (online.recovery) friendPanel.open(); // 再設定メールから来たら新しいパスワードの入力へ
     // 別タブでログアウトしたらこのタブも閉じる
     online.sb.auth.onAuthStateChange((event) => event === 'SIGNED_OUT' && location.reload());
+  } else if (import.meta.env.DEV && new URLSearchParams(location.search).has('layout')) {
+    startNewAquarium(await pickLayout($('layout-picker'))); // 開発用：オフラインで間取りを試す
   }
   await splash.hide();
 }

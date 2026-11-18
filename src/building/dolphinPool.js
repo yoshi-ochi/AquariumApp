@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { buildCreature } from '../expedition/creatureBuilder.js';
-import { CELL_SIZE, GRID_Z, STORY_H } from './blueprint.js';
+import { CELL_SIZE, GRID_X, GRID_Z, STORY_H, getZone } from './blueprint.js';
 
 /** 屋外イルカプール：楕円のプールと、2階建ての高さまで段になった半円形の観客席 */
-const CENTER_Z = (4 - GRID_Z / 2) * CELL_SIZE;
+const SEAT_REACH = 10.7;
 const TIERS = 12;
 const SEAT_TOP = STORY_H * 2;
 const DOLPHIN = { id: 'show-dolphin', form: 'shark', len: 2.4, colors: { body: 0x7f929f, belly: 0xe6ecef, fin: 0x6a7c88 } };
@@ -12,7 +12,6 @@ export class DolphinPool {
   constructor(scene) {
     this.group = new THREE.Group();
     this.group.name = 'dolphin-pool';
-    this.group.position.z = CENTER_Z;
     this.group.visible = false;
     scene.add(this.group);
     this._buildPool();
@@ -55,13 +54,12 @@ export class DolphinPool {
       seat.castShadow = seat.receiveShadow = true;
       this.group.add(seat);
     }
-    // 最上段の屋根
-    const roof = new THREE.Mesh(new THREE.TorusGeometry(10.7, 0.16, 6, 40, Math.PI), new THREE.MeshStandardMaterial({ color: 0x38505f }));
-    roof.rotation.x = Math.PI / 2;
-    roof.rotation.z = Math.PI;
-    roof.scale.x = 1.55;
-    roof.position.y = SEAT_TOP + 1.3;
-    this.group.add(roof);
+  }
+
+  /** 間取りのプール区画に合わせて置き直す（客席の背が建物側に接する） */
+  setLayout() {
+    const [x0, , x1, z1] = getZone('pool').rects[0];
+    this.group.position.set(((x0 + x1 + 1) / 2 - GRID_X / 2) * CELL_SIZE, 0, (z1 + 1 - GRID_Z / 2) * CELL_SIZE - SEAT_REACH);
   }
 
   setUnlocked(v) {
