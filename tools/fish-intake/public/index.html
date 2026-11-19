@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>魚種追加ツール</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>魚種追加ツール</h1>
+    <p class="sub" id="summary">読み込み中…</p>
+    <input id="search" type="search" placeholder="魚種名で検索" aria-label="魚種名で検索" autocomplete="off">
+    <div class="chips" id="status-filter" role="group" aria-label="状態で絞り込み">
+      <button data-status="all" class="on">すべて</button>
+      <button data-status="none">画像なし</button>
+      <button data-status="todo">画像あり・未モデル</button>
+      <button data-status="game">ゲーム実装済み</button>
+    </div>
+    <select id="group-filter" aria-label="ゾーンで絞り込み"><option value="">すべてのゾーン</option></select>
+  </header>
+
+  <main id="list" aria-live="polite"></main>
+
+  <details class="add">
+    <summary>リストにない魚種を追加</summary>
+    <form id="add-form">
+      <input id="add-name" required maxlength="30" placeholder="和名（例：コショウダイ）" aria-label="和名">
+      <select id="add-group" aria-label="ゾーン"></select>
+      <button class="primary">追加</button>
+    </form>
+  </details>
+
+  <dialog id="sheet" aria-labelledby="sheet-title">
+    <div class="sheet-head">
+      <div><h2 id="sheet-title"></h2><p class="sub" id="sheet-sub"></p></div>
+      <button id="sheet-close" class="icon" aria-label="閉じる">✕</button>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="upload">
+      <label class="pick primary"><input id="file-main" type="file" accept="image/*">メイン画像を選ぶ</label>
+      <label class="pick"><input id="file-ref" type="file" accept="image/*" multiple>他の角度・参考画像を追加</label>
+    </div>
+    <p class="hint">メインは「真横・ヒレが開いている・体色がわかる写真」。絵や斜めからの写真は避けてください。</p>
+    <label class="memo-label" for="memo">Claude へのメモ（特徴・注意点など）</label>
+    <textarea id="memo" rows="3" maxlength="4000" placeholder="例：オスの婚姻色で作成。背ビレの黒点をはっきり"></textarea>
+    <button id="memo-save">メモを保存</button>
+    <p class="status" id="sheet-status" role="status"></p>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
