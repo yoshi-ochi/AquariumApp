@@ -62,6 +62,7 @@ import { CREATURES } from './expedition/creatureData.js';
 import { buildCreature } from './expedition/creatureBuilder.js';
 import { TankView } from './ui/tankView.js';
 import { BuildView } from './ui/buildView.js';
+import { BuildInPlace } from './interaction/buildInPlace.js';
 import { setCustomHandler, registerCustomIds } from './tanks/customTanks.js';
 import { tankLabel } from './tanks/tankLabel.js';
 
@@ -289,6 +290,7 @@ async function boot() {
       if (mode !== 'hall-edit') return;
       hall.cancelPlacement();
       roomPanel.setVisible(extra && id === 'room');
+      inPlace.setActive(extra && id === 'build');
       if (!extra) shell.setHint(HINT.hall);
     },
   });
@@ -323,6 +325,15 @@ async function boot() {
     },
   });
   afterApplyRoom = () => hall.refreshCenters();
+  const inPlace = new BuildInPlace({
+    sceneMgr, cameraCtl, manager, economy, hall, toast,
+    panelEl: $('build-panel'),
+    onPlaced: (obj) => {
+      shell.update();
+      customizer.select(obj);
+    },
+  });
+  hall.isBusy = () => inPlace.active;
   const interiorCam = new InteriorCamera(cameraCtl);
   const interior = new InteriorInteraction({
     sceneMgr, cameraCtl, manager, economy, customizer, toast,
@@ -348,6 +359,7 @@ async function boot() {
     hall.setEnabled(false);
     room.setEditVisible(false);
     roomPanel.setVisible(false);
+    inPlace.setActive(false);
     customizer.deselect();
     view.enabled = views.mode === 'floor';
     shell.setMode('home');
@@ -380,7 +392,7 @@ async function boot() {
     customizer.allowEmbed = true;
     hall.setEnabled(true);
     room.setEditVisible(true);
-    catalog.setDefs(HALL_DEFS, [{ id: 'room', label: '部屋' }]);
+    catalog.setDefs(HALL_DEFS, [{ id: 'build', label: '水槽建造' }, { id: 'room', label: '部屋' }]);
     shell.setMode('hall-edit', '館内レイアウト編集');
     shell.setHint(HINT.hall);
   }
@@ -391,6 +403,7 @@ async function boot() {
     focusTank = tank;
     hall.setEnabled(false);
     roomPanel.setVisible(false);
+    inPlace.setActive(false);
     customizer.deselect();
     customizer.allowEmbed = false;
     gameSheet.close();

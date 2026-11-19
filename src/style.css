@@ -110,7 +110,7 @@ input[type=color] { width: 44px; height: 32px; border: none; padding: 0; backgro
 #catalog-tabs { display: flex; gap: 6px; padding: 10px 12px 6px; overflow-x: auto; scrollbar-width: none; }
 #catalog-tabs button { min-height: 32px; padding: 4px 14px; border-radius: 16px; }
 #catalog-cards { display: flex; gap: 8px; padding: 4px 12px 12px; overflow-x: auto; scrollbar-width: thin; }
-#catalog-cards[hidden], #room-panel[hidden] { display: none; }
+#catalog-cards[hidden], #room-panel[hidden], #build-panel[hidden] { display: none; }
 .card {
   position: relative; flex: 0 0 auto; width: 104px; padding: 4px;
   display: flex; flex-direction: column; align-items: stretch; text-align: left;
@@ -157,6 +157,9 @@ input[type=color] { width: 44px; height: 32px; border: none; padding: 0; backgro
 #room-panel .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
 #room-panel .label { color: var(--muted); font-size: 12px; min-width: 40px; }
 #room-panel .note { color: var(--muted); font-size: 12px; }
+#build-panel { padding: 0 12px 12px; max-height: 42vh; overflow-y: auto; }
+#build-panel .note { color: var(--muted); font-size: 12px; margin: 4px 0; }
+#build-panel .bip-ng { color: #d64545; }
 
 /* ---------- ギズモ ---------- */
 #gizmo {
@@ -200,7 +203,7 @@ body.editing #hint { bottom: calc(var(--editor-h) + 10px + var(--safe-bottom)); 
 /* オブジェ選択中（詳細編集）はカタログ・部屋パネルを閉じて作業領域を確保 */
 body.has-selection #catalog-tabs,
 body.has-selection #catalog-cards,
-body.has-selection #room-panel { display: none; }
+body.has-selection #room-panel, body.has-selection #build-panel { display: none; }
 
 /* ---------- オンライン（フレンド） ---------- */
 #friend-sheet {

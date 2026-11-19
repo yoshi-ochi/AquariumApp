@@ -67,7 +67,12 @@ export class AlignGuides {
     this.manager = manager;
     this.guides = lines(GUIDE_COLOR, 0.95, 0.04);
     this.centers = lines(CENTER_COLOR, 0.6, 0.05, [0.3, 0.2]);
-    scene.add(this.guides, this.centers);
+    // 壁の中央線は壁の表面に沿わせ、壁の裏からは見えないよう奥行き判定する
+    this.wallCenters = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: CENTER_COLOR, transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }));
+    this.wallCenters.renderOrder = 997;
+    this.wallCenters.raycast = () => {};
+    this.wallCenters.visible = false;
+    scene.add(this.guides, this.centers, this.wallCenters);
     this.reset();
   }
 
@@ -134,6 +139,37 @@ export class AlignGuides {
     }
     setSegments(this.guides, pts);
     return out;
+  }
+
+  /** 壁ごとの中央に縦の破線（両面、床から1.2mまで） */
+  showWallCenters(runs, visible = true) {
+    if (!visible) {
+      this.wallCenters.visible = false;
+      return;
+    }
+    const pos = [];
+    const W = 0.025;
+    const H = 1.2;
+    const OFF = 0.02;
+    for (const run of runs) {
+      if (!['exterior', 'partition', 'room'].includes(run.kind) || run.to - run.from < 1.2) continue;
+      const mid = (run.from + run.to) / 2;
+      for (const side of [-1, 1]) {
+        for (let y = 0; y < H; y += 0.25) {
+          const y1 = Math.min(H, y + 0.15);
+          if (run.axis === 'x') {
+            const z = run.line + side * OFF;
+            pos.push(mid - W, y, z, mid + W, y, z, mid + W, y1, z, mid - W, y, z, mid + W, y1, z, mid - W, y1, z);
+          } else {
+            const x = run.line + side * OFF;
+            pos.push(x, y, mid - W, x, y, mid + W, x, y1, mid + W, x, y, mid - W, x, y1, mid + W, x, y1, mid - W);
+          }
+        }
+      }
+    }
+    this.wallCenters.geometry.dispose();
+    this.wallCenters.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    this.wallCenters.visible = pos.length > 0;
   }
 
   /** 解放済みエリアの中央の十字線（その階だけ）。中央のマスから同じ種類の床が続く所＝壁まで伸ばす */

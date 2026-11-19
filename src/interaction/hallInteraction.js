@@ -50,6 +50,7 @@ export class HallInteraction {
   /** エリア中央の十字線を今の階・解放状況で描き直す */
   refreshCenters() {
     this.guides.showCenters(this.room.plan, this.getUnlocked(), this.enabled);
+    this.guides.showWallCenters(this.room.plan.runs(), this.enabled);
   }
 
   /**
@@ -293,7 +294,7 @@ export class HallInteraction {
   }
 
   _onDown = (e) => {
-    if (!this.enabled) return;
+    if (!this.enabled || this.isBusy?.()) return;
     // 2本目の指 → ドラッグをやめてカメラ操作（ピンチ）に任せる
     if (!e.isPrimary) {
       this._endDrag();
@@ -322,7 +323,7 @@ export class HallInteraction {
   };
 
   _onMove = (e) => {
-    if (!this.enabled || !e.isPrimary) return;
+    if (!this.enabled || !e.isPrimary || this.isBusy?.()) return;
     if (this.placing) {
       if (e.target !== this.dom && !this.down) return;
       this._setPointer(e);
@@ -369,7 +370,7 @@ export class HallInteraction {
   };
 
   _onUp = (e) => {
-    if (!this.enabled || !e.isPrimary) return;
+    if (!this.enabled || !e.isPrimary || this.isBusy?.()) return;
     const down = this.down;
     this.down = null;
     const clicked = down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < CLICK_TOLERANCE;
