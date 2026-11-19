@@ -1,4 +1,15 @@
 import { DESTINATIONS, getCreature } from './creatureData.js';
+import { getDef } from '../tanks/tankData.js';
+import { crowding } from './tankLife.js';
+
+/** バックヤードの飼育設備（冷凍庫など）の効果。lifeSystems が毎秒更新する */
+const facilities = { freezer: 0, liveFeed: 0, foodPrep: 0 };
+export const setCareFacilities = (counts) => Object.assign(facilities, counts);
+const has = (id) => facilities[id] > 0;
+export function facilityBonus() {
+  return (has('freezer') ? 0.05 : 0) + (has('liveFeed') ? 0.08 : 0) + (has('foodPrep') ? 0.04 : 0);
+}
+const feedInterval = () => FEED_INTERVAL * (has('foodPrep') ? 1.5 : 1);
 
 /** 飼育：エサ・水温・混泳の相性。tank.userData.care = { fed, water } */
 const H = 3600 * 1000;
@@ -44,18 +55,26 @@ export function predatorConflict(tank) {
   return hunters.some((h) => list.some((c) => c !== h && c.len < h.len / 4));
 }
 
-export const isHungry = (tank, now = Date.now()) => hasLife(tank) && now - ensureCare(tank, now).fed >= FEED_INTERVAL;
+export const isHungry = (tank, now = Date.now()) => hasLife(tank) && now - ensureCare(tank, now).fed >= feedInterval();
+export const nextFeedIn = (tank, now = Date.now()) => Math.max(0, feedInterval() - (now - ensureCare(tank, now).fed)) / 1000;
 
-/** 健康度 0.3〜1。展示生物の魅力に掛かる */
-export function tankHealth(tank, now = Date.now()) {
-  if (!hasLife(tank)) return 1;
-  const over = (now - ensureCare(tank, now).fed) / FEED_INTERVAL;
-  const food = over <= 1 ? 1 : Math.max(0.3, 1 - (over - 1) * 0.5);
-  const temp = 1 - waterMismatch(tank) * 0.6;
-  return Math.max(0.3, food * temp * (predatorConflict(tank) ? 0.7 : 1));
+/** 過密による低下。収容枠の目安を超えると下がり、2倍で6割 */
+export function crowdFactor(tank) {
+  const r = crowding(tank, getDef(tank.userData.defId));
+  return r <= 1 ? 1 : Math.max(0.3, 1 - (r - 1) * 0.4);
 }
 
-export const feedCost = (tank) => speciesIn(tank).reduce((s, [id, n]) => s + getCreature(id).slots * n * 30, 0);
+/** 幸福度 0.3〜1.17。エサ・水温・混泳・過密・飼育設備で決まり、展示生物の魅力に掛かる */
+export function tankHealth(tank, now = Date.now()) {
+  if (!hasLife(tank)) return 1;
+  const over = (now - ensureCare(tank, now).fed) / feedInterval();
+  const food = over <= 1 ? 1 : Math.max(0.3, 1 - (over - 1) * 0.5);
+  const temp = 1 - waterMismatch(tank) * 0.6;
+  return Math.max(0.3, food * temp * (predatorConflict(tank) ? 0.7 : 1) * crowdFactor(tank) * (1 + facilityBonus()));
+}
+export const tankHappiness = tankHealth;
+
+export const feedCost = (tank) => Math.round(speciesIn(tank).reduce((s, [id, n]) => s + getCreature(id).slots * n * 30, 0) * (has('freezer') ? 0.8 : 1));
 
 export function feed(tank, now = Date.now()) {
   ensureCare(tank, now).fed = now;

@@ -103,6 +103,14 @@ export const CREATURES = [
   c('chochin', 'チョウチンアンコウ', 'lump', 0.4, 3, 6, 50, 0x3a3640, 0x55505c, 0x2a2730),
 ];
 
+/**
+ * 水槽の収容枠の消費量（1〜10）。体長から決め、群れで泳ぐ小魚は1枠。
+ * 最小の30cm水槽（10枠）にクリオネが10匹、大水槽にはイワシが数百匹入る目安。
+ */
+const SCHOOLING = new Set(['maiwashi', 'sanma', 'nishin', 'maaji', 'sakuraebi', 'deba', 'kakure', 'clione', 'mizukurage', 'chinanago']);
+export const slotFor = (c) => (SCHOOLING.has(c.id) ? 1 : Math.min(10, Math.max(1, Math.round((c.len / 0.2) ** 1.3))));
+for (const c of CREATURES) c.slots = slotFor(c);
+
 export const getCreature = (id) => CREATURES.find((x) => x.id === id);
 
 export const DESTINATIONS = [

@@ -100,9 +100,12 @@ export class ExpeditionView {
 }
 
 /** アイテムの「生物」タブ：所持している生物と水槽への展示 */
+/** 食堂（カフェ）で料理として出したときの売上（1匹） */
+export const dishPrice = (c) => Math.round(((150 + c.len * 2500) * [1, 1.6, 3][c.rarity - 1]) / 10) * 10;
+
 export class CreatureView {
-  constructor({ manager, expeditions, previews, toast, onChanged }) {
-    Object.assign(this, { manager, expeditions, previews, toast, onChanged });
+  constructor({ manager, expeditions, previews, toast, onChanged, economy, hasCafe }) {
+    Object.assign(this, { manager, expeditions, previews, toast, onChanged, economy, hasCafe });
     this.picking = null;
   }
 
@@ -120,15 +123,22 @@ export class CreatureView {
 
   _list() {
     const ex = this.expeditions;
-    const owned = CREATURES.filter((c) => ex.count(c.id) > 0).map(
-      (c) => `<div class="gs-row">${this._img(c.id)}<div class="gs-info"><b>${c.name}</b><small>${RARITY[c.rarity]} ・ 所持 ${ex.count(c.id)} ・ 枠 ${c.slots}</small></div><button data-act="pick" data-id="${c.id}" class="primary">展示</button></div>`,
-    );
+    const cafe = this.hasCafe();
+    const owned = CREATURES.filter((c) => ex.count(c.id) > 0).map((c) => {
+      const n = ex.count(c.id);
+      const all = n > 1 ? `:${n}` : ':1';
+      return `<div class="gs-row wrap">${this._img(c.id)}<div class="gs-info"><b>${c.name}</b><small>${RARITY[c.rarity]} ・ 所持 ${n} ・ 1匹 ${c.slots}枠</small></div>
+        <div class="gs-btns"><button data-act="pick" data-id="${c.id}" class="primary">展示</button>
+        <button data-act="release" data-id="${c.id}:1">放流</button>${n > 1 ? `<button data-act="release" data-id="${c.id}${all}">全部放流</button>` : ''}
+        <button data-act="dish" data-id="${c.id}:1" ${cafe ? '' : 'disabled'}>食堂で提供 ${yen(dishPrice(c))}</button>${cafe && n > 1 ? `<button data-act="dish" data-id="${c.id}${all}">全部提供 ${yen(dishPrice(c) * n)}</button>` : ''}</div></div>`;
+    });
+    const note = `<p class="gs-empty">バックヤードの保持 ${ex.usedSlots}/${ex.getCapacity()}枠（展示中の生物は含みません）。${cafe ? '' : 'カフェを設置すると、食堂で料理として提供できます。'}</p>`;
     const shown = this._tanks.flatMap((t) =>
       Object.entries(t.userData.creatures ?? {}).map(
         ([id, n]) => `<div class="gs-row">${this._img(id)}<div class="gs-info"><b>${getCreature(id)?.name ?? id} ×${n}</b><small>${esc(tankLabel(this.manager, t))}</small></div><button data-act="unshow" data-id="${t.userData.uid}:${id}">戻す</button></div>`,
       ),
     );
-    return `${owned.join('') || '<p class="gs-empty">生物を持っていません。採取遠征で捕まえましょう。</p>'}${shown.length ? `<h4 class="gs-sub">展示中</h4>${shown.join('')}` : ''}`;
+    return `${note}${owned.join('') || '<p class="gs-empty">生物を持っていません。採取遠征で捕まえましょう。</p>'}${shown.length ? `<h4 class="gs-sub">展示中</h4>${shown.join('')}` : ''}`;
   }
 
   _picker() {
@@ -137,7 +147,7 @@ export class CreatureView {
       const def = this.manager.defOf(t);
       const used = usedCapacity(t);
       const cap = tankCapacity(def);
-      return `<div class="gs-row"><div class="gs-info"><b>${esc(tankLabel(this.manager, t))}</b><small>収容枠 ${used}/${cap}</small></div><button data-act="show" data-id="${t.userData.uid}" class="primary" ${used + c.slots > cap ? 'disabled' : ''}>ここに展示</button></div>`;
+      return `<div class="gs-row"><div class="gs-info"><b>${esc(tankLabel(this.manager, t))}</b><small>収容枠 ${used}/${cap}${used + c.slots > cap ? ' ・ <em class="gs-alert">超過すると幸福度が下がります</em>' : ''}</small></div><button data-act="show" data-id="${t.userData.uid}" class="primary">ここに展示</button></div>`;
     });
     return `<button data-act="pick-back">← 戻る</button><p class="gs-empty">${c.name}（枠 ${c.slots}）を展示する水槽を選んでください。</p>${rows.join('') || '<p class="gs-empty">水槽がありません。</p>'}`;
   }
@@ -147,15 +157,31 @@ export class CreatureView {
     else if (act === 'pick-back') this.picking = null;
     else if (act === 'show') this._show(+id);
     else if (act === 'unshow') this._unshow(id);
+    else if (act === 'release' || act === 'dish') this._letGo(act, id);
     else return false;
     return true;
+  }
+
+  /** 放流する / 食堂で料理として出す */
+  _letGo(act, key) {
+    const [id, want] = key.split(':');
+    const c = getCreature(id);
+    const n = Math.min(Number(want) || 1, this.expeditions.count(id));
+    if (!c || n <= 0) return;
+    if (act === 'dish' && !this.hasCafe()) return this.toast('カフェを設置すると食堂で提供できます', { error: true });
+    this.expeditions.take(id, n);
+    if (act === 'dish') {
+      this.economy.earn(dishPrice(c) * n);
+      this.toast(`${c.name}を${n}匹、食堂で提供しました（+${yen(dishPrice(c) * n)}）`);
+    } else this.toast(`${c.name}を${n}匹、海へ放流しました`);
+    this.onChanged();
   }
 
   _show(uid) {
     const tank = this.manager.objects.get(uid);
     const id = this.picking;
     const c = getCreature(id);
-    if (!tank || usedCapacity(tank) + c.slots > tankCapacity(this.manager.defOf(tank))) return;
+    if (!tank) return;
     if (this.expeditions.count(id) === 1) this.picking = null; // 最後の1匹なら一覧へ戻る
     if (!this.expeditions.take(id)) return;
     const list = (tank.userData.creatures ??= {});

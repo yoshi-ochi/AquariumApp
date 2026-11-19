@@ -18,6 +18,7 @@ export class GameSheet {
     this.view = null;
     this._beat = 0;
     el.addEventListener('click', (e) => {
+      if (e.target.matches('canvas[data-draw]')) return this.panels[this.view]?.view.draw?.(e) && this.render();
       const b = e.target.closest('button[data-act]');
       if (b) this._act(b.dataset.act, b.dataset.id, b);
     });
@@ -78,6 +79,7 @@ export class GameSheet {
     const panel = this.panels[this.view];
     if (panel) {
       this.el.innerHTML = `${head(panel.title)}<div class="gs-list">${panel.view.html()}</div>`;
+      panel.view.afterRender?.(this.el);
       return;
     }
     const tabs = TABS.map(([id, label]) => `<button data-act="tab" data-id="${id}" class="${this.view === id ? 'active' : ''}">${label}</button>`).join('');

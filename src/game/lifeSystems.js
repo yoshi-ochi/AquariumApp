@@ -1,6 +1,6 @@
 import { INCOME_PER_VISITOR } from '../management/stageData.js';
 import { CREATURES } from '../expedition/creatureData.js';
-import { feed, feedCost, isHungry, hasLife } from '../expedition/husbandry.js';
+import { feed, feedCost, isHungry, hasLife, setCareFacilities } from '../expedition/husbandry.js';
 import { Backyard } from '../building/backyard.js';
 import { setCleanIntervalBoost } from '../tanks/tankCleaning.js';
 import { BackyardView } from '../building/buildingViews.js';
@@ -61,6 +61,7 @@ export class LifeSystems {
     this.ops.wageMult = 1 - this.backyard.level('welfare') * 0.05;
     this.ops.cleanerRelief = count('cleanCenter');
     setCleanIntervalBoost(1 + Math.min(4, count('waterPlant')) * 0.25);
+    setCareFacilities({ freezer: count('freezer'), liveFeed: count('liveFeed'), foodPrep: count('foodPrep') });
     this.backyard.tick();
     this._husbandry();
     this._renderGoal(s);

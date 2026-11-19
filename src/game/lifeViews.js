@@ -2,13 +2,13 @@ import { tankLabel } from '../tanks/tankLabel.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { CREATURES, DESTINATIONS, JOINT_PROJECTS, RARITY, getCreature } from '../expedition/creatureData.js';
 import { NOTES } from '../expedition/creatureNotes.js';
-import { WATER, ensureCare, feed, feedCost, hasLife, isHungry, predatorConflict, tankHealth, waterMismatch, zoneOf, FEED_INTERVAL } from '../expedition/husbandry.js';
+import { WATER, ensureCare, feed, feedCost, hasLife, isHungry, predatorConflict, tankHealth, waterMismatch, nextFeedIn, crowdFactor, zoneOf, FEED_INTERVAL } from '../expedition/husbandry.js';
 import { EVENTS } from './gameData.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
 const span = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}時間${Math.floor((s % 3600) / 60)}分` : `${Math.max(1, Math.ceil(s / 60))}分`);
 
-/** 飼育：健康度・エサ・水温 */
+/** 飼育：幸福度・エサ・水温 */
 export class CareView {
   constructor({ manager, economy, toast, onFed }) {
     Object.assign(this, { manager, economy, toast, onFed });
@@ -24,10 +24,11 @@ export class CareView {
       if (isHungry(t, now)) notes.push('お腹をすかせています');
       if (waterMismatch(t) > 0) notes.push('水温が合わない生物がいます');
       if (predatorConflict(t)) notes.push('捕食者と小さな生物が同居しています');
+    if (crowdFactor(t) < 1) notes.push('過密でストレスを感じています');
       const names = Object.keys(t.userData.creatures).map((id) => `${getCreature(id)?.name}（${WATER[zoneOf(id)].label.slice(0, 2)}）`).join('、');
       const seg = Object.entries(WATER).map(([k, w]) => `<button data-act="care-water" data-id="${t.userData.uid}:${k}" class="${care.water === k ? 'active' : ''}">${w.label}</button>`).join('');
-      const next = Math.max(0, FEED_INTERVAL - (now - care.fed)) / 1000;
-      return `<div class="gs-row wrap"><div class="gs-info"><b>${esc(tankLabel(this.manager, t))} ・ 健康度 ${hp}%</b><small>${names}</small>
+      const next = nextFeedIn(t, now);
+      return `<div class="gs-row wrap"><div class="gs-info"><b>${esc(tankLabel(this.manager, t))} ・ 幸福度 ${hp}%</b><small>${names}</small>
         ${notes.length ? `<em class="gs-alert">${notes.join('、')}</em>` : `<small>次のエサまで ${span(next)}</small>`}</div>
         <div class="gs-btns"><div class="sp-seg">${seg}</div><button data-act="care-feed" data-id="${t.userData.uid}" class="primary" ${this.economy.canAfford(cost) ? '' : 'disabled'}>エサ ${yen(cost)}</button></div></div>`;
     });

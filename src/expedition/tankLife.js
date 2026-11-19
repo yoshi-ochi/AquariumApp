@@ -8,15 +8,27 @@ import { BENTHIC_FORMS, STATIONARY_FORMS } from './creatureSoft.js';
 /** 水槽内の展示生物：収容枠の計算、モデルの同期、遊泳アニメーション */
 const LIFE = 'life';
 
-/** 水量に応じた収容枠 */
-export function tankCapacity(def) {
+/** 水量（m³）。描いた水槽は def.volume を持つ */
+export function tankVolume(def) {
+  if (def.volume) return def.volume;
   const { w, h, d } = def.size;
-  return Math.min(60, Math.max(2, Math.round(w * h * d * 60)));
+  return w * h * d * (def.shape === 'cylinder' ? Math.PI / 4 : 1);
+}
+
+/** 収容枠の目安。30cmキューブで10、吹き抜け大水槽で約3000。超過もできるが幸福度が下がる */
+export function tankCapacity(def) {
+  return Math.max(10, Math.round(10 * (tankVolume(def) / 0.027) ** 0.6));
 }
 
 const sumBy = (tank, key) => Object.entries(tank.userData.creatures ?? {}).reduce((s, [id, n]) => s + (getCreature(id)?.[key] ?? 0) * n, 0);
 export const usedCapacity = (tank) => sumBy(tank, 'slots');
-export const lifeAppeal = (tank) => sumBy(tank, 'appeal');
+/** 同じ種を増やすほど1匹あたりの魅力は少しずつ下がる（群れは見栄えするが青天井にはしない） */
+export const lifeAppeal = (tank) => Object.entries(tank.userData.creatures ?? {}).reduce((s, [id, n]) => s + (getCreature(id)?.appeal ?? 0) * n ** 0.75, 0);
+/** 混み具合（1 を超えると過密） */
+export const crowding = (tank, def) => usedCapacity(tank) / tankCapacity(def);
+
+/** 描画する個体数の上限（それ以上は数だけ持つ）。群れは多めに見せる */
+const MAX_MODELS = 120;
 
 /** 泳げる範囲（水槽ローカル）。トンネル水槽はアーチより上、哺乳類用は水域のみ */
 function swimBox(I) {
@@ -38,10 +50,12 @@ export function syncLife(tank) {
   const box = swimBox(tank.userData.interior);
   const room = Math.min(box.hx, box.hz) * 1.4; // 大きな生物は水槽に収まる大きさに縮める
   let index = 0;
-  for (const [id, n] of Object.entries(tank.userData.creatures ?? {})) {
+  const entries = Object.entries(tank.userData.creatures ?? {}).filter(([id]) => getCreature(id));
+  const total = entries.reduce((s, [, n]) => s + n, 0);
+  for (const [id, n] of entries) {
     const c = getCreature(id);
-    if (!c) continue;
-    for (let i = 0; i < n; i++) {
+    const shown = total <= MAX_MODELS ? n : Math.max(1, Math.round((n / total) * MAX_MODELS));
+    for (let i = 0; i < shown; i++) {
       const fish = buildCreature(c);
       const rand = mulberry32(tank.userData.uid * 131 + index++ * 977);
       const scale = Math.min(1, room / c.len);

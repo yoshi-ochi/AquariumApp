@@ -94,9 +94,9 @@ export class Expeditions extends EventTarget {
     return kept;
   }
 
-  take(id) {
-    if (this.count(id) <= 0) return false;
-    this.creatures[id]--;
+  take(id, n = 1) {
+    if (this.count(id) < n) return false;
+    this.creatures[id] -= n;
     this._emit();
     return true;
   }

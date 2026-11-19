@@ -137,3 +137,37 @@ export function buildCafe(g, def) {
   add(g, w * 0.72, 0.3, 0.03, mat(0x4b2e1e), 0, h + 0.2, d / 2 - 0.02);
   sign(g, 'カフェ', w * 0.7, h + 0.2, d / 2 + 0.01, '#4b2e1e', '#fff4e2');
 }
+
+/** 餌の冷凍庫：業務用の2枚扉 */
+export function buildFreezer(g, def) {
+  const { w, h, d } = def.size;
+  add(g, w, h, d, mat(0xe6ebee, 0.4), 0, h / 2, 0);
+  add(g, 0.012, h - 0.12, 0.01, mat(0x9aa4ab), 0, h / 2, d / 2 + 0.005);
+  for (const s of [-1, 1]) add(g, 0.03, 0.4, 0.04, mat(0x59636b), s * 0.08, h * 0.55, d / 2 + 0.02);
+  add(g, w * 0.5, 0.1, 0.01, mat(0x3f9bd6), 0, h - 0.12, d / 2 + 0.006); // 温度表示
+}
+
+/** 活き餌の培養水槽：小さな水槽を棚に並べる */
+export function buildLiveFeed(g, def) {
+  const { w, h, d } = def.size;
+  const water = new THREE.MeshStandardMaterial({ color: 0x9fd7a8, transparent: true, opacity: 0.7, roughness: 0.2, depthWrite: false });
+  for (let r = 0; r < 3; r++) {
+    const y = 0.1 + r * (h / 3);
+    add(g, w, 0.04, d, mat(0x59636b), 0, y, 0);
+    for (let i = 0; i < 3; i++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w / 3 - 0.06, h / 3 - 0.16, d - 0.1), water);
+      m.position.set(-w / 3 + (i * w) / 3, y + (h / 3 - 0.16) / 2 + 0.02, 0);
+      g.add(m);
+    }
+  }
+  for (const s of [-1, 1]) add(g, 0.04, h, 0.04, mat(0x38444d), (s * (w - 0.04)) / 2, h / 2, d / 2 - 0.02);
+}
+
+/** 調餌室の作業台 */
+export function buildFoodPrep(g, def) {
+  const { w, h, d } = def.size;
+  add(g, w, 0.9, d, mat(0xb7c0c6, 0.35), 0, 0.45, 0);
+  add(g, w * 0.35, 0.12, d * 0.6, mat(0xdfe6ea, 0.3), -w * 0.22, 0.96, 0); // シンク
+  add(g, w * 0.3, 0.08, d * 0.5, mat(0xf2f2ee), w * 0.25, 0.94, 0); // まな板
+  add(g, w, h - 1.4, 0.06, mat(0xdfe6ea), 0, 1.4 + (h - 1.4) / 2, -d / 2 + 0.03); // 吊り棚
+}

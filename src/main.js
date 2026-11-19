@@ -707,7 +707,7 @@ async function boot() {
         }),
       },
     },
-    creatureView: new CreatureView({ manager, expeditions, previews, toast, onChanged: () => shell.update() }),
+    creatureView: new CreatureView({ manager, expeditions, previews, toast, economy, onChanged: () => shell.update(), hasCafe: () => [...manager.objects.values()].some((o) => o.userData.defId === 'cafe') }),
     onPlace: (id) => {
       if (mode !== 'hall-edit') enterHallEdit();
       hall.startPlacement(id);

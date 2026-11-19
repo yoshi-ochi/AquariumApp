@@ -22,6 +22,25 @@ export const STORY_H = 3.6;
 export const ZONE_TYPE = Object.freeze({ HALL: 'hall', YARD: 'yard', VOID: 'void', OUTDOOR: 'outdoor' });
 const { HALL, YARD, OUTDOOR } = ZONE_TYPE;
 
+/**
+ * 増築展示室：地下の空いた敷地に、順番に増やせる展示室。レベルに関係なく、前の部屋を開けば次を増築できる。
+ * rects は敷地の絶対マス（全間取り共通）。
+ */
+const ANNEX_RECTS = [
+  [2, 2, 18, 18], [19, 2, 35, 18], [36, 2, 52, 18], [53, 2, 69, 18],
+  [55, 19, 69, 31], [55, 32, 69, 44], [2, 19, 16, 31], [2, 32, 16, 44],
+];
+export const ANNEX_IDS = ANNEX_RECTS.map((_, i) => `annex${i + 1}`);
+const ANNEX_LINKS = [['annex1', 'annex2'], ['annex2', 'annex3'], ['annex3', 'annex4'], ['annex4', 'annex5'], ['annex5', 'annex6'], ['annex1', 'annex7'], ['annex7', 'annex8']];
+function ANNEX_META() {
+  return ANNEX_IDS.map((id, i) => ({
+    id, name: `地下展示室${i + 1}`, floor: BASEMENT, type: HALL, stage: 1,
+    cost: Math.round((1200000 * 1.6 ** i) / 100000) * 100000,
+    requires: i === 0 ? 'b1a' : i === 6 ? 'annex1' : ANNEX_IDS[i - 1],
+    color: '#5f8fb0', text: '地下に増築する展示室。好きな生き物を展示できる', annex: true,
+  }));
+}
+
 const ZONE_META = [
   { id: 'entrance', name: 'エントランス', floor: 0, type: HALL, stage: 1, cost: 0, color: '#7fc8e8', text: '来館者を迎える最初のホール' },
   { id: 'yard1', name: '1Fバックヤード', floor: 0, type: YARD, stage: 1, cost: 0, color: '#c9ccd0', text: '研究室と繁殖設備を置ける職員エリア' },
@@ -39,6 +58,7 @@ const ZONE_META = [
   { id: 'b1b', name: '地下西ブロック', floor: BASEMENT, type: YARD, stage: 2, cost: 800000, requires: 'b1a', color: '#9aa4ad', text: '設備を増やせる地下の拡張区画' },
   { id: 'b1c', name: '地下東ブロック', floor: BASEMENT, type: YARD, stage: 3, cost: 2500000, requires: 'b1a', color: '#9aa4ad', text: '設備を増やせる地下の拡張区画' },
   { id: 'b1d', name: '地下南ブロック', floor: BASEMENT, type: YARD, stage: 4, cost: 8000000, requires: 'b1c', color: '#9aa4ad', text: '大規模な保持設備を置ける最大の区画' },
+  ...ANNEX_META(),
   { id: 'pool', name: 'イルカプール', floor: 0, type: OUTDOOR, stage: 3, cost: 8000000, color: '#54c0d8', text: '2階建ての観客席を備えたショープール' },
 ];
 
@@ -121,6 +141,8 @@ for (const l of LAYOUTS) {
   for (const [id, rect] of Object.entries(l.outdoor)) l.rects[id] = [rect];
   l.serviceLinks = (l.serviceLinks ?? []).map(shift);
   Object.assign(l.rects, { b1a: [[28, 20, 43, 33]], b1b: [[18, 20, 27, 33]], b1c: [[44, 20, 53, 33]], b1d: [[18, 34, 53, 43]] });
+  ANNEX_RECTS.forEach((r, i) => (l.rects[ANNEX_IDS[i]] = [r]));
+  l.links = [...l.links, ...ANNEX_LINKS];
 }
 
 /** 作り付けの景観が占める区画（区画の内側に余白をとる） */
@@ -169,7 +191,7 @@ setLayout(DEFAULT_LAYOUT);
 
 export const getZone = (id) => ZONES.find((z) => z.id === id);
 /** レベル2以降は、そのレベルまでのエリアがレベルアップで解放される（レベル1は購入のみ） */
-export const zonesUpToLevel = (level) => (level >= 2 ? ZONES.filter((z) => z.stage <= level).map((z) => z.id) : []);
+export const zonesUpToLevel = (level) => (level >= 2 ? ZONES.filter((z) => z.stage <= level && !z.annex).map((z) => z.id) : []);
 export const zoneHas = (zone, i, j) => zone.rects.some((r) => inRect(r, i, j));
 
 /** ワールド座標 → マス番号 */
