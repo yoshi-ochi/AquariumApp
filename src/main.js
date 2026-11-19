@@ -157,6 +157,7 @@ async function boot() {
     room.rebuild(holes);
     wallsDirty = false;
   }
+  let afterApplyRoom = () => {}; // 館内編集の十字線など（操作の準備ができてから差し替える）
   function applyRoom(reframe) {
     room.setStage(economy.stage, economy.floor, unlocked);
     pool.setLayout();
@@ -171,6 +172,7 @@ async function boot() {
     room.applyLook(roomSettings);
     room.setLights(roomSettings.lights);
     refreshRoom();
+    afterApplyRoom();
     if (reframe) cameraCtl.frameBounds(room.plan.bounds(CELL.FLOOR));
   }
   applyRoom(true);
@@ -309,6 +311,7 @@ async function boot() {
   const view = new ViewInteraction({ sceneMgr, manager, onTankTap: (tank) => openTank(tank) });
   const hall = new HallInteraction({
     sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast,
+    getUnlocked: () => unlocked,
     onPlacementChange: (id) => {
       catalog.setActive(id);
       shell.setHint(id ? HINT.place : HINT.hall);
@@ -319,6 +322,7 @@ async function boot() {
       for (const [id, n] of Object.entries(tank.userData.creatures ?? {})) expeditions.give(id, n);
     },
   });
+  afterApplyRoom = () => hall.refreshCenters();
   const interiorCam = new InteriorCamera(cameraCtl);
   const interior = new InteriorInteraction({
     sceneMgr, cameraCtl, manager, economy, customizer, toast,

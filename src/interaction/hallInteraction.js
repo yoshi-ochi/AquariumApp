@@ -6,6 +6,7 @@ import { REFUND_RATE } from '../management/stageData.js';
 import { CELL } from '../room/floorPlan.js';
 import { BASEMENT } from '../building/blueprint.js';
 import { findNearestRun, findRunByKey, placeEmbedded, alongOf, EMBED_RATIO_MAX } from '../room/embed.js';
+import { AlignGuides } from './alignGuides.js';
 
 const CLICK_TOLERANCE = 6; // px
 const SNAP = 0.05; // m（Shift で無効）
@@ -16,8 +17,9 @@ const ROTATE_STEP = Math.PI / 2;
  * 配置できる範囲は床のマス（FloorPlan）。埋め込み水槽は壁に沿ってのみ動く。
  */
 export class HallInteraction {
-  constructor({ sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged, onTankRemoved }) {
-    Object.assign(this, { sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged, onTankRemoved });
+  constructor({ sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged, onTankRemoved, getUnlocked }) {
+    Object.assign(this, { sceneMgr, cameraCtl, manager, economy, inventory, customizer, room, toast, onPlacementChange, onChanged, onWallsChanged, onTankRemoved, getUnlocked });
+    this.guides = new AlignGuides(sceneMgr.scene, manager);
     this.dom = sceneMgr.renderer.domElement;
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -41,6 +43,29 @@ export class HallInteraction {
       this._endDrag();
     }
     this.enabled = v;
+    this.guides.hide();
+    this.refreshCenters();
+  }
+
+  /** エリア中央の十字線を今の階・解放状況で描き直す */
+  refreshCenters() {
+    this.guides.showCenters(this.room.plan, this.getUnlocked(), this.enabled);
+  }
+
+  /**
+   * グリッド（5cm）と整列ガイドを合わせた位置。Shift で両方無効。
+   * 吸着した軸は相手の縁に揃え、吸着を解除した軸はグリッドに合わせず細かく動かせる
+   */
+  _align(def, rotY, x, z, e, exclude) {
+    if (e?.shiftKey) {
+      this.guides.hide();
+      return { x, z };
+    }
+    const s = this.guides.snap(def, rotY, x, z, exclude);
+    return {
+      x: s.snap.x ? s.x : s.free.x ? x : this._snap(x, e),
+      z: s.snap.z ? s.z : s.free.z ? z : this._snap(z, e),
+    };
   }
 
   // ---- ユーティリティ -------------------------------------------------------
@@ -106,12 +131,14 @@ export class HallInteraction {
     helper.visible = false;
     this.sceneMgr.scene.add(ghost, helper);
     this.placing = { def, ghost, helper, rotY: 0, valid: false, reason: '' };
+    this.guides.reset();
     this.onPlacementChange?.(defId);
   }
 
   cancelPlacement() {
     if (!this.placing) return;
     const { ghost, helper } = this.placing;
+    this.guides.reset();
     this.sceneMgr.scene.remove(ghost, helper);
     disposeObject(ghost);
     helper.dispose();
@@ -124,8 +151,7 @@ export class HallInteraction {
     const hit = this._floorHit();
     if (!hit) return;
     if (p.def.wallMount) return this._updateWallGhost(p, hit);
-    const x = this._snap(hit.x, e);
-    const z = this._snap(hit.z, e);
+    const { x, z } = this._align(p.def, p.rotY, hit.x, hit.z, e, []);
     const fits = this._fits(p.def, p.rotY, x, z);
     p.ghost.position.set(x, this.manager.elevationAt(p.def, x, z, this.manager.currentFloor), z);
     p.ghost.rotation.y = p.rotY;
@@ -261,6 +287,7 @@ export class HallInteraction {
   _endDrag() {
     if (!this.drag) return;
     this.drag = null;
+    this.guides.reset();
     this.cameraCtl.setEnabled(true);
     this.dom.style.cursor = '';
   }
@@ -308,8 +335,10 @@ export class HallInteraction {
     if (!hit) return;
     const { obj, offset, riders } = this.drag;
     const def = this.manager.defOf(obj);
-    const x = this._snap(hit.x + offset.x, e);
-    const z = this._snap(hit.z + offset.z, e);
+    // 埋め込み中は壁沿いなので整列ガイドは使わない。台に載った物は一緒に動くので吸着相手から外す
+    const { x, z } = obj.userData.embed
+      ? { x: this._snap(hit.x + offset.x, e), z: this._snap(hit.z + offset.z, e) }
+      : this._align(def, obj.rotation.y, hit.x + offset.x, hit.z + offset.z, e, [obj, ...riders.map((r) => r.obj)]);
 
     if (obj.userData.embed) {
       // 埋め込み水槽は壁に沿ってスライド
