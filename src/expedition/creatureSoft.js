@@ -111,12 +111,13 @@ function seahorse(c, { grid, fin: finSheet, solid }) {
 /** チンアナゴ：砂から体を出して揺れる */
 function garden(c, { grid, solid }) {
   const { body, belly, fin } = c.colors;
-  const parts = [grid(8, 20, (u, v) => {
+  const parts = [grid(8, c.ringBands ? 45 : 20, (u, v) => {
     const a = u * Math.PI * 2;
     const r = 0.035;
     const lean = Math.sin(v * 2.4) * 0.14;
-    const spot = Math.floor(v * 14) % 3 === 0 && Math.cos(a) > 0;
-    return [lean + Math.cos(a) * r, v * 0.8, Math.sin(a) * r, spot ? fin : Math.cos(a) < -0.2 ? belly : body];
+    // ringBands：ニシキアナゴのように体を一周する帯。それ以外はチンアナゴの片側の斑
+    const spot = c.ringBands ? Math.floor(v * 33) % 3 === 0 && v < 0.93 : Math.floor(v * 14) % 3 === 0 && Math.cos(a) > 0;
+    return [lean + Math.cos(a) * r, v * 0.8, Math.sin(a) * r, spot ? fin : !c.ringBands && Math.cos(a) < -0.2 ? belly : body];
   })];
   parts.push(solid(new THREE.SphereGeometry(0.045, 8, 6).scale(1.3, 1, 1), body, at(Math.sin(2.4) * 0.14 + 0.02, 0.82, 0)));
   parts.push(...eyes(solid, Math.sin(2.4) * 0.14 + 0.06, 0.84, 0.03, 0.013));

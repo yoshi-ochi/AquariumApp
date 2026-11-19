@@ -8,6 +8,11 @@ import { PHOTO_ANATOMY_7 } from './creatureAnatomyPhoto7.js';
 import { PHOTO_ANATOMY_8 } from './creatureAnatomyPhoto8.js';
 import { PHOTO_ANATOMY_9 } from './creatureAnatomyPhoto9.js';
 import { PHOTO_ANATOMY_10 } from './creatureAnatomyPhoto10.js';
+import { PHOTO_ANATOMY_11 } from './creatureAnatomyPhoto11.js';
+import { PHOTO_ANATOMY_12 } from './creatureAnatomyPhoto12.js';
+import { PHOTO_ANATOMY_13 } from './creatureAnatomyPhoto13.js';
+import { PHOTO_ANATOMY_14 } from './creatureAnatomyPhoto14.js';
+import { PHOTO_ANATOMY_15 } from './creatureAnatomyPhoto15.js';
 
 /**
  * 実物の真横写真からトレースした、種ごとの頂点データ（写真上のピクセル座標）。
@@ -305,4 +310,9 @@ export const ANATOMY = {
   ...PHOTO_ANATOMY_8,
   ...PHOTO_ANATOMY_9,
   ...PHOTO_ANATOMY_10,
+  ...PHOTO_ANATOMY_11,
+  ...PHOTO_ANATOMY_12,
+  ...PHOTO_ANATOMY_13,
+  ...PHOTO_ANATOMY_14,
+  ...PHOTO_ANATOMY_15,
 };
