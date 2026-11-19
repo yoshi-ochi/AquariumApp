@@ -1,6 +1,9 @@
 import { CATEGORY } from '../tanks/tankData.js';
 import { floorLabel } from '../building/blueprint.js';
 
+/** 階の並びの中で隣の階 */
+const stepFloor = (order, floor, d) => order[order.indexOf(floor) + d];
+
 const $ = (id) => document.getElementById(id);
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
 
@@ -9,7 +12,7 @@ const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
  * モード: 'home' | 'tank' | 'hall-edit' | 'interior-edit'
  */
 export class AppShell {
-  constructor({ economy, manager, onBack, onEdit, onDone, onFloorChange, onUpgrade, onSave, onLoad }) {
+  constructor({ economy, manager, getFloorOrder, onBack, onEdit, onDone, onFloorChange, onUpgrade, onSave, onLoad }) {
     this.economy = economy;
     this.manager = manager;
     this.mode = 'home';
@@ -17,8 +20,13 @@ export class AppShell {
     $('btn-back').addEventListener('click', onBack);
     $('btn-edit').addEventListener('click', onEdit);
     $('btn-done').addEventListener('click', onDone);
-    $('floor-up').addEventListener('click', () => onFloorChange(economy.floor + 1));
-    $('floor-down').addEventListener('click', () => onFloorChange(economy.floor - 1));
+    this.getFloorOrder = getFloorOrder;
+    const step = (d) => {
+      const f = stepFloor(getFloorOrder(), economy.floor, d);
+      if (f !== undefined) onFloorChange(f);
+    };
+    $('floor-up').addEventListener('click', () => step(1));
+    $('floor-down').addEventListener('click', () => step(-1));
     $('btn-upgrade').addEventListener('click', onUpgrade);
     $('btn-save').addEventListener('click', onSave);
     const file = $('file-load');
@@ -61,8 +69,9 @@ export class AppShell {
     $('menu-stats').textContent =
       `資金 ${yen(e.money)} ・ 来館者 ${e.visitors.toLocaleString('ja-JP')}人 ・ 水槽 ${this.manager.countByCategory(CATEGORY.TANK)}基`;
     $('floor-label').textContent = floorLabel(e.floor);
-    $('floor-down').disabled = e.floor <= 0;
-    $('floor-up').disabled = e.floor >= st.maxFloors - 1;
+    const order = this.getFloorOrder();
+    $('floor-down').disabled = stepFloor(order, e.floor, -1) === undefined;
+    $('floor-up').disabled = stepFloor(order, e.floor, 1) === undefined;
     $('menu-stage').textContent = `Lv${st.level} ${st.name}`;
     const next = e.nextStage;
     const up = $('btn-upgrade');

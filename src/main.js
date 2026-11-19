@@ -45,7 +45,7 @@ import { AllianceApi } from './online/allianceApi.js';
 import { AllianceView } from './ui/allianceView.js';
 import { MapPage } from './ui/mapPage.js';
 import { LifeSystems } from './game/lifeSystems.js';
-import { START_ZONES, ATRIUM_TANK_POS, BASEMENT, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, zonesUpToLevel, getZone, setLayout, setWallEdits, setZoneNames, zoneAt, zoneCenter } from './building/blueprint.js';
+import { START_ZONES, ATRIUM_TANK_POS, BASEMENT, isWing, floorOrder, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, zonesUpToLevel, getZone, setLayout, setWallEdits, setZoneNames, zoneAt, zoneCenter } from './building/blueprint.js';
 import { ViewModes } from './building/viewModes.js';
 import { OutdoorScenery } from './building/outdoorScenery.js';
 import { WallInteraction } from './interaction/wallInteraction.js';
@@ -166,9 +166,10 @@ async function boot() {
     pool.setLayout();
     zoneLabels.update(economy.floor, unlocked);
     const under = economy.floor === BASEMENT;
+    const away = under || isWing(economy.floor); // 別棟では本館の屋外（プール・景観）を出さない
     room.setUnderground(under);
-    pool.setUnlocked(unlocked.has('pool') && !under);
-    scenery.group.visible = !under;
+    pool.setUnlocked(unlocked.has('pool') && !away);
+    scenery.group.visible = !away;
     scenery.sync(LAYOUT.id, unlocked);
     manager.extraAppeal = (unlocked.has('pool') ? POOL_APPEAL : 0) + Object.entries(OUTDOOR_APPEAL).reduce((s, [id, n]) => s + (unlocked.has(id) ? n : 0), 0);
     ensureAtriumTank();
@@ -445,6 +446,7 @@ async function boot() {
   const shell = new AppShell({
     economy,
     manager,
+    getFloorOrder: () => floorOrder(unlocked),
     onBack: () => {
       if (mode !== 'tank' || interiorCam.busy) return;
       if (gameSheet.view === 'tank') gameSheet.close();
@@ -547,7 +549,13 @@ async function boot() {
     delete roomSettings.plan;
     manager.setFloor(economy.floor);
     life.fromJSON(data.life, { own: !visiting, oldShops: data.life ? 0 : data.ops?.shops ?? 0 });
+    // 別棟の階が未建設なら本館へ戻す
+    if (isWing(economy.floor) && !floorOrder(unlocked).includes(economy.floor)) {
+      economy.setFloor(0);
+      manager.setFloor(0);
+    }
     applyRoom(true);
+    views.syncRail();
     shell.update();
   }
 
@@ -623,7 +631,16 @@ async function boot() {
   function unlockZone(id) {
     unlocked.add(id);
     applyRoom(false);
-    toast(`${getZone(id).name} を解放しました`);
+    views.syncRail();
+    shell.update();
+    const z = getZone(id);
+    toast(z.wing ? `${z.name} を建設しました` : `${z.name} を解放しました`);
+    // 別棟は建てたらその階へ移動して見せる
+    if (z.wing) {
+      gameSheet.close();
+      views.goFloor(z.floor);
+      cameraCtl.frameBounds(room.plan.bounds(CELL.FLOOR));
+    }
   }
   const life = new LifeSystems({
     isUnlocked: (id) => unlocked.has(id),

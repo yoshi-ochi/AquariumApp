@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BASEMENT, PLAN_FLOORS, floorLabel } from './blueprint.js';
+import { BASEMENT, PLAN_FLOORS, floorLabel, floorOrder, isWing } from './blueprint.js';
 import { buildFloorModel } from './floorModel.js';
 import { Exterior } from './exterior.js';
 
@@ -23,8 +23,6 @@ export class ViewModes {
     this.tween = null;
     this.slide = 0;
     this.raycaster = new THREE.Raycaster();
-    railEl.innerHTML = `<button data-view="exterior">外観</button><button data-view="stack">全館</button>
-      ${[1, 0, BASEMENT].map((f) => `<button data-floor="${f}">${floorLabel(f)}</button>`).join('')}`;
     railEl.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
@@ -37,7 +35,18 @@ export class ViewModes {
     this.syncRail();
   }
 
+  /** 階のボタン（別棟は解放済みの階だけ）。階が増えたときだけ作り直す */
+  _rail() {
+    const floors = floorOrder(this.getUnlocked()).reverse();
+    const key = floors.join(',');
+    if (key === this.railKey) return;
+    this.railKey = key;
+    this.railEl.innerHTML = `<button data-view="exterior">外観</button><button data-view="stack">全館</button>
+      ${floors.map((f) => `<button data-floor="${f}" class="${isWing(f) ? 'wing' : ''}">${floorLabel(f)}</button>`).join('')}`;
+  }
+
   syncRail() {
+    this._rail();
     this.railEl.querySelectorAll('button').forEach((b) => {
       const on = b.dataset.view ? b.dataset.view === this.mode : this.mode === 'floor' && +b.dataset.floor === this.getFloor();
       b.classList.toggle('active', on);
@@ -50,7 +59,7 @@ export class ViewModes {
     if (this.mode !== 'floor') this.setMode('floor');
     if (floor !== from) {
       this.onFloor(floor);
-      this.slide = (floor - from) * 2.4;
+      this.slide = Math.max(-4.8, Math.min(4.8, (floor - from) * 2.4));
     }
     this.syncRail();
   }
@@ -71,9 +80,10 @@ export class ViewModes {
     if (!floor && scene.fog) [this.fog, scene.fog] = [scene.fog, null];
     else if (floor && this.fog) [scene.fog, this.fog] = [this.fog, null];
     const under = floor && this.getFloor() === BASEMENT;
+    const away = under || (floor && isWing(this.getFloor())); // 地下と別棟では本館の屋外を出さない
     this.room.setUnderground(under);
-    this.pool.group.visible = mode !== 'stack' && !under && this.getUnlocked().has('pool');
-    this.scenery.group.visible = mode !== 'stack' && !under;
+    this.pool.group.visible = mode !== 'stack' && !away && this.getUnlocked().has('pool');
+    this.scenery.group.visible = mode !== 'stack' && !away;
     if (mode === 'stack') this._buildStack();
     const c = this.cameraCtl.controls;
     c.maxDistance = floor ? this.saved?.maxDistance ?? c.maxDistance : 260;

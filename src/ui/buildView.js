@@ -34,9 +34,9 @@ export class BuildView {
     const shapes = Object.entries(BUILD_SHAPES).map(([k, v]) => `<button data-act="build-shape" data-id="${k}" class="${s.shape === k ? 'active' : ''}">${v.label}</button>`).join('');
     const keys = s.shape === 'cylinder' ? ['w', 'h'] : s.shape === 'poly' ? [] : ['w', 'd', 'h'];
     const draw = s.shape === 'poly' ? `<p class="gs-empty">上から見た形です。1マス10cm、最大 ${DRAW_GRID.w * 10}×${DRAW_GRID.d * 10}cm。角をタップで置くと線でつながり、最後の角と最初の角が自動で閉じます。</p>
-      <canvas data-draw class="bd-canvas" width="${DRAW_GRID.w * 16}" height="${DRAW_GRID.d * 16}" aria-label="水槽の形を描く格子"></canvas>
+      <canvas data-draw class="bd-canvas" width="${DRAW_GRID.w * 8}" height="${DRAW_GRID.d * 8}" aria-label="水槽の形を描く格子"></canvas>
       <div class="gs-btns"><button data-act="build-undo" ${this.pts.length ? '' : 'disabled'}>1つ戻す</button><button data-act="build-clear" ${this.pts.length ? '' : 'disabled'}>クリア</button></div>
-      <label class="bd-slider"><span>高さ</span><input type="range" data-field="build-height" min="20" max="250" step="5" value="${this.height}"><output>${this.height}cm</output></label>` : '';
+      <label class="bd-slider"><span>高さ</span><input type="range" data-field="build-height" min="${BUILD_SHAPES.poly.limits.h[0]}" max="${BUILD_SHAPES.poly.limits.h[1]}" step="5" value="${this.height}"><output>${this.height}cm</output></label>` : '';
     const sliders = keys.map((k) => {
       const label = s.shape === 'cylinder' && k === 'w' ? '直径' : LABEL[k];
       return `<label class="bd-slider"><span>${label}</span><input type="range" data-field="build-${k}" min="${L[k][0]}" max="${L[k][1]}" step="5" value="${s[k]}"><output>${s[k]}cm</output></label>`;

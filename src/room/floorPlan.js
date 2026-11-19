@@ -1,4 +1,4 @@
-import { ATRIUM_VOID, BASEMENT, CELL_SIZE, EXHIBIT_ZONES, GRID_X, GRID_Z, LAYOUT, SERVICE_WIDTH, WALL_EDITS, ZONES, ZONE_TYPE, zoneHas } from '../building/blueprint.js';
+import { ATRIUM_VOID, BASEMENT, isWing, CELL_SIZE, EXHIBIT_ZONES, GRID_X, GRID_Z, LAYOUT, SERVICE_WIDTH, WALL_EDITS, ZONES, ZONE_TYPE, zoneHas } from '../building/blueprint.js';
 
 /**
  * 建物の1フロア分のマス目。形は間取り（blueprint.js）で決まり、解放済みのエリアだけ使える。
@@ -35,7 +35,7 @@ export class FloorPlan {
     });
     if (floor === ATRIUM_VOID.floor) this._fill(ATRIUM_VOID.rect, unlocked.has(ATRIUM_VOID.zone) ? CELL.VOID : CELL.LOCKED);
     this.doors = this._findDoors();
-    if (floor !== BASEMENT) this._carveService(unlocked);
+    if (floor !== BASEMENT && !isWing(floor)) this._carveService(unlocked);
   }
 
   /** 展示室の壁の裏に管理通路を設け、メインバックヤードへつなぐ */

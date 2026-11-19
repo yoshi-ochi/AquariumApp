@@ -1,4 +1,5 @@
 import { STAGES, STARTING_MONEY, INCOME_PER_VISITOR } from './stageData.js';
+import { isWing } from '../building/blueprint.js';
 
 /**
  * 資金・来館者・階層・ステージの経営ロジック。
@@ -58,7 +59,7 @@ export class Economy extends EventTarget {
   }
 
   setFloor(floor) {
-    if (floor < 0 || floor >= this.stage.maxFloors || floor === this.floor) return false;
+    if ((!isWing(floor) && (floor < 0 || floor >= this.stage.maxFloors)) || floor === this.floor) return false;
     this.floor = floor;
     this._emit();
     return true;
@@ -83,7 +84,8 @@ export class Economy extends EventTarget {
   fromJSON(data) {
     this.money = Number.isFinite(data?.money) ? data.money : STARTING_MONEY;
     this.stageIndex = Math.min(Math.max(0, data?.stageIndex | 0), STAGES.length - 1);
-    this.floor = Math.min(Math.max(0, data?.floor | 0), this.stage.maxFloors - 1);
+    const f = data?.floor | 0;
+    this.floor = isWing(f) ? f : Math.min(Math.max(0, f), this.stage.maxFloors - 1);
     this._acc = 0;
     this._emit();
   }

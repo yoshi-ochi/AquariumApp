@@ -5,7 +5,7 @@ import { tankCapacity } from '../expedition/tankLife.js';
 
 /**
  * 館内でその場に水槽を設計して建造する。
- *   四角：床をドラッグして範囲を決める / 自由形：床をタップして角を置く
+ *   四角：床をドラッグして範囲を決める / 円形：中心からドラッグして半径を決める / 自由形：床をタップして角を置く
  * 10cm の格子に合わせ、高さはパネルで決める。確定するとその位置に設置する。
  */
 const GRID = 0.1; // m
@@ -71,6 +71,14 @@ export class BuildInPlace {
       const spec = normalizeSpec({ shape: 'box', w, d, h: this.height });
       return { spec, x: (ax + bx) / 2, z: (az + bz) / 2 };
     }
+    if (this.shape === 'cylinder') {
+      if (!this.rect) return null;
+      const [ax, az] = this.rect.a;
+      const [bx, bz] = this.rect.b;
+      const dia = Math.round((2 * Math.hypot(bx - ax, bz - az)) / GRID) * GRID;
+      if (dia < 0.3) return null;
+      return { spec: normalizeSpec({ shape: 'cylinder', w: Math.round(dia * 100), h: this.height }), x: ax, z: az };
+    }
     if (this.pts.length < 3) return null;
     const units = this.pts.map(([x, z]) => [Math.round(x / GRID), Math.round(z / GRID)]);
     const spec = normalizeSpec({ shape: 'poly', h: this.height, pts: units });
@@ -126,11 +134,17 @@ export class BuildInPlace {
   // ---- パネル -----------------------------------------------------------------
 
   render() {
-    const seg = [['box', '四角（ドラッグ）'], ['poly', '自由形（タップ）']].map(([k, l]) => `<button data-act="shape" data-v="${k}" class="${this.shape === k ? 'active' : ''}">${l}</button>`).join('');
-    const how = this.shape === 'box' ? '床をドラッグして水槽の範囲を決めます（10cm単位）。視点は2本指で動かせます。' : '床をタップして水槽の角を順に置きます（10cm単位）。最後の角と最初の角は自動でつながります。';
-    const L = BUILD_SHAPES.poly.limits.h;
+    const seg = [['box', '四角'], ['cylinder', '円形'], ['poly', '自由形']].map(([k, l]) => `<button data-act="shape" data-v="${k}" class="${this.shape === k ? 'active' : ''}">${l}</button>`).join('');
+    const how = {
+      box: '床をドラッグして水槽の範囲を決めます（10cm単位）。視点は2本指で動かせます。',
+      cylinder: '水槽の中心から外へドラッグして、円の大きさを決めます（直径10cm単位）。視点は2本指で動かせます。',
+      poly: '床をタップして水槽の角を順に置きます（10cm単位）。最後の角と最初の角は自動でつながります。',
+    }[this.shape];
+    const L = BUILD_SHAPES[this.shape].limits.h;
+    const max = BUILD_SHAPES[this.shape].limits.w;
+    const size = max ? `<p class="note">最大 ${max[1] / 100}m${this.shape === 'cylinder' ? '（直径）' : `×${BUILD_SHAPES.box.limits.d[1] / 100}m`}・高さ ${L[1] / 100}m まで</p>` : `<p class="note">最大 10m×10m・高さ ${L[1] / 100}m まで</p>`;
     this.panelEl.innerHTML = `<div class="seg">${seg}</div>
-      <p class="note">${how}</p>
+      <p class="note">${how}</p>${size}
       <label class="slider">高さ<input type="range" data-field="bip-height" min="${L[0]}" max="${L[1]}" step="5" value="${this.height}"><output>${this.height}cm</output></label>
       <div class="bip-info"></div>
       <div class="seg">${this.shape === 'poly' ? `<button data-act="undo" ${this.pts.length ? '' : 'disabled'}>1つ戻す</button>` : ''}<button data-act="clear">やり直す</button><button data-act="build" class="primary">建造して設置</button></div>`;
@@ -198,7 +212,7 @@ export class BuildInPlace {
   _onDown = (e) => {
     if (!this.active || !e.isPrimary || e.button !== 0) return;
     this.down = { x: e.clientX, y: e.clientY };
-    if (this.shape !== 'box') return;
+    if (this.shape === 'poly') return;
     const h = this._hit(e);
     if (!h) return;
     this.cameraCtl.setEnabled(false);

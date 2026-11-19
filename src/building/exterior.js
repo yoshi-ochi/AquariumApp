@@ -37,7 +37,7 @@ function surface(nu, nv, fn) {
   return g;
 }
 
-const buildingZones = () => ZONES.filter((z) => z.type !== ZONE_TYPE.OUTDOOR);
+const buildingZones = () => ZONES.filter((z) => z.type !== ZONE_TYPE.OUTDOOR && !z.wing);
 
 /** 全エリアの外接矩形（ワールド座標） */
 function footprint() {

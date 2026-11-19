@@ -8,12 +8,12 @@ import { addDef, hasDef, getDef } from './tankData.js';
 import { polyArea, isSimplePoly } from './polyTank.js';
 
 /** 描いた形の範囲（10cm単位） */
-export const DRAW_GRID = { w: 40, d: 30, unit: 10 };
+export const DRAW_GRID = { w: 100, d: 100, unit: 10 };
 
 export const BUILD_SHAPES = {
-  box: { label: '四角', limits: { w: [20, 400], h: [20, 250], d: [20, 300] } },
-  cylinder: { label: '円柱', limits: { w: [30, 300], h: [30, 300] } },
-  poly: { label: '自由に描く', limits: { h: [20, 250] } },
+  box: { label: '四角', limits: { w: [20, 1000], h: [20, 1500], d: [20, 1000] } },
+  cylinder: { label: '円形', limits: { w: [30, 1000], h: [30, 1500] } },
+  poly: { label: '自由に描く', limits: { h: [20, 1500] } },
 };
 const ID_RE = /^cx_(box|cylinder)_(\d+)_(\d+)_(\d+)$/;
 const POLY_RE = /^cx_poly_(\d+)_([0-9a-z]+\.[0-9a-z]+(?:-[0-9a-z]+\.[0-9a-z]+){2,39})$/;
@@ -80,7 +80,7 @@ export function customDef(spec) {
     // 描いた形は手間がかかるので、さらに1割高い
     return { id: customId(s), name: `特注 自由形 ${s.pts.length}角・高さ${s.h}cm`, shape: 'poly', poly, size: { w, h: s.h / 100, d }, volume: volumeOf(s), price: Math.round((buildPrice(s) * 1.1) / 100) * 100, appeal: buildAppeal(s), custom: true };
   }
-  const name = s.shape === 'cylinder' ? `特注円柱 Φ${s.w}×高さ${s.h}cm` : `特注 ${s.w}×${s.d}×${s.h}cm`;
+  const name = s.shape === 'cylinder' ? `特注円形 Φ${s.w}×高さ${s.h}cm` : `特注 ${s.w}×${s.d}×${s.h}cm`;
   return { id: customId(s), name, shape: s.shape, size: { w: s.w / 100, h: s.h / 100, d: s.d / 100 }, price: buildPrice(s), appeal: buildAppeal(s), custom: true };
 }
 

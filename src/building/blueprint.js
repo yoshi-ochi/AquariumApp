@@ -12,7 +12,20 @@ export const FLOOR_COUNT = 2;
 /** 地下1階のフロア番号（地上は 0, 1） */
 export const BASEMENT = 2;
 export const PLAN_FLOORS = [0, 1, BASEMENT];
-export const floorLabel = (floor) => (floor === BASEMENT ? 'B1' : `${floor + 1}F`);
+
+/**
+ * 別棟：最大レベルの後に建てる、30m四方の独立した建物。中は1つの広い展示室で、壁を立てて自由に使い、階を積み増せる。
+ * 階番号は WING_BASE から（別棟1F = WING_BASE）。各階は本館と同じ敷地の格子を使い、表示は1階ずつ切り替える。
+ */
+export const WING_BASE = 10;
+export const WING_MAX = 8;
+export const WING_FLOORS = Array.from({ length: WING_MAX }, (_, i) => WING_BASE + i);
+export const isWing = (floor) => floor >= WING_BASE && floor < WING_BASE + WING_MAX;
+/** 34マス × 0.9m ≒ 30m 四方 */
+const WING_RECT = [19, 6, 52, 39];
+export const floorLabel = (floor) => (floor === BASEMENT ? 'B1' : isWing(floor) ? `別棟${floor - WING_BASE + 1}F` : `${floor + 1}F`);
+/** 階の並び（下から）。別棟は解放済みの階だけ */
+export const floorOrder = (unlocked) => [BASEMENT, 0, 1, ...WING_FLOORS.filter((f) => unlocked.has(`wing${f - WING_BASE + 1}`))];
 /** 展示室の壁の裏に設ける管理通路の幅（2マス = 1.8m） */
 export const SERVICE_WIDTH = 2;
 export const EXHIBIT_ZONES = ['coast', 'subtropical', 'deep', 'archive'];
@@ -41,6 +54,16 @@ function ANNEX_META() {
   }));
 }
 
+function WING_META() {
+  return WING_FLOORS.map((floor, i) => ({
+    id: `wing${i + 1}`, name: `別棟${i + 1}F`, floor, type: HALL, stage: 4,
+    cost: i === 0 ? 30000000 : Math.round((12000000 * 1.35 ** (i - 1)) / 1000000) * 1000000,
+    requires: i === 0 ? null : `wing${i}`,
+    color: '#5aa8a0', annex: true, wing: true,
+    text: i === 0 ? '30m四方の別棟を建てる。壁を自由に立てて、好きなように使える' : `別棟に${i + 1}階を増築する`,
+  }));
+}
+
 const ZONE_META = [
   { id: 'entrance', name: 'エントランス', floor: 0, type: HALL, stage: 1, cost: 0, color: '#7fc8e8', text: '来館者を迎える最初のホール' },
   { id: 'yard1', name: '1Fバックヤード', floor: 0, type: YARD, stage: 1, cost: 0, color: '#c9ccd0', text: '研究室と繁殖設備を置ける職員エリア' },
@@ -59,6 +82,7 @@ const ZONE_META = [
   { id: 'b1c', name: '地下東ブロック', floor: BASEMENT, type: YARD, stage: 3, cost: 2500000, requires: 'b1a', color: '#9aa4ad', text: '設備を増やせる地下の拡張区画' },
   { id: 'b1d', name: '地下南ブロック', floor: BASEMENT, type: YARD, stage: 4, cost: 8000000, requires: 'b1c', color: '#9aa4ad', text: '大規模な保持設備を置ける最大の区画' },
   ...ANNEX_META(),
+  ...WING_META(),
   { id: 'pool', name: 'イルカプール', floor: 0, type: OUTDOOR, stage: 3, cost: 8000000, color: '#54c0d8', text: '2階建ての観客席を備えたショープール' },
 ];
 
@@ -142,6 +166,7 @@ for (const l of LAYOUTS) {
   l.serviceLinks = (l.serviceLinks ?? []).map(shift);
   Object.assign(l.rects, { b1a: [[28, 20, 43, 33]], b1b: [[18, 20, 27, 33]], b1c: [[44, 20, 53, 33]], b1d: [[18, 34, 53, 43]] });
   ANNEX_RECTS.forEach((r, i) => (l.rects[ANNEX_IDS[i]] = [r]));
+  WING_FLOORS.forEach((_, i) => (l.rects[`wing${i + 1}`] = [WING_RECT]));
   l.links = [...l.links, ...ANNEX_LINKS];
 }
 

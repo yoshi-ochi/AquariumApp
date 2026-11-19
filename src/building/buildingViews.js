@@ -1,5 +1,5 @@
 import { creatureThumb } from '../ui/creatureThumb.js';
-import { PLAN_FLOORS, ZONES, ZONE_TYPE, MAX_ZONE_NAME, defaultZoneName, floorLabel, getZone } from './blueprint.js';
+import { PLAN_FLOORS, WING_FLOORS, ZONES, ZONE_TYPE, MAX_ZONE_NAME, defaultZoneName, floorLabel, getZone } from './blueprint.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { EXPAND_COST, EXPAND_SLOTS } from './backyardData.js';
@@ -28,15 +28,17 @@ export class ZoneView {
   html() {
     const unlocked = this.getUnlocked();
     const level = this.economy.stage.level;
-    const rows = PLAN_FLOORS.map((floor) => {
+    // 別棟は建設済みの階と、次に増築できる階だけを並べる
+    const wings = WING_FLOORS.filter((f) => ZONES.some((z) => z.floor === f && (unlocked.has(z.id) || !z.requires || unlocked.has(z.requires))));
+    const rows = [...PLAN_FLOORS, ...wings].map((floor) => {
       const items = ZONES.filter((z) => z.floor === floor).map((z) => {
         if (unlocked.has(z.id)) {
           const row = `<div class="gs-row"><div class="gs-info"><b>${esc(z.name)}</b><small>${z.text}</small></div><button data-act="zone-edit" data-id="${z.id}">編集</button></div>`;
           return this.editing === z.id ? row + this._editor(z) : row;
         }
-        const lack = z.stage > level ? `ステージ${z.stage}で解放` : z.requires && !unlocked.has(z.requires) ? `先に${esc(getZone(z.requires).name)}を解放` : '';
+        const lack = z.stage > level ? (z.wing ? `最大レベル（Lv${z.stage}）で建設できます` : `ステージ${z.stage}で解放`) : z.requires && !unlocked.has(z.requires) ? `先に${esc(getZone(z.requires).name)}を解放` : '';
         const ok = !lack && this.economy.canAfford(z.cost);
-        return `<div class="gs-row"><div class="gs-info"><b>${esc(z.name)}</b><small>${z.text}</small>${lack ? `<small>${lack}</small>` : ''}</div><button data-act="zone-open" data-id="${z.id}" class="primary" ${ok ? '' : 'disabled'}>${yen(z.cost)}</button></div>`;
+        return `<div class="gs-row"><div class="gs-info"><b>${esc(z.name)}</b><small>${z.text}</small>${lack ? `<small>${lack}</small>` : ''}</div><button data-act="zone-open" data-id="${z.id}" class="primary" ${ok ? '' : 'disabled'}>${z.wing ? (z.requires ? '増築 ' : '建設 ') : ''}${yen(z.cost)}</button></div>`;
       });
       return `<h4 class="gs-sub">${floorLabel(floor)}</h4>${items.join('')}`;
     });
