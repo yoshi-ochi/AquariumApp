@@ -191,6 +191,12 @@ export const SPECIES_METHODS = {
   seanettle: ['setnet'],
   bluejelly: ['setnet'],
   kabutogani: ['trawl', 'diving'],
+  kijihata: ['setnet', 'gill'],
+  takanoha: ['setnet', 'gill', 'diving'],
+  akaumigame: ['setnet'],
+  aoumigame: ['setnet'],
+  bandou: ['setnet'],
+  shiroiruka: ['setnet'],
   // ガラパゴス諸島
   gingame: ['pole', 'diving'], kingangel: ['diving'], galashark: ['longline'], hammer: ['longline', 'setnet'], madaraotobi: ['setnet', 'longline'],
 };

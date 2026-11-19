@@ -137,6 +137,12 @@ export const CREATURES = [
   c('seanettle', 'パシフィックシーネットル', 'jelly', 0.3, 2, 3, 3, 0xe0a840, 0xe8c070, 0xa04020, { jelly: { height: 0.36, stripes: { n: 16, hex: 0xc88a30 }, oral: { n: 4, len: 1.0, width: 0.12, hex: 0xf4e8cc }, tents: { n: 24, len: 1.6, hex: 0xa04020 } } }),
   c('bluejelly', 'ブルージェリー', 'jelly', 0.25, 2, 2, 2.5, 0x8ab8e8, 0xa8c8f0, 0xd8d8e0, { jelly: { height: 0.5, oral: { n: 8, len: 0.48, width: 0.07, hex: 0xd8d8e0, club: true }, opacity: 0.85 } }),
   c('kabutogani', 'カブトガニ', 'horseshoe', 0.5, 3, 3, 6, 0x6e6044, 0xa89870, 0x5a4030, { mark: 0x8e7e58 }),
+  c('kijihata', 'キジハタ', 'grouper', 0.3, 2, 2, 4, 0xa23c1c, 0xcf8236, 0x8a3c1a, { pat: 'spots', mark: 0xe8402e }),
+  c('takanoha', 'タカノハダイ', 'perch', 0.3, 1, 2, 1.5, 0x948e86, 0xd2cec6, 0xe8822a, { pat: 'stripes', mark: 0x7a5232 }),
+  c('akaumigame', 'アカウミガメ', 'turtle', 0.9, 3, 8, 30, 0x6a3a26, 0xe6d4a0, 0x4a4630),
+  c('aoumigame', 'アオウミガメ', 'turtle', 0.9, 3, 8, 30, 0x5a4a38, 0xe8dcae, 0x3a3028),
+  c('bandou', 'バンドウイルカ', 'whale', 2.5, 3, 10, 70, 0x5a6270, 0xe8eaee, 0x4e5664),
+  c('shiroiruka', 'シロイルカ', 'whale', 3, 3, 10, 90, 0xecebe3, 0xf2f1ea, 0xe4e2d8),
 ];
 
 /**
@@ -160,11 +166,11 @@ for (const r of [1, 2, 3]) {
 export const getCreature = (id) => CREATURES.find((x) => x.id === id);
 
 export const DESTINATIONS = [
-  { id: 'iso', name: '相模湾', text: '黒潮が寄せる、はじめての採取地', stage: 1, cost: 3000, seconds: 60, lat: 35.1, lon: 139.4, pool: ['kabutogani', 'akakurage', 'kouika', 'oniokoze', 'gonzui', 'houbou', 'nenbutsu', 'kagokaki', 'nizadai', 'torafugu', 'kawahagi', 'mebaru', 'kurodai', 'suzuki', 'mejina', 'kasago', 'hakofugu', 'ishidai', 'madai', 'hirame', 'madako', 'iseebi', 'utsubo', 'tatsu', 'nekozame', 'akaei'] },
+  { id: 'iso', name: '相模湾', text: '黒潮が寄せる、はじめての採取地', stage: 1, cost: 3000, seconds: 60, lat: 35.1, lon: 139.4, pool: ['akaumigame', 'takanoha', 'kijihata', 'kabutogani', 'akakurage', 'kouika', 'oniokoze', 'gonzui', 'houbou', 'nenbutsu', 'kagokaki', 'nizadai', 'torafugu', 'kawahagi', 'mebaru', 'kurodai', 'suzuki', 'mejina', 'kasago', 'hakofugu', 'ishidai', 'madai', 'hirame', 'madako', 'iseebi', 'utsubo', 'tatsu', 'nekozame', 'akaei'] },
   { id: 'sanriku', name: '三陸沖', text: '親潮と黒潮がぶつかる豊かな漁場', stage: 1, cost: 8000, seconds: 120, lat: 39.4, lon: 142.6, pool: ['umazura', 'karei', 'ainame', 'madara', 'sanma', 'mola', 'maiwashi', 'katsuo', 'zuwai', 'surume', 'ankou', 'mizudako'] },
   { id: 'reef', name: '慶良間諸島', text: '色あざやかな熱帯魚が暮らすサンゴ礁', stage: 1, cost: 12000, seconds: 180, lat: 26.2, lon: 127.3, pool: ['takokurage', 'shimayakko', 'akebono', 'yashahaze', 'mongara', 'murasame', 'kingyohana', 'rurisuzume', 'nishikianago', 'kiirohagi', 'misuji', 'hatatate', 'akahata', 'harisenbon', 'kakure', 'nanyouhagi', 'chocho', 'tsunodashi', 'chinanago', 'deba', 'hanamino', 'otohime', 'budai'] },
-  { id: 'okhotsk', name: 'オホーツク海', text: '流氷の下で暮らす冷たい海の生き物', stage: 2, cost: 30000, seconds: 300, lat: 44.7, lon: 145.6, pool: ['hokke', 'fuusen', 'clione', 'ookamiuo', 'taraba', 'kegani', 'sake', 'nishin'] },
-  { id: 'ocean', name: '小笠原諸島', text: '大型の回遊魚に出会える外洋', stage: 2, cost: 60000, seconds: 600, lat: 27.1, lon: 142.2, pool: ['seanettle', 'bluejelly', 'shirowani', 'akamanbou', 'tobiuo', 'bashou', 'maaji', 'mizukurage', 'shiira', 'manta', 'kuromaguro', 'buri', 'jinbei'] },
+  { id: 'okhotsk', name: 'オホーツク海', text: '流氷の下で暮らす冷たい海の生き物', stage: 2, cost: 30000, seconds: 300, lat: 44.7, lon: 145.6, pool: ['shiroiruka', 'hokke', 'fuusen', 'clione', 'ookamiuo', 'taraba', 'kegani', 'sake', 'nishin'] },
+  { id: 'ocean', name: '小笠原諸島', text: '大型の回遊魚に出会える外洋', stage: 2, cost: 60000, seconds: 600, lat: 27.1, lon: 142.2, pool: ['bandou', 'aoumigame', 'seanettle', 'bluejelly', 'shirowani', 'akamanbou', 'tobiuo', 'bashou', 'maaji', 'mizukurage', 'shiira', 'manta', 'kuromaguro', 'buri', 'jinbei'] },
   { id: 'gbr', name: 'グレートバリアリーフ', text: '世界最大のサンゴ礁', stage: 2, cost: 80000, seconds: 900, lat: -18.3, lon: 147.7, pool: ['adeyakko', 'gomamongara', 'tsubame', 'hagi2', 'tsumaguro', 'napoleon', 'tamakai', 'hanahige'] },
   { id: 'deep', name: '駿河湾の深海', text: '日本一深い湾に潜む珍しい生き物', stage: 3, cost: 300000, seconds: 1800, lat: 33.9, lon: 137.9, pool: ['rabuka', 'chochin', 'nokogiri', 'kinmedai', 'mizuuo', 'mendako', 'ryugu', 'takaashi', 'ogusoku', 'sakuraebi', 'tachiuo'] },
   { id: 'galapagos', name: 'ガラパゴス諸島', text: '大型のサメが群れる絶海の孤島', stage: 3, cost: 500000, seconds: 2400, lat: -0.7, lon: -90.6, pool: ['itachizame', 'gingame', 'kingangel', 'galashark', 'hammer', 'madaraotobi'] },

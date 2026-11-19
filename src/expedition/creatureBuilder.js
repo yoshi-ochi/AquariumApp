@@ -438,6 +438,15 @@ if (uMode < 0.5) {
   float pulse = 1.0 + sin(uTime * 2.4) * 0.13 * smoothstep(-0.2, 0.3, position.y);
   transformed.xz *= pulse;
   transformed.y *= 2.0 - pulse;
+} else if (uMode > 3.5 && uMode < 4.5) {
+  // ウミガメ：甲羅より外側に張り出した前びれだけを羽ばたかせる
+  float wing = max(0.0, abs(position.z) - 0.3) * smoothstep(-0.05, 0.12, position.x);
+  transformed.y += sin(uTime * 1.8) * wing * 0.75;
+  transformed.y += sin(uTime * 1.8 - 1.2) * 0.012;
+} else if (uMode > 4.5 && uMode < 5.5) {
+  // イルカ・クジラ：体を上下にうねらせ、尾びれで水をかく
+  float amp = smoothstep(0.15, -0.5, position.x);
+  transformed.y += sin(position.x * 4.0 + uTime * 4.5) * 0.06 * amp;
 }`;
 
 /** c.len に拡大した1メッシュの生物を作る。fish.userData.uni.uTime を進めると泳ぐ */
