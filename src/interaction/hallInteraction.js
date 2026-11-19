@@ -95,17 +95,19 @@ export class HallInteraction {
     return null;
   }
 
-  /** 床のマスに収まるか */
-  _fits(def, rotY, x, z) {
+  /** 床のマスに収まるか（self は動かしている本人。大水槽との重なり判定から外す） */
+  _fits(def, rotY, x, z, self = null) {
     const { hx, hz } = TankManager.footprintHalf(def, rotY);
     const plan = this.room.plan;
     if (!plan.containsRect(x, z, hx, hz)) return false;
     if (def.yardOnly && plan.typeAt(x, z) !== CELL.YARD) return false;
     // 地下は設備専用。予備水槽などは地下にだけ置ける
     if (plan.floor === BASEMENT ? !def.yardOnly : def.basement) return false;
+    // 大水槽は2階分の高さがあるので1階にだけ置ける
+    if (def.atrium && plan.floor !== 0) return false;
     // 大水槽には重ねて置けない
     return ![...this.manager.objects.values()].some((o) => {
-      if (!this.manager.defOf(o).atrium || plan.floor !== 0) return false;
+      if (o === self || !this.manager.defOf(o).atrium || plan.floor !== 0) return false;
       const b = TankManager.footprintHalf(this.manager.defOf(o), o.rotation.y);
       return Math.abs(o.position.x - x) < b.hx + hx && Math.abs(o.position.z - z) < b.hz + hz;
     });
@@ -203,12 +205,11 @@ export class HallInteraction {
   // ---- 選択オブジェクト操作 -------------------------------------------------
 
   rotate(obj, dir) {
-    if (this.manager.defOf(obj).atrium) return this.toast('大水槽は建物に固定されています');
     if (obj.userData.embed) return this.toast('埋め込み中の水槽は壁に向いて固定されます');
     const def = this.manager.defOf(obj);
     const angle = dir * ROTATE_STEP;
     const newRot = (obj.rotation.y + angle) % (Math.PI * 2);
-    if (!this._fits(def, newRot, obj.position.x, obj.position.z)) return this.toast('回転すると床からはみ出します', { error: true });
+    if (!this._fits(def, newRot, obj.position.x, obj.position.z, obj)) return this.toast('回転すると床からはみ出します', { error: true });
     const riders = this.manager.getRiders(obj);
     obj.rotation.y = newRot;
     const c = Math.cos(-angle);
@@ -227,7 +228,6 @@ export class HallInteraction {
 
   remove(obj) {
     const def = this.manager.defOf(obj);
-    if (def.atrium) return this.toast('大水槽は建物に固定されています');
     // 水槽本体は在庫へ戻し、中身は売却する
     const isTank = def.category === CATEGORY.TANK;
     const value = (isTank ? 0 : def.price) + (obj.userData.clip ? this.manager.contentsValue(obj) : 0);
@@ -310,7 +310,6 @@ export class HallInteraction {
     const obj = this._pick();
     if (!obj) return;
     this.customizer.select(obj);
-    if (this.manager.defOf(obj).atrium) return; // 固定（選択のみ）
     const hit = this._floorHit();
     if (!hit) return;
     this.cameraCtl.setEnabled(false);
@@ -355,9 +354,9 @@ export class HallInteraction {
       const rot = obj.rotation.y;
       let nx = obj.position.x;
       let nz = obj.position.z;
-      if (this._fits(def, rot, x, z)) [nx, nz] = [x, z];
-      else if (this._fits(def, rot, x, nz)) nx = x;
-      else if (this._fits(def, rot, nx, z)) nz = z;
+      if (this._fits(def, rot, x, z, obj)) [nx, nz] = [x, z];
+      else if (this._fits(def, rot, x, nz, obj)) nx = x;
+      else if (this._fits(def, rot, nx, z, obj)) nz = z;
       obj.position.x = nx;
       obj.position.z = nz;
       for (const r of riders) {

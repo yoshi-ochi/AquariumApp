@@ -8,7 +8,7 @@ import { updateBubbles } from './aeration.js';
 import { syncLife, updateLife, lifeAppeal } from '../expedition/tankLife.js';
 import { cleanAppealFactor, updateCareVisual } from './tankCleaning.js';
 import { tankHealth } from '../expedition/husbandry.js';
-import { FLOOR_COUNT, STORY_H } from '../building/blueprint.js';
+import { FLOOR_COUNT, STORY_H, ATRIUM_VOID, cellAt, inRect } from '../building/blueprint.js';
 
 /**
  * 館内に配置されたオブジェクトの管理。
@@ -174,9 +174,12 @@ export class TankManager {
     }
   }
 
-  /** 吹き抜けの大水槽はどの階からも見える */
+  /** 吹き抜けの大水槽は、吹き抜けの下に置いてあれば2階からも見える（他の場所では2階の床に隠れる） */
   _visibleOn(o, floor) {
-    return o.userData.floor === floor || (!!this.defOf(o).atrium && floor < FLOOR_COUNT);
+    if (o.userData.floor === floor) return true;
+    if (!this.defOf(o).atrium || floor >= FLOOR_COUNT || o.userData.floor !== 0) return false;
+    const [i, j] = cellAt(o.position.x, o.position.z);
+    return inRect(ATRIUM_VOID.rect, i, j);
   }
 
   /** 全水槽（配置順） */

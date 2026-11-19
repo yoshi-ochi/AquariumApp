@@ -127,9 +127,11 @@ async function boot() {
     const ids = Object.keys(tank.userData.creatures ?? {});
     return theme && ids.length && ids.every((id) => zoneOf(id) === theme) ? THEME_BONUS : 1;
   };
-  /** 大水槽ホールを解放したら吹き抜けの大水槽を据え付ける */
+  /** 大水槽ホールを解放したら、最初の1回だけ吹き抜けの大水槽を据え付ける（撤去・移動は自由） */
   function ensureAtriumTank() {
-    if (!unlocked.has('atrium') || [...manager.objects.values()].some((o) => manager.defOf(o).atrium)) return;
+    if (!unlocked.has('atrium') || roomSettings.atriumGiven) return;
+    roomSettings.atriumGiven = true;
+    if ([...manager.objects.values()].some((o) => manager.defOf(o).atrium) || inventory.count('atriumTank') > 0) return;
     manager.add('atriumTank', { ...ATRIUM_TANK_POS, floor: 0 });
     manager.setFloor(economy.floor);
   }
@@ -499,6 +501,7 @@ async function boot() {
     setWallEdits(null);
     roomSettings.zoneNames = setZoneNames({});
     roomSettings.zoneLook = {};
+    roomSettings.atriumGiven = false;
     unlocked = new Set(START_ZONES);
     manager.clear();
     resetLights();

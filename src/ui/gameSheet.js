@@ -1,4 +1,4 @@
-import { PLACEABLE_TANKS as TANK_DEFS } from '../tanks/tankData.js';
+import { PLACEABLE_TANKS as TANK_DEFS, TANK_DEFS as ALL_TANKS } from '../tanks/tankData.js';
 import { MAX_ORDERS, outsourceCost, outsourceSeconds } from '../management/inventory.js';
 import { icon } from './icons.js';
 
@@ -95,9 +95,10 @@ export class GameSheet {
   }
 
   _stock() {
-    const owned = TANK_DEFS.filter((d) => this.inventory.count(d.id) > 0);
+    // 撤去した大水槽など、取引先に無い水槽も所持していれば設置できる
+    const owned = ALL_TANKS.filter((d) => this.inventory.count(d.id) > 0);
     const orders = this.inventory.orders.map((o) => {
-      const def = TANK_DEFS.find((d) => d.id === o.defId);
+      const def = ALL_TANKS.find((d) => d.id === o.defId);
       return def ? this._row(def, `外注で製作中 ・ 残り <span data-until="${o.doneAt}">${this._left(o)}</span>`, '') : '';
     });
     const rows = owned.map((d) => this._row(d, `所持数 ${this.inventory.count(d.id)}`, `<button data-act="place" data-id="${d.id}" class="primary">設置</button>`));
