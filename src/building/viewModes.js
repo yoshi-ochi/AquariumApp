@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { BASEMENT, PLAN_FLOORS, floorLabel, floorOrder, isWing } from './blueprint.js';
+import { BASEMENT, PLAN_FLOORS, floorLabel, floorOrder, isWing, WING_BASE, WING_GRID_CENTER } from './blueprint.js';
 import { buildFloorModel } from './floorModel.js';
-import { Exterior } from './exterior.js';
+import { Exterior, wingCenter } from './exterior.js';
 
 /** フロアを上下に離して並べる全館ビューの階の間隔(m) */
 const STACK_GAP = 24;
@@ -73,7 +73,8 @@ export class ViewModes {
     this.room.built.visible = floor;
     this.manager.group.visible = floor;
     this.labels.group.visible = floor;
-    this.exterior.show(mode === 'exterior');
+    const wings = floorOrder(this.getUnlocked()).filter(isWing);
+    this.exterior.show(mode === 'exterior', wings.length);
     this.stack.visible = mode === 'stack';
     // 引きの表示では霞ませない
     const scene = this.sceneMgr.scene;
@@ -89,8 +90,14 @@ export class ViewModes {
     c.maxDistance = floor ? this.saved?.maxDistance ?? c.maxDistance : 260;
     c.maxPolarAngle = Math.PI / 2 - 0.03;
     if (floor && this.saved) this._fly(this.saved.pos, this.saved.target);
-    else if (mode === 'stack') this._fly(this._away(16, 84, 74, 4), new THREE.Vector3(0, 4, 0));
-    else if (mode === 'exterior') this._fly(this._away(-34, 20, 62, 5), new THREE.Vector3(0, 5, 4));
+    else if (mode === 'stack') {
+      // 別棟があるときは、本館の裏に並ぶ別棟の階も入るよう引いて斜めから見る
+      if (wings.length) this._fly(this._away(70, 96 + wings.length * 8, 70, 10), new THREE.Vector3(0, 10, wingCenter().z / 2));
+      else this._fly(this._away(16, 84, 74, 4), new THREE.Vector3(0, 4, 0));
+    } else if (mode === 'exterior') {
+      if (wings.length) this._fly(this._away(-62, 34 + wings.length * 3, 52, 6), new THREE.Vector3(0, 6, wingCenter().z / 2));
+      else this._fly(this._away(-34, 20, 62, 5), new THREE.Vector3(0, 5, 4));
+    }
     this.syncRail();
     this.onModeChange(mode);
   }
@@ -138,12 +145,17 @@ export class ViewModes {
     this.stack.clear();
     this.slabs = [];
     const unlocked = this.getUnlocked();
-    for (const f of PLAN_FLOORS) this.stack.add(this._floorModel(f, unlocked));
+    for (const f of [...PLAN_FLOORS, ...floorOrder(unlocked).filter(isWing)]) this.stack.add(this._floorModel(f, unlocked));
   }
 
   _floorModel(floor, unlocked) {
     const g = buildFloorModel({ floor, unlocked, manager: this.manager });
-    g.position.y = floor === BASEMENT ? -STACK_GAP : floor * STACK_GAP;
+    g.position.y = floor === BASEMENT ? -STACK_GAP : isWing(floor) ? (floor - WING_BASE) * STACK_GAP : floor * STACK_GAP;
+    // 別棟の階は、外観と同じく本館の裏に並べる（各階の模型は敷地の格子のままなので、別棟の区画を裏へずらす）
+    if (isWing(floor)) {
+      const c = wingCenter();
+      g.position.set(c.x - WING_GRID_CENTER.x, g.position.y, c.z - WING_GRID_CENTER.z);
+    }
     this.slabs.push(g.userData.slab);
     return g;
   }

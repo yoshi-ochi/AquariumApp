@@ -230,6 +230,8 @@ export function zoneAt(floor, x, z) {
 
 /** エリアの中心（最初の区画の中心。ワールド座標） */
 export const zoneCenter = (zone) => rectCenter(zone.rects[0]);
+/** 別棟の区画の中心（各階の格子上。ワールド座標） */
+export const WING_GRID_CENTER = rectCenter(WING_RECT);
 
 /** 間取りを選ぶ前の建物（旧セーブの移行に使う） */
 const OLD_RECTS = {

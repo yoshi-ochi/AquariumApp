@@ -63,6 +63,7 @@ export class GameSheet {
   }
 
   render() {
+    if (!this.view) return; // 操作の結果シートが閉じた（別棟の建設で階を移るなど）
     const scroll = this.el.querySelector('.gs-list')?.scrollTop ?? 0;
     this._render();
     const list = this.el.querySelector('.gs-list');

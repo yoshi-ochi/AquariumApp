@@ -219,6 +219,59 @@ function shellRoofs(group) {
 
 const ROOFS = { spiral: spiralRoof, descent: waveRoof, radial: domeRoof, pavilion: shellRoofs };
 
+/** 別棟：本館の裏に建つ30m四方のガラスの棟。階数ぶんの高さで、本館とは渡り廊下でつなぐ */
+export const WING_SIZE = 34 * CELL_SIZE;
+export const WING_GAP = 9;
+/** 別棟の中心（本館の裏側。ワールド座標） */
+export function wingCenter() {
+  const b = footprint();
+  return { x: (b.x0 + b.x1) / 2, z: b.z0 - WING_GAP - WING_SIZE / 2 };
+}
+
+function wing(group, floors) {
+  const b = footprint();
+  const { x, z } = wingCenter();
+  const S = WING_SIZE;
+  const H = floors * STORY_H;
+  const paving = new THREE.Mesh(new THREE.PlaneGeometry(S + 10, S + WING_GAP + 6).rotateX(-Math.PI / 2), MAT.paving);
+  paving.position.set(x, 0.012, z + WING_GAP / 2);
+  // ガラスの外壁（四面）と、角と各面の方立て
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(S, H, S).translate(x, H / 2, z), MAT.glass);
+  const parts = [];
+  for (let k = 0; k <= floors; k++) parts.push(box(S + 0.8, 0.36, S + 0.8, x, k * STORY_H, z));
+  const n = 10;
+  for (let k = 0; k <= n; k++) {
+    const t = -S / 2 + (S * k) / n;
+    parts.push(box(0.08, H, 0.16, x + t, H / 2, z - S / 2), box(0.08, H, 0.16, x + t, H / 2, z + S / 2));
+    parts.push(box(0.16, H, 0.08, x - S / 2, H / 2, z + t), box(0.16, H, 0.08, x + S / 2, H / 2, z + t));
+  }
+  // 屋上の機械室と、本館の裏とつなぐ渡り廊下
+  parts.push(box(S * 0.3, 2.4, S * 0.2, x + S * 0.2, H + 1.2, z - S * 0.15));
+  const bridgeZ = (b.z0 + z + S / 2) / 2;
+  parts.push(box(4.4, 0.3, WING_GAP, x, STORY_H, bridgeZ), box(4.4, 0.3, WING_GAP, x, 0.15, bridgeZ));
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(4, STORY_H - 0.3, WING_GAP).translate(x, STORY_H / 2, bridgeZ), MAT.glass);
+  group.add(paving, glass, bridge, new THREE.Mesh(mergeGeometries(parts), MAT.white));
+  // 棟名の看板（正面＝本館側）
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const c = canvas.getContext('2d');
+  c.fillStyle = '#10374f';
+  c.fillRect(0, 0, 512, 128);
+  c.fillStyle = '#fff';
+  c.font = '700 64px system-ui, sans-serif';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(`別棟 ${floors}F`, 256, 68);
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  for (const s of [-1, 1]) {
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshBasicMaterial({ map }));
+    sign.position.set(x + s * 9, H - 1.2, z + S / 2 + 0.12);
+    group.add(sign);
+  }
+}
+
 export class Exterior {
   constructor(scene) {
     this.group = new THREE.Group();
@@ -242,11 +295,14 @@ export class Exterior {
     slabs(this.group);
     entranceCanopy(this.group);
     ROOFS[LAYOUT.style](this.group);
-    this.layoutId = LAYOUT.id;
+    if (this.wings) wing(this.group, this.wings);
+    this.key = `${LAYOUT.id}:${this.wings}`;
   }
 
-  show(v) {
-    if (v && this.layoutId !== LAYOUT.id) this.build();
+  /** wings: 建設済みの別棟の階数 */
+  show(v, wings = 0) {
+    this.wings = wings;
+    if (v && this.key !== `${LAYOUT.id}:${wings}`) this.build();
     this.group.visible = v;
   }
 }
