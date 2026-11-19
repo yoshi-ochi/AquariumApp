@@ -1,3 +1,4 @@
+import { creatureThumb } from '../ui/creatureThumb.js';
 import { PLAN_FLOORS, ZONES, ZONE_TYPE, MAX_ZONE_NAME, defaultZoneName, floorLabel, getZone } from './blueprint.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -94,7 +95,7 @@ export class BackyardView {
     const job = b.jobs[uid];
     if (job) {
       const c = getCreature(job.id);
-      return `<div class="gs-row"><img src="${this.previews.get(`creature:${job.id}`)}" alt=""><div class="gs-info"><b>繁殖水槽${i + 1}：${c.name}</b><small>誕生まで <span data-until="${job.until}"></span></small></div></div>`;
+      return `<div class="gs-row">${creatureThumb(this.previews, job.id)}<div class="gs-info"><b>繁殖水槽${i + 1}：${c.name}</b><small>誕生まで <span data-until="${job.until}"></span></small></div></div>`;
     }
     const opts = CREATURES.filter((c) => this.expeditions.count(c.id) >= 2 && b.canBreed(c));
     const rows = opts.map((c) => `<button data-act="breed" data-id="${uid}:${c.id}">${c.name}（${RARITY[c.rarity]}・${breedHours(c.rarity, b.level('breeding'))}時間）</button>`);

@@ -1,6 +1,7 @@
+import { creatureThumb } from '../ui/creatureThumb.js';
 import { tankLabel } from '../tanks/tankLabel.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-import { CREATURES, DESTINATIONS, JOINT_PROJECTS, RARITY, getCreature } from '../expedition/creatureData.js';
+import { CREATURES, DESTINATIONS, JOINT_PROJECTS, RARITY, MAX_STARS, getCreature } from '../expedition/creatureData.js';
 import { NOTES } from '../expedition/creatureNotes.js';
 import { WATER, ensureCare, feed, feedCost, hasLife, isHungry, predatorConflict, tankHealth, waterMismatch, nextFeedIn, crowdFactor, zoneOf, FEED_INTERVAL } from '../expedition/husbandry.js';
 import { EVENTS } from './gameData.js';
@@ -58,6 +59,14 @@ export class ZukanView {
   constructor({ expeditions, previews, economy, state, toast }) {
     Object.assign(this, { expeditions, previews, economy, state, toast });
     this.pick = null;
+    this.mode = 'area';
+  }
+
+  /** レア度（星の数）ごとのまとまり。報酬はなし */
+  get starGroups() {
+    return Array.from({ length: MAX_STARS }, (_, i) => MAX_STARS - i).map((n) => ({
+      id: `star${n}`, name: `${'★'.repeat(n)}（星${n}つ）`, ids: CREATURES.filter((c) => c.stars === n).map((c) => c.id),
+    })).filter((g) => g.ids.length);
   }
 
   get groups() {
@@ -71,23 +80,26 @@ export class ZukanView {
     let detail = '';
     if (this.pick && seen(this.pick)) {
       const c = getCreature(this.pick);
-      detail = `<div class="st-sum zk-detail"><img src="${this.previews.get(`creature:${c.id}`)}" alt=""><div class="gs-info"><b>${c.name}</b><small>${RARITY[c.rarity]} ・ 全長 ${Math.round(c.len * 100)}cm ・ 捕獲 ${this.expeditions.seenCount(c.id)}匹 ・ ${WATER[zoneOf(c.id)].label}</small><small>${NOTES[c.id]}</small></div></div>`;
+      detail = `<div class="st-sum zk-detail">${creatureThumb(this.previews, c.id)}<div class="gs-info"><b>${c.name}</b><small>${RARITY[c.rarity]} ・ 全長 ${Math.round(c.len * 100)}cm ・ 捕獲 ${this.expeditions.seenCount(c.id)}匹 ・ ${WATER[zoneOf(c.id)].label}</small><small>${NOTES[c.id]}</small></div></div>`;
     }
-    const sections = this.groups.map((g) => {
+    const byStar = this.mode === 'star';
+    const tabs = `<div class="sp-seg zk-mode"><button data-act="zk-mode" data-id="area" class="${byStar ? '' : 'active'}">地域別</button><button data-act="zk-mode" data-id="star" class="${byStar ? 'active' : ''}">レア度別</button></div>`;
+    const sections = (byStar ? this.starGroups : this.groups).map((g) => {
       const got = g.ids.filter(seen).length;
-      const done = got === g.ids.length;
+      const done = !byStar && got === g.ids.length;
       const claimed = this.state.zukan.includes(g.id);
       const cells = g.ids.map((id) => (seen(id)
-        ? `<button class="zk-cell" data-act="zk-pick" data-id="${id}"><img src="${this.previews.get(`creature:${id}`)}" alt=""><small>${getCreature(id).name}</small></button>`
+        ? `<button class="zk-cell" data-act="zk-pick" data-id="${id}">${creatureThumb(this.previews, id)}<small>${getCreature(id).name}</small></button>`
         : '<div class="zk-cell unknown"><span>？</span><small>未発見</small></div>')).join('');
       const reward = done && !claimed ? `<button data-act="zk-claim" data-id="${g.id}" class="primary">達成報酬 ${yen(g.reward)}</button>` : '';
-      return `<h4 class="gs-sub">${g.name} ${got}/${g.ids.length}${claimed ? ' ・ 達成' : ''}</h4><div class="zk-grid">${cells}</div>${reward}`;
+      return `<h4 class="gs-sub">${g.name} ${got}/${g.ids.length}${!byStar && claimed ? ' ・ 達成' : ''}</h4><div class="zk-grid">${cells}</div>${reward}`;
     });
-    return `<p class="gs-empty">発見 ${total}/${CREATURES.length}種</p>${detail}${sections.join('')}`;
+    return `<p class="gs-empty">発見 ${total}/${CREATURES.length}種</p>${tabs}${detail}${sections.join('')}`;
   }
 
   act(act, id) {
     if (act === 'zk-pick') this.pick = id;
+    else if (act === 'zk-mode') this.mode = id === 'star' ? 'star' : 'area';
     else if (act === 'zk-claim') {
       const g = this.groups.find((x) => x.id === id);
       if (!this.state.zukan.includes(id)) {

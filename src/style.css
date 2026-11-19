@@ -488,3 +488,9 @@ body:not([data-view=floor]) #side-actions, body:not([data-view=floor]) #goal-car
 .bd-sum { display: grid; gap: 2px; margin-top: 8px; }
 .bd-open { margin: 0 0 8px; }
 .bd-canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; border: 1px solid var(--border); border-radius: 8px; touch-action: manipulation; cursor: crosshair; }
+
+/* 生き物のサムネイルと、右上のレア度の星（最大6つ） */
+.cthumb { position: relative; display: inline-block; flex: none; line-height: 0; }
+.cthumb > img { display: block; }
+.cstars { position: absolute; top: 2px; right: 2px; padding: 1px 3px; border-radius: 6px; background: rgba(10, 20, 30, .62); color: #ffc93c; font-size: 9px; font-style: normal; line-height: 1.2; letter-spacing: -1px; pointer-events: none; white-space: nowrap; }
+.zk-mode { grid-template-columns: repeat(2, 1fr); margin-bottom: 6px; }

@@ -1,3 +1,4 @@
+import { creatureThumb } from './creatureThumb.js';
 import { CREATURES, RARITY, getCreature } from '../expedition/creatureData.js';
 import { tankCapacity, usedCapacity, syncLife } from '../expedition/tankLife.js';
 import { WATER, ensureCare, feedCost, hasLife, isHungry, predatorConflict, tankHealth, waterMismatch, nextFeedIn, crowdFactor, FEED_INTERVAL } from '../expedition/husbandry.js';
@@ -28,7 +29,7 @@ export class TankView {
   }
 
   _img(id) {
-    return `<img src="${this.previews.get(`creature:${id}`) ?? ''}" alt="">`;
+    return creatureThumb(this.previews, id);
   }
 
   html() {

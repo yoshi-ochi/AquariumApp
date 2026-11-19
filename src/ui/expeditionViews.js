@@ -1,3 +1,4 @@
+import { creatureThumb } from './creatureThumb.js';
 import { tankLabel } from '../tanks/tankLabel.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { CREATURES, RARITY, getCreature, getDestination, travelPlan } from '../expedition/creatureData.js';
@@ -39,7 +40,7 @@ export class ExpeditionView {
     const tabs = methods.map(({ method: m }) => `<button data-act="method" data-id="${m.id}" class="${m.id === this.methodId ? 'active' : ''}">${m.name}</button>`).join('');
     const species = sel.catches.map((id) => {
       const c = getCreature(id);
-      return `<div class="ex-sp"><img src="${this.previews.get(`creature:${id}`) ?? ''}" alt=""><small>${c.name}</small><small>${RARITY[c.rarity]}</small></div>`;
+      return `<div class="ex-sp">${creatureThumb(this.previews, id)}<small>${c.name}</small><small>${RARITY[c.rarity]}</small></div>`;
     }).join('');
     const locked = d.stage > level;
     const full = ex.usedSlots >= this.getCapacity();
@@ -114,7 +115,7 @@ export class CreatureView {
   }
 
   _img(id) {
-    return `<img src="${this.previews.get(`creature:${id}`) ?? ''}" alt="">`;
+    return creatureThumb(this.previews, id);
   }
 
   html() {

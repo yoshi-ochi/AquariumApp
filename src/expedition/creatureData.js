@@ -147,6 +147,16 @@ const SCHOOLING = new Set(['maiwashi', 'sanma', 'nishin', 'maaji', 'sakuraebi', 
 export const slotFor = (c) => (SCHOOLING.has(c.id) ? 1 : Math.min(10, Math.max(1, Math.round((c.len / 0.2) ** 1.3))));
 for (const c of CREATURES) c.slots = slotFor(c);
 
+/**
+ * 星の数（1〜6）。レア度の3段階をそれぞれ2つに分け、同じレア度の中で集客力が上位半分なら星を1つ増やす。
+ * コモン ★1〜2 / レア ★3〜4 / 激レア ★5〜6
+ */
+export const MAX_STARS = 6;
+for (const r of [1, 2, 3]) {
+  const tier = CREATURES.filter((c) => c.rarity === r).sort((a, b) => a.appeal - b.appeal);
+  tier.forEach((c, i) => (c.stars = r * 2 - 1 + (i >= tier.length / 2 ? 1 : 0)));
+}
+
 export const getCreature = (id) => CREATURES.find((x) => x.id === id);
 
 export const DESTINATIONS = [
