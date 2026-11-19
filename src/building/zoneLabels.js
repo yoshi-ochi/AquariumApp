@@ -33,13 +33,21 @@ export class ZoneLabels {
       s.renderOrder = 900;
       s.raycast = () => {};
       this.group.add(s);
-      return { zone, sprite: s };
+      return { zone, sprite: s, text: zone.name };
     });
   }
 
   update(floor, unlocked) {
-    for (const { zone, sprite } of this.items) {
-      const { x, z } = zoneCenter(getZone(zone.id));
+    for (const item of this.items) {
+      const { zone, sprite } = item;
+      const cur = getZone(zone.id);
+      if (cur.name !== item.text) {
+        // エリア名を変えたら名札を描き直す
+        item.text = cur.name;
+        sprite.material.map.dispose();
+        sprite.material.map = labelTexture(`未解放 ${cur.name}`);
+      }
+      const { x, z } = zoneCenter(cur);
       sprite.position.x = x;
       sprite.position.z = z;
       sprite.visible = zone.floor === floor && !unlocked.has(zone.id);

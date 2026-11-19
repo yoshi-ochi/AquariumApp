@@ -21,6 +21,8 @@ export class GameSheet {
       const b = e.target.closest('button[data-act]');
       if (b) this._act(b.dataset.act, b.dataset.id, b);
     });
+    // 色・数値の入力は再描画せずに各画面へ渡す
+    el.addEventListener('input', (e) => this.panels[this.view]?.view.input?.(e.target));
     inventory.addEventListener('change', () => this.view && this.render());
     expeditions.addEventListener('change', () => this.view && this.render());
     ops.addEventListener('change', () => this.view && this.render());
@@ -101,7 +103,7 @@ export class GameSheet {
   }
 
   _supplier() {
-    return this._available((d) => this._row(d, `${yen(d.price)} ・ すぐ届く`, `<button data-act="buy" data-id="${d.id}" class="primary" ${this.economy.canAfford(d.price) ? '' : 'disabled'}>購入</button>`));
+    return '<button data-act="open-build" class="primary tv-wide bd-open">🛠 水槽を建造する（形・サイズを自由に）</button>' + this._available((d) => this._row(d, `${yen(d.price)} ・ すぐ届く`, `<button data-act="buy" data-id="${d.id}" class="primary" ${this.economy.canAfford(d.price) ? '' : 'disabled'}>購入</button>`));
   }
 
   _outsource() {
@@ -136,6 +138,8 @@ export class GameSheet {
   _act(act, id, b) {
     const def = TANK_DEFS.find((d) => d.id === id);
     if (act === 'close') return this.close();
+    if (act === 'open-build') return this.openPanel('build');
+    if (act === 'build-back') return this.openItems('stock');
     if (act === 'tab') {
       this.view = id;
       this.creatureView.picking = null;

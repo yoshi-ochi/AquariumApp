@@ -1,14 +1,27 @@
-import { PLAN_FLOORS, ZONES, floorLabel, getZone } from './blueprint.js';
+import { PLAN_FLOORS, ZONES, ZONE_TYPE, MAX_ZONE_NAME, defaultZoneName, floorLabel, getZone } from './blueprint.js';
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { EXPAND_COST, EXPAND_SLOTS } from './backyardData.js';
 import { CREATURES, RARITY, getCreature } from '../expedition/creatureData.js';
 import { RESEARCH, BREED_HOURS, researchCost, breedHours } from './backyardData.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
 
-/** 館内エリアの解放 */
+/** 館内エリアの解放と、解放済みエリアの名前・床と壁の色 */
 export class ZoneView {
-  constructor({ economy, getUnlocked, onUnlock }) {
-    Object.assign(this, { economy, getUnlocked, onUnlock });
+  constructor({ economy, getUnlocked, onUnlock, getLook, onLook, onRename }) {
+    Object.assign(this, { economy, getUnlocked, onUnlock, getLook, onLook, onRename });
+    this.editing = null;
+  }
+
+  _editor(z) {
+    const look = this.getLook(z.id);
+    const indoor = z.type !== ZONE_TYPE.OUTDOOR;
+    const color = (kind, label) => `<label class="zn-color">${label}<input type="color" data-field="zone-${kind}" data-id="${z.id}" value="${look[kind]}"></label>`;
+    return `<div class="gs-row wrap zn-edit"><div class="gs-info"><b>エリアの編集</b><small>元の名前：${esc(defaultZoneName(z.id))}</small></div>
+      <div class="tv-name"><input id="zn-name" value="${esc(z.name)}" maxlength="${MAX_ZONE_NAME}" aria-label="エリア名"><button data-act="zone-rename" data-id="${z.id}" class="primary">名前を変更</button></div>
+      <div class="zn-colors">${indoor ? `${color('floor', '床の色')}${color('wall', '壁の色')}` : '<small>屋外エリアは色を変えられません</small>'}</div>
+      <div class="gs-btns">${indoor ? `<button data-act="zone-color-reset" data-id="${z.id}">色を全体設定に戻す</button>` : ''}<button data-act="zone-edit-done">閉じる</button></div></div>`;
   }
 
   html() {
@@ -16,17 +29,31 @@ export class ZoneView {
     const level = this.economy.stage.level;
     const rows = PLAN_FLOORS.map((floor) => {
       const items = ZONES.filter((z) => z.floor === floor).map((z) => {
-        if (unlocked.has(z.id)) return `<div class="gs-row"><div class="gs-info"><b>${z.name}</b><small>${z.text}</small></div><span class="zn-open">解放済み</span></div>`;
-        const lack = z.stage > level ? `ステージ${z.stage}で解放` : z.requires && !unlocked.has(z.requires) ? `先に${getZone(z.requires).name}を解放` : '';
+        if (unlocked.has(z.id)) {
+          const row = `<div class="gs-row"><div class="gs-info"><b>${esc(z.name)}</b><small>${z.text}</small></div><button data-act="zone-edit" data-id="${z.id}">編集</button></div>`;
+          return this.editing === z.id ? row + this._editor(z) : row;
+        }
+        const lack = z.stage > level ? `ステージ${z.stage}で解放` : z.requires && !unlocked.has(z.requires) ? `先に${esc(getZone(z.requires).name)}を解放` : '';
         const ok = !lack && this.economy.canAfford(z.cost);
-        return `<div class="gs-row"><div class="gs-info"><b>${z.name}</b><small>${z.text}</small>${lack ? `<small>${lack}</small>` : ''}</div><button data-act="zone-open" data-id="${z.id}" class="primary" ${ok ? '' : 'disabled'}>${yen(z.cost)}</button></div>`;
+        return `<div class="gs-row"><div class="gs-info"><b>${esc(z.name)}</b><small>${z.text}</small>${lack ? `<small>${lack}</small>` : ''}</div><button data-act="zone-open" data-id="${z.id}" class="primary" ${ok ? '' : 'disabled'}>${yen(z.cost)}</button></div>`;
       });
       return `<h4 class="gs-sub">${floorLabel(floor)}</h4>${items.join('')}`;
     });
     return rows.join('');
   }
 
-  act(act, id) {
+  /** 色の選択はその場で建物に反映する */
+  input(el) {
+    const f = el.dataset.field;
+    if (f === 'zone-floor' || f === 'zone-wall') this.onLook(el.dataset.id, f.slice(5), el.value);
+  }
+
+  act(act, id, b) {
+    if (act === 'zone-edit') this.editing = this.editing === id ? null : id;
+    else if (act === 'zone-edit-done') this.editing = null;
+    else if (act === 'zone-rename') this.onRename(id, b?.closest('.gs-list')?.querySelector('#zn-name')?.value ?? '');
+    else if (act === 'zone-color-reset') this.onLook(id, null);
+    if (act.startsWith('zone-') && act !== 'zone-open') return true;
     if (act !== 'zone-open') return false;
     const z = getZone(id);
     if (this.economy.spend(z.cost)) this.onUnlock(id);

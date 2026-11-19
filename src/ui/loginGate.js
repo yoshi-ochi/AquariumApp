@@ -8,7 +8,6 @@ function formHtml(providers) {
   const social = providers.map((p) => `<button type="button" data-act="oauth" data-provider="${p}" class="lg-social">${LABEL[p]}</button>`).join('');
   return `<form id="login-form" onsubmit="return false">
     ${social}${social ? '<p class="lg-or">または</p>' : ''}
-    <input id="lg-name" placeholder="表示名（新規登録時）" maxlength="24" autocomplete="nickname" aria-label="表示名">
     <input id="lg-email" type="email" placeholder="メールアドレス" autocomplete="email" aria-label="メールアドレス">
     <input id="lg-pass" type="password" placeholder="パスワード（6文字以上）" autocomplete="current-password" aria-label="パスワード">
     <div class="lg-row"><button type="button" data-act="signin" class="lg-main">ログイン</button><button type="button" data-act="signup">新規登録</button></div>
@@ -87,7 +86,7 @@ async function askLogin(online, host, initialError) {
         return;
       }
       if (act === 'signin') await online.signIn(val('email'), host.querySelector('#lg-pass').value);
-      else if (!(await online.signUp(val('email'), host.querySelector('#lg-pass').value, val('name') || 'プレイヤー'))) {
+      else if (!(await online.signUp(val('email'), host.querySelector('#lg-pass').value))) {
         msg.textContent = '確認メールを送りました。メールのリンクを開くとログインできます';
         return;
       }

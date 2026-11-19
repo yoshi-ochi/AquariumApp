@@ -1,3 +1,5 @@
+import { tankLabel } from '../tanks/tankLabel.js';
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { CREATURES, RARITY, getCreature, getDestination, travelPlan } from '../expedition/creatureData.js';
 import { tankCapacity, usedCapacity, syncLife } from '../expedition/tankLife.js';
 import { getMethod, methodsAt } from '../expedition/fishingData.js';
@@ -123,7 +125,7 @@ export class CreatureView {
     );
     const shown = this._tanks.flatMap((t) =>
       Object.entries(t.userData.creatures ?? {}).map(
-        ([id, n]) => `<div class="gs-row">${this._img(id)}<div class="gs-info"><b>${getCreature(id)?.name ?? id} ×${n}</b><small>${t.userData.floor + 1}F ${this.manager.defOf(t).name}</small></div><button data-act="unshow" data-id="${t.userData.uid}:${id}">戻す</button></div>`,
+        ([id, n]) => `<div class="gs-row">${this._img(id)}<div class="gs-info"><b>${getCreature(id)?.name ?? id} ×${n}</b><small>${esc(tankLabel(this.manager, t))}</small></div><button data-act="unshow" data-id="${t.userData.uid}:${id}">戻す</button></div>`,
       ),
     );
     return `${owned.join('') || '<p class="gs-empty">生物を持っていません。採取遠征で捕まえましょう。</p>'}${shown.length ? `<h4 class="gs-sub">展示中</h4>${shown.join('')}` : ''}`;
@@ -135,7 +137,7 @@ export class CreatureView {
       const def = this.manager.defOf(t);
       const used = usedCapacity(t);
       const cap = tankCapacity(def);
-      return `<div class="gs-row"><div class="gs-info"><b>${t.userData.floor + 1}F ${def.name}</b><small>収容枠 ${used}/${cap}</small></div><button data-act="show" data-id="${t.userData.uid}" class="primary" ${used + c.slots > cap ? 'disabled' : ''}>ここに展示</button></div>`;
+      return `<div class="gs-row"><div class="gs-info"><b>${esc(tankLabel(this.manager, t))}</b><small>収容枠 ${used}/${cap}</small></div><button data-act="show" data-id="${t.userData.uid}" class="primary" ${used + c.slots > cap ? 'disabled' : ''}>ここに展示</button></div>`;
     });
     return `<button data-act="pick-back">← 戻る</button><p class="gs-empty">${c.name}（枠 ${c.slots}）を展示する水槽を選んでください。</p>${rows.join('') || '<p class="gs-empty">水槽がありません。</p>'}`;
   }

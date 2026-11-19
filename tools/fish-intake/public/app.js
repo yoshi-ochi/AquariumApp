@@ -43,7 +43,7 @@ async function load() {
   sel.value = keep;
   $('add-group').innerHTML = data.groups.map((g) => `<option>${esc(g)}</option>`).join('');
   const n = (st) => data.species.filter((s) => stateOf(s) === st).length;
-  $('summary').textContent = `${data.species.length}種 ・ 実装済み ${n('game')} ・ モデル待ち ${n('todo')} ・ 画像なし ${n('none')}`;
+  $('summary').textContent = `${data.species.length}種 ・ 実装済み ${n('game')} ・ 登録待ち ${n('todo') + n('none')}（モデル待ち ${n('todo')} ・ 画像なし ${n('none')}）`;
   render();
 }
 

@@ -126,3 +126,15 @@ export function getDef(id) {
 export function hasDef(id) {
   return defMap.has(id);
 }
+
+/** 建造した水槽などを、後から定義に加える */
+export function addDef(def) {
+  if (defMap.has(def.id)) return defMap.get(def.id);
+  const d = withCategory(CATEGORY.TANK)(def);
+  TANK_DEFS.push(d);
+  PLACEABLE_TANKS.push(d);
+  HALL_DEFS.splice(PLACEABLE_TANKS.length - 1, 0, d); // 水槽の並びの最後へ
+  ALL_DEFS.push(d);
+  defMap.set(d.id, d);
+  return d;
+}

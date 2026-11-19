@@ -6,6 +6,7 @@ import { floorLabel } from '../building/blueprint.js';
 
 const yen = (n) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
 const cm = (v) => Math.round(v * 100);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 /** スライダー1行（data-param で onAction(`param-${name}`, obj, value) に届く） */
 function slider(name, label, min, max, step, value, fmt) {
@@ -106,7 +107,7 @@ export class TankCustomizer {
     const deg = ((Math.round(THREE.MathUtils.radToDeg(obj.rotation.y)) % 360) + 360) % 360;
     const where = obj.userData.interiorItem ? '水槽内' : floorLabel(obj.userData.floor);
     this.panelEl.innerHTML = `
-      <h3>${def.name}</h3>
+      <h3>${obj.userData.name ? `${esc(obj.userData.name)}<small> ${def.name}</small>` : def.name}</h3>
       <div class="cat">${CATEGORY_LABELS[def.category]} · ${where}${obj.userData.embed ? ' · 壁に埋め込み中' : ''}</div>
       <dl>
         <dt>サイズ</dt><dd>${cm(w)}×${cm(d)}×${cm(h)}cm</dd>

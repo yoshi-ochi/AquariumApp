@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CLEANING } from '../management/opsData.js';
+import { getDef } from './tankData.js';
+import { customCleanSpec } from './customTanks.js';
 
 /** 水槽の汚れ：進行の計算、掃除の開始と完了、水の濁りとアカポチの表示 */
 const CARE = 'care';
@@ -10,13 +12,13 @@ const noRaycast = () => {};
 let intervalBoost = 1;
 export const setCleanIntervalBoost = (k) => (intervalBoost = k);
 
-export const cleanSpec = (defId) => CLEANING[defId];
+export const cleanSpec = (defId) => CLEANING[defId] ?? customCleanSpec(getDef(defId));
 
 /** 汚れ具合。1 以上で掃除が必要 */
 export function dirtLevel(tank, now = Date.now()) {
   const c = tank.userData.clean;
   if (!c) return 0;
-  return (now - c.last) / (CLEANING[tank.userData.defId].interval * 1000 * intervalBoost);
+  return (now - c.last) / (cleanSpec(tank.userData.defId).interval * 1000 * intervalBoost);
 }
 
 export const isCleaning = (tank) => !!tank.userData.clean?.until;

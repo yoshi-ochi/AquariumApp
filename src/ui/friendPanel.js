@@ -86,7 +86,7 @@ export class FriendPanel {
         await o.deleteAccount();
         return this.onSignOut();
       } else if (act === 'rename') {
-        await o.rename(val('rename') || 'プレイヤー');
+        await o.rename(val('rename') || o.profile.friend_code);
         this.toast('表示名を変更しました');
       } else if (act === 'copy') {
         await navigator.clipboard?.writeText(o.profile.friend_code);

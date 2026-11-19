@@ -28,7 +28,7 @@ export class TankManager {
 
   // ---- 追加・削除 ---------------------------------------------------------
 
-  add(defId, { x = 0, z = 0, rotY = 0, floor = this.currentFloor, uid, contents = [], embed = null, look = null, creatures = null, clean = null, care = null } = {}) {
+  add(defId, { x = 0, z = 0, rotY = 0, floor = this.currentFloor, uid, contents = [], embed = null, look = null, creatures = null, clean = null, care = null, name = null } = {}) {
     const def = getDef(defId);
     const obj = buildObject(def);
     obj.userData.uid = uid ?? this.nextUid++;
@@ -41,6 +41,7 @@ export class TankManager {
     if (def.category === CATEGORY.TANK) {
       obj.userData.clip = createClipUniforms(obj.userData.interior);
       obj.userData.clean = clean ? { ...clean } : { last: Date.now() };
+      if (name) obj.userData.name = String(name).slice(0, 20);
       if (look) applyTankLook(obj, def, look);
     }
     this.group.add(obj);
@@ -331,6 +332,7 @@ export class TankManager {
       z: round(o.position.z),
       rotY: round(o.rotation.y),
       ...(o.userData.embed && { embed: { ...o.userData.embed } }),
+      ...(o.userData.name && { name: o.userData.name }),
       ...(o.userData.look && { look: o.userData.look }),
       ...(o.userData.creatures && { creatures: { ...o.userData.creatures } }),
       ...(o.userData.clean && { clean: { ...o.userData.clean } }),

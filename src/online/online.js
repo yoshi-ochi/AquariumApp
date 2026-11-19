@@ -87,8 +87,9 @@ export class Online {
     this.recovery = false;
   }
 
-  async signUp(email, password, name) {
-    const data = this._check(await this.sb.auth.signUp({ email, password, options: { data: { name }, emailRedirectTo: HOME() } }));
+  /** 表示名は登録時にプレイヤーIDになる（あとで変更できる） */
+  async signUp(email, password) {
+    const data = this._check(await this.sb.auth.signUp({ email, password, options: { emailRedirectTo: HOME() } }));
     this.user = data.session?.user ?? null; // メール確認が有効なら session は null
     if (this.user) await this._loadProfile();
     return !!this.user;

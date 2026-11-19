@@ -1,3 +1,5 @@
+import { tankLabel } from '../tanks/tankLabel.js';
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { CREATURES, DESTINATIONS, JOINT_PROJECTS, RARITY, getCreature } from '../expedition/creatureData.js';
 import { NOTES } from '../expedition/creatureNotes.js';
 import { WATER, ensureCare, feed, feedCost, hasLife, isHungry, predatorConflict, tankHealth, waterMismatch, zoneOf, FEED_INTERVAL } from '../expedition/husbandry.js';
@@ -25,7 +27,7 @@ export class CareView {
       const names = Object.keys(t.userData.creatures).map((id) => `${getCreature(id)?.name}（${WATER[zoneOf(id)].label.slice(0, 2)}）`).join('、');
       const seg = Object.entries(WATER).map(([k, w]) => `<button data-act="care-water" data-id="${t.userData.uid}:${k}" class="${care.water === k ? 'active' : ''}">${w.label}</button>`).join('');
       const next = Math.max(0, FEED_INTERVAL - (now - care.fed)) / 1000;
-      return `<div class="gs-row wrap"><div class="gs-info"><b>${t.userData.floor + 1}F ${this.manager.defOf(t).name} ・ 健康度 ${hp}%</b><small>${names}</small>
+      return `<div class="gs-row wrap"><div class="gs-info"><b>${esc(tankLabel(this.manager, t))} ・ 健康度 ${hp}%</b><small>${names}</small>
         ${notes.length ? `<em class="gs-alert">${notes.join('、')}</em>` : `<small>次のエサまで ${span(next)}</small>`}</div>
         <div class="gs-btns"><div class="sp-seg">${seg}</div><button data-act="care-feed" data-id="${t.userData.uid}" class="primary" ${this.economy.canAfford(cost) ? '' : 'disabled'}>エサ ${yen(cost)}</button></div></div>`;
     });

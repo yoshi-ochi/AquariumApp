@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { FloorPlan, CELL } from './floorPlan.js';
 import { getTexture } from './textures.js';
 import { runTheta } from './embed.js';
-import { STORY_H } from '../building/blueprint.js';
+import { STORY_H, ZONES, zoneHas, zoneAt } from '../building/blueprint.js';
 
 const DIRT_MARGIN = 1.6;
 const RAIL_H = 1.1;
@@ -86,18 +86,50 @@ export class Room {
     this.plan = new FloorPlan(floor, unlocked);
   }
 
-  applyLook({ floor, wall }) {
-    // 塗りつぶし：模様なしのマット調
+  /** zoneLook: エリアごとの色 { id: { floor, wall } }（無ければ全体の色） */
+  applyLook({ floor, wall, zoneLook }) {
+    // 塗りつぶし：模様なしのマット調。床の色は頂点色で持つ（エリアごとに変えられる）
     this.floorMat.map = floor.type === 'solid' ? null : getTexture(floor.type);
     this.floorMat.roughness = floor.type === 'solid' ? 1 : 0.85;
-    this.floorMat.color.set(floor.color);
+    this.floorMat.color.set(0xffffff);
+    this.floorMat.vertexColors = true;
     this.floorMat.needsUpdate = true;
+    this.look = { floor: floor.color, wall: wall.color, zones: zoneLook ?? {} };
+    for (const m of this.zoneWallMats?.values() ?? []) m.dispose();
+    this.zoneWallMats = new Map();
     this.wallMat.map = getTexture(wall.type);
     this.wallMat.color.set(wall.color);
     this.wallMat.needsUpdate = true;
     this.roomWallMat.map = this.wallMat.map;
     this.roomWallMat.color.copy(this.wallMat.color);
     this.roomWallMat.needsUpdate = true;
+    if (this.plan && this.built.children.length) this.rebuild();
+  }
+
+  /** そのマスの床の色 */
+  _floorColor(i, j, floor) {
+    const zone = ZONES.find((z) => z.floor === floor && zoneHas(z, i, j));
+    return this._c.set((zone && this.look.zones[zone.id]?.floor) || this.look.floor);
+  }
+
+  /** エリアの色を指定した壁は、その色の材質にする（面が向いている側のエリア） */
+  _wallMatFor(run, base, flip) {
+    const zones = this.look?.zones;
+    if (!zones || !Object.keys(zones).length) return base;
+    const s = (flip ? -1 : 1) * (run.n || 1) * 0.45;
+    const mid = (run.from + run.to) / 2;
+    const [x, z] = run.axis === 'x' ? [mid, run.line + s] : [run.line + s, mid];
+    const color = zones[zoneAt(this.plan.floor, x, z)?.id]?.wall;
+    if (!color) return base;
+    const key = `${base.uuid}:${color}`;
+    let m = this.zoneWallMats.get(key);
+    if (!m) {
+      m = base.clone();
+      m.color.set(color);
+      m.clippingPlanes = base.clippingPlanes;
+      this.zoneWallMats.set(key, m);
+    }
+    return m;
   }
 
   /** ライトを作り直す（数が変わるとき） */
@@ -208,13 +240,13 @@ export class Room {
       o.geometry.dispose();
     }
     const plan = this.plan;
-    this.built.add(this._floorMesh(plan, CELL.FLOOR, this.floorMat));
+    this.built.add(this._floorMesh(plan, CELL.FLOOR, this.floorMat, 0, plan.floor));
     this.built.add(this._floorMesh(plan, CELL.YARD, this.yardFloorMat));
     this.built.add(this._floorMesh(plan, CELL.LOCKED, this.lockedFloorMat));
     this.built.add(this._floorMesh(plan, CELL.LOCKED_OUT, this.lockedFloorMat));
     this.built.add(this._floorMesh(plan, CELL.OUT, this.outdoorMat));
     // 吹き抜けから見下ろす1階の床
-    this.built.add(this._floorMesh(plan, CELL.VOID, this.floorMat, -STORY_H));
+    this.built.add(this._floorMesh(plan, CELL.VOID, this.floorMat, -STORY_H, 0));
     for (const run of plan.runs()) {
       if (run.kind === 'shutter' || run.kind === 'rail') {
         this.built.add(this._wallMesh(run, [], run.kind === 'rail' ? this.railMat : this.shutterMat, false, run.kind === 'rail' ? RAIL_H : SHUTTER_H));
@@ -222,14 +254,14 @@ export class Room {
       }
       const hs = holes.filter((h) => h.key === run.key && h.along >= run.from && h.along <= run.to);
       if (run.kind === 'room') {
-        this.built.add(this._wallMesh(run, hs, this.roomWallMat, false));
-        this.built.add(this._wallMesh(run, hs, this.roomWallMat, true));
+        this.built.add(this._wallMesh(run, hs, this._wallMatFor(run, this.roomWallMat, false), false));
+        this.built.add(this._wallMesh(run, hs, this._wallMatFor(run, this.roomWallMat, true), true));
       } else if (run.kind === 'partition') {
         // 仕切り壁は両面：館内側は選んだ壁材、バックヤード側はコンクリート
-        this.built.add(this._wallMesh(run, hs, this.wallMat, false));
+        this.built.add(this._wallMesh(run, hs, this._wallMatFor(run, this.wallMat, false), false));
         this.built.add(this._wallMesh(run, hs, this.yardWallMat, true));
       } else {
-        this.built.add(this._wallMesh(run, hs, run.side === CELL.YARD ? this.yardWallMat : this.wallMat, false));
+        this.built.add(this._wallMesh(run, hs, run.side === CELL.YARD ? this.yardWallMat : this._wallMatFor(run, this.wallMat, false), false));
         // 外壁に埋め込んだ水槽の外側を囲う張り出し
         for (const h of hs) this.built.add(this._alcove(run, h));
       }
@@ -239,21 +271,27 @@ export class Room {
     this.sceneMgr.fitShadow(b.cx, b.cz, Math.max(b.w, b.d) / 2 + DIRT_MARGIN);
   }
 
-  _floorMesh(plan, type, material, y = 0) {
+  /** colorFloor を渡すと、そのフロアのエリア色を頂点色に入れる */
+  _floorMesh(plan, type, material, y = 0, colorFloor = null) {
     const pos = [];
     const uv = [];
+    const col = [];
+    this._c ??= new THREE.Color();
     const c = plan.cell;
     for (let j = 0; j < plan.GZ; j++) for (let i = 0; i < plan.GX; i++) {
       if (plan.at(i, j) !== type) continue;
       const [x, z] = plan.cellMin(i, j);
+      const k = colorFloor === null ? null : this._floorColor(i, j, colorFloor);
       for (const [qx, qz] of [[x, z], [x, z + c], [x + c, z], [x + c, z], [x, z + c], [x + c, z + c]]) {
         pos.push(qx, y, qz);
         uv.push(qx, -qz);
+        if (k) col.push(k.r, k.g, k.b);
       }
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    if (col.length) geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, material);
     m.receiveShadow = true;

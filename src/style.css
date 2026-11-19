@@ -467,3 +467,20 @@ body:not([data-view=floor]) #side-actions, body:not([data-view=floor]) #goal-car
 .ex-methods button { min-height: 34px; padding: 3px 10px; font-size: 12px; }
 
 .lp-stage[hidden] { display: none; }
+
+/* 水槽の管理シート */
+.tv-name { display: flex; gap: 6px; }
+.tv-name input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.tv-def { display: block; color: #6b7c88; margin: 4px 2px 0; }
+.tv-wide { width: 100%; margin-top: 8px; }
+#detail-panel h3 small { font-size: 12px; font-weight: normal; color: #6b7c88; }
+.zn-edit { gap: 8px; }
+.zn-edit .tv-name, .zn-colors { width: 100%; }
+.zn-colors { display: flex; gap: 12px; flex-wrap: wrap; }
+.zn-color { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.zn-color input { width: 44px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; }
+.bd-slider { display: grid; grid-template-columns: 3.5em 1fr 4.5em; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; }
+.bd-slider input { width: 100%; }
+.bd-slider output { text-align: right; font-variant-numeric: tabular-nums; }
+.bd-sum { display: grid; gap: 2px; margin-top: 8px; }
+.bd-open { margin: 0 0 8px; }

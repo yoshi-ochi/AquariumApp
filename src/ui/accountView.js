@@ -4,8 +4,9 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 export function accountHtml(online) {
   const hasPw = online.hasPassword;
   return `<button data-act="account-back">← 戻る</button>
-    <h4>アカウント名</h4>
-    <div class="fp-me"><input id="fp-rename" value="${esc(online.profile.name)}" maxlength="24" aria-label="アカウント名"><button data-act="rename" class="primary">変更</button></div>
+    <h4>プレイヤー名</h4>
+    <div class="fp-me"><input id="fp-rename" value="${esc(online.profile.name)}" maxlength="24" aria-label="プレイヤー名"><button data-act="rename" class="primary">変更</button></div>
+    <p class="muted">はじめはプレイヤーID（${esc(online.profile.friend_code)}）です。好きな名前に変えられます。</p>
     <h4>メールアドレス</h4>
     <div class="fp-me"><input id="fp-email-new" type="email" value="${esc(online.user.email ?? '')}" autocomplete="email" aria-label="メールアドレス"><button data-act="email" class="primary">変更</button></div>
     <p class="muted">変更後、確認メールのリンクを開くと反映されます。</p>

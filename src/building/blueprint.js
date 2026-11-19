@@ -144,9 +144,24 @@ export let ATRIUM_TANK_POS = null;
 export let WALL_EDITS = {};
 export const setWallEdits = (edits) => (WALL_EDITS = JSON.parse(JSON.stringify(edits ?? {})));
 
+/** プレイヤーが付けたエリア名 { id: 名前 } */
+let ZONE_NAMES = {};
+export const MAX_ZONE_NAME = 16;
+export const defaultZoneName = (id) => ZONE_META.find((z) => z.id === id)?.name ?? id;
+/** エリア名を設定する（空なら元の名前に戻す） */
+export function setZoneNames(names) {
+  ZONE_NAMES = {};
+  for (const [id, n] of Object.entries(names ?? {})) {
+    const name = String(n ?? '').replace(/[\x00-\x1f<>]/g, '').trim().slice(0, MAX_ZONE_NAME);
+    if (name && ZONE_META.some((z) => z.id === id)) ZONE_NAMES[id] = name;
+  }
+  for (const z of ZONES) z.name = ZONE_NAMES[z.id] ?? defaultZoneName(z.id);
+  return { ...ZONE_NAMES };
+}
+
 export function setLayout(id) {
   LAYOUT = LAYOUTS.find((l) => l.id === id) ?? LAYOUTS[0];
-  ZONES = ZONE_META.map((z) => ({ ...z, rects: LAYOUT.rects[z.id], requires: LAYOUT.requires?.[z.id] ?? z.requires, scenery: z.open ? sceneryRect(z.id, LAYOUT.rects[z.id][0]) : null }));
+  ZONES = ZONE_META.map((z) => ({ ...z, name: ZONE_NAMES[z.id] ?? z.name, rects: LAYOUT.rects[z.id], requires: LAYOUT.requires?.[z.id] ?? z.requires, scenery: z.open ? sceneryRect(z.id, LAYOUT.rects[z.id][0]) : null }));
   ATRIUM_VOID = { floor: 1, rect: LAYOUT.voidRect, zone: 'atrium' };
   ATRIUM_TANK_POS = rectCenter(LAYOUT.voidRect);
 }

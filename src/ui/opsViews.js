@@ -1,3 +1,5 @@
+import { tankLabel } from '../tanks/tankLabel.js';
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { ROLES, PRODUCTS, PRICE_TIERS, LOT_SIZE, SALES_PER_STAFF } from '../management/opsData.js';
 import { cleanSpec, dirtLevel, isCleaning, needsCleaning, startCleaning, busyCleaners } from '../tanks/tankCleaning.js';
 
@@ -27,7 +29,7 @@ export class CleanView {
   _row(t, now) {
     const spec = cleanSpec(t.userData.defId);
     const uid = t.userData.uid;
-    const name = `${t.userData.floor + 1}F ${this.manager.defOf(t).name}`;
+    const name = esc(tankLabel(this.manager, t));
     if (isCleaning(t)) {
       return `<div class="gs-row"><div class="gs-info"><b>${name}</b><small>掃除中 ・ 残り <span data-until="${t.userData.clean.until}">${span((t.userData.clean.until - now) / 1000)}</span></small></div></div>`;
     }
@@ -55,7 +57,7 @@ export class CleanView {
     if (staff && this._free < plan.crew) return true;
     if (!this.economy.spend(plan.cost)) return true;
     startCleaning(tank, plan.seconds, staff ? plan.crew : 0);
-    this.toast(`${this.manager.defOf(tank).name} の掃除を始めました`);
+    this.toast(`${tankLabel(this.manager, tank)} の掃除を始めました`);
     this.onChanged();
     return true;
   }

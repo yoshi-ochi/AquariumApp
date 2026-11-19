@@ -45,7 +45,7 @@ import { AllianceApi } from './online/allianceApi.js';
 import { AllianceView } from './ui/allianceView.js';
 import { MapPage } from './ui/mapPage.js';
 import { LifeSystems } from './game/lifeSystems.js';
-import { START_ZONES, ATRIUM_TANK_POS, BASEMENT, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, zonesUpToLevel, getZone, setLayout, setWallEdits, zoneAt, zoneCenter } from './building/blueprint.js';
+import { START_ZONES, ATRIUM_TANK_POS, BASEMENT, DEFAULT_LAYOUT, LAYOUT, WALL_EDITS, zonesUpToLevel, getZone, setLayout, setWallEdits, setZoneNames, zoneAt, zoneCenter } from './building/blueprint.js';
 import { ViewModes } from './building/viewModes.js';
 import { OutdoorScenery } from './building/outdoorScenery.js';
 import { WallInteraction } from './interaction/wallInteraction.js';
@@ -60,6 +60,10 @@ import { isHungry } from './expedition/husbandry.js';
 import { allianceBonus, allianceLevel } from './expedition/creatureData.js';
 import { CREATURES } from './expedition/creatureData.js';
 import { buildCreature } from './expedition/creatureBuilder.js';
+import { TankView } from './ui/tankView.js';
+import { BuildView } from './ui/buildView.js';
+import { setCustomHandler, registerCustomIds } from './tanks/customTanks.js';
+import { tankLabel } from './tanks/tankLabel.js';
 
 const $ = (id) => document.getElementById(id);
 const MIN_SPLASH_MS = 1800;
@@ -67,7 +71,7 @@ const POOL_APPEAL = 150;
 const OUTDOOR_APPEAL = { plaza: 20, marine: 60, nature: 90 };
 const THEME_BONUS = 1.25;
 const HINT = {
-  home: '水槽をタップすると近くで見られます ・ ドラッグで回転 / 2本指でズーム',
+  home: '水槽をタップすると名前・展示生物・エサ・掃除を管理できます ・ ドラッグで回転 / 2本指でズーム',
   hall: 'タップで選択・ドラッグで移動 ・ 何もない所のドラッグで視点を回転',
   place: '床をタップして設置 ・ もう一度カードを押すとキャンセル',
   interior: 'ドラッグで移動（岩の上にも積める）・ はみ出した部分はガラス面でカット',
@@ -352,8 +356,17 @@ async function boot() {
     mode = 'tank';
     view.enabled = false;
     interiorCam.enter(tank);
-    shell.setMode('tank', manager.defOf(tank).name);
+    shell.setMode('tank', tankLabel(manager, tank));
     shell.setHint('');
+    openTankSheet(tank);
+  }
+
+  /** 水槽の管理シート（名前・展示生物・エサ・掃除） */
+  function openTankSheet(tank) {
+    if (visiting) return;
+    friendPanel.close();
+    tankView.open(tank);
+    gameSheet.openPanel('tank');
   }
 
   function enterHallEdit() {
@@ -376,11 +389,12 @@ async function boot() {
     roomPanel.setVisible(false);
     customizer.deselect();
     customizer.allowEmbed = false;
+    gameSheet.close();
     if (from === 'hall') interiorCam.enter(tank);
     interior.attach(tank);
     mode = 'interior-edit';
     catalog.setDefs(INTERIOR_DEFS);
-    shell.setMode('interior-edit', `${manager.defOf(tank).name} の水槽内`);
+    shell.setMode('interior-edit', `${tankLabel(manager, tank)} の水槽内`);
     shell.setHint(HINT.interior);
   }
 
@@ -391,8 +405,9 @@ async function boot() {
       interior.detach();
       if (interiorFrom === 'tank') {
         mode = 'tank';
-        shell.setMode('tank', manager.defOf(focusTank).name);
+        shell.setMode('tank', tankLabel(manager, focusTank));
         shell.setHint('');
+        openTankSheet(focusTank);
       } else {
         interiorCam.exit();
         enterHallEdit();
@@ -413,6 +428,7 @@ async function boot() {
     manager,
     onBack: () => {
       if (mode !== 'tank' || interiorCam.busy) return;
+      if (gameSheet.view === 'tank') gameSheet.close();
       interiorCam.exit();
       goHome();
     },
@@ -464,6 +480,8 @@ async function boot() {
   function startNewAquarium(layoutId) {
     setLayout(layoutId);
     setWallEdits(null);
+    roomSettings.zoneNames = setZoneNames({});
+    roomSettings.zoneLook = {};
     unlocked = new Set(START_ZONES);
     manager.clear();
     resetLights();
@@ -482,6 +500,8 @@ async function boot() {
     views.setMode('floor');
     setLayout(data.room?.layout ?? pendingLayout ?? DEFAULT_LAYOUT);
     setWallEdits(data.room?.layout ? data.room.walls : null);
+    // 建造した水槽の定義を先に登録する（ID に寸法が入っている）
+    registerCustomIds([...(data.objects ?? []).map((o) => o.defId), ...Object.keys(data.inventory?.stock ?? {}), ...(data.inventory?.orders ?? []).map((o) => o.defId)]);
     economy.fromJSON(data.economy);
     inventory.fromJSON(data.inventory);
     expeditions.fromJSON(data.expedition);
@@ -489,6 +509,8 @@ async function boot() {
     if (!visiting) home = data.home ?? null;
     roomSettings = { ...defaultRoomSettings(), ...(data.room ?? {}) };
     roomSettings.lights = roomSettings.lights.map(normalizeLight);
+    roomSettings.zoneNames = setZoneNames(roomSettings.zoneNames);
+    roomSettings.zoneLook = { ...roomSettings.zoneLook };
     manager.deserialize(data.objects);
     unlocked = new Set([...START_ZONES, ...(data.room?.building ? data.room.unlocked ?? [] : zonesForLegacyStage(economy.stage.level))]);
     // 以前にレベルアップ済みのセーブにも、レベルに応じたエリアを反映する
@@ -641,17 +663,49 @@ async function boot() {
       if (online.user) await allianceApi.setLocation(p).catch((err) => console.error(err));
     },
   });
+  const cleanView = new CleanView({ manager, economy, ops, toast, getTanks: () => manager.tanks, onChanged: () => shell.update() });
+  const tankView = new TankView({
+    manager, expeditions, economy, previews, toast, cleanView,
+    careView: life.panels.care.view,
+    onInterior: (tank) => enterInteriorEdit(tank, 'tank'),
+    onChanged: () => {
+      shell.update();
+      if (mode === 'tank' && focusTank) shell.setMode('tank', tankLabel(manager, focusTank));
+    },
+  });
   const gameSheet = new GameSheet({
     el: $('game-sheet'), economy, inventory, expeditions, ops, previews, toast,
     panels: {
       expedition: { title: '採取遠征', view: expeditionView },
       ally: { title: '同盟水族館', view: allianceView },
       place: { title: '水族館', view: placeView },
-      clean: { title: '水槽の掃除', live: true, view: new CleanView({ manager, economy, ops, toast, getTanks: () => manager.tanks, onChanged: () => shell.update() }) },
+      clean: { title: '水槽の掃除', live: true, view: cleanView },
+      tank: { get title() { return tankView.title; }, view: tankView },
+      build: { title: '水槽建造', view: new BuildView({ economy, inventory, toast }) },
       staff: { title: 'スタッフ', live: true, view: new StaffView({ ops }) },
       shop: { title: '店舗運営', live: true, view: new ShopView({ ops, economy, inventory, onPlace: (id) => { gameSheet.close(); mapPage.close(); if (mode !== 'hall-edit') enterHallEdit(); hall.startPlacement(id); } }) },
       ...life.panels,
-      zones: { title: '館内エリア', view: new ZoneView({ economy, getUnlocked: () => unlocked, onUnlock: unlockZone }) },
+      zones: {
+        title: '館内エリア',
+        view: new ZoneView({
+          economy, getUnlocked: () => unlocked, onUnlock: unlockZone,
+          getLook: (id) => ({ floor: roomSettings.floor.color, wall: roomSettings.wall.color, ...roomSettings.zoneLook?.[id] }),
+          onLook: (id, kind, color) => {
+            const all = { ...roomSettings.zoneLook };
+            if (kind) all[id] = { ...all[id], [kind]: color };
+            else delete all[id];
+            roomSettings.zoneLook = all;
+            room.applyLook(roomSettings);
+            if (!kind) gameSheet.render();
+          },
+          onRename: (id, name) => {
+            roomSettings.zoneNames = setZoneNames({ ...roomSettings.zoneNames, [id]: name });
+            zoneLabels.update(economy.floor, unlocked);
+            gameSheet.render();
+            toast(`エリア名を「${getZone(id).name}」にしました`);
+          },
+        }),
+      },
     },
     creatureView: new CreatureView({ manager, expeditions, previews, toast, onChanged: () => shell.update() }),
     onPlace: (id) => {
@@ -710,7 +764,7 @@ async function boot() {
     for (const id of inventory.collect()) toast(`外注の ${getDef(id).name} が完成しました`);
     $('nav-map').classList.toggle('has-badge', expeditions.trips.some((t) => expeditions.isDone(t)));
     mapPage.refresh();
-    for (const t of finishCleaning(manager.tanks)) toast(`${manager.defOf(t).name} の掃除が終わりました`);
+    for (const t of finishCleaning(manager.tanks)) toast(`${tankLabel(manager, t)} の掃除が終わりました`);
     const dirty = manager.tanks.filter((t) => needsCleaning(t)).length;
     $('clean-badge').hidden = !dirty;
     $('clean-badge').textContent = dirty;
@@ -729,6 +783,14 @@ async function boot() {
     document.body.classList.remove('visiting');
     $('visit-bar').hidden = true;
     toast('自分の水族館に戻りました');
+  });
+
+  // 建造した水槽のサムネイルを撮る
+  setCustomHandler(async (def) => {
+    const shot = await generatePreviews([def], buildObject, { dispose: disposeObject });
+    previews.set(def.id, shot.get(def.id));
+    catalog.refresh();
+    if (gameSheet.view) gameSheet.render();
   });
 
   // 初期レイアウト（無料）：エントランスに水槽台＋60cm水槽
