@@ -269,29 +269,99 @@ function fishParts(c, f) {
   return parts;
 }
 
+/**
+ * クラゲ。c.jelly で種ごとに変える（無ければミズクラゲ）
+ *   height: かさの高さ / stripes: { n, hex } 放射状の縞 / spots: 水玉の色
+ *   oral: { n, len, width, hex, club } 口腕（club = 太いこぶ状、無ければひらひらの帯）
+ *   tents: { n, len, hex } かさの縁の触手 / filaments: { n, len, hex } 口腕から伸びる透明な付属器
+ */
+function jellyParts(c) {
+  const { body, belly, fin: finC } = c.colors;
+  const J = c.jelly ?? {};
+  const H = J.height ?? 0.3;
+  const parts = [];
+  const nu = J.stripes ? J.stripes.n * 4 : 24; // 縞は格子4列に1列の細い線
+  const bellAt = (u, v) => {
+    const a = u * Math.PI * 2;
+    const r = 0.5 * Math.sin(v * Math.PI * 0.56) * (1 + Math.sin(a * 8) * 0.03 * v);
+    return [Math.cos(a) * r, H * Math.cos(v * Math.PI * 0.56), Math.sin(a) * r];
+  };
+  parts.push(grid(nu, 8, (u, v) => {
+    const a = u * Math.PI * 2;
+    let hex = body;
+    if (!J.stripes && !J.spots && Math.abs(v - 0.3) < 0.1 && Math.cos(a * 4) > 0.3) hex = belly; // ミズクラゲの四つ葉の胃腔
+    if (J.stripes && v > 0.1 && Math.round(u * nu) % 4 === 0) hex = J.stripes.hex;
+    return [...bellAt(u, v), hex];
+  }));
+  if (J.spots) {
+    // 白い水玉：かさの表面に貼りつく小さな円盤
+    for (let i = 0; i < 46; i++) {
+      const u = (i * 0.618) % 1;
+      const v = 0.12 + ((i * 0.37) % 1) * 0.8;
+      const p = new THREE.Vector3(...bellAt(u, v));
+      const n = new THREE.Vector3(p.x, p.y / Math.max(0.2, H * 2), p.z).normalize();
+      const m = new THREE.Matrix4().compose(p.addScaledVector(n, 0.004), new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), n), new THREE.Vector3(1, 0.15, 1));
+      parts.push(solid(new THREE.CylinderGeometry(0.03 + (i % 3) * 0.008, 0.03 + (i % 3) * 0.008, 0.02, 8), J.spots, m));
+    }
+  }
+  const tents = J.tents ?? (J.oral ? null : { n: 12, len: 0.75, hex: finC });
+  if (tents) {
+    for (let i = 0; i < tents.n; i++) {
+      const a = (i / tents.n) * Math.PI * 2;
+      parts.push(grid(2, 10, (u, v) => {
+        const r = 0.46 - v * 0.1;
+        const sway = Math.sin(v * 7 + i) * 0.04 * v;
+        return [Math.cos(a) * r + sway + (u - 0.5) * 0.015, 0.02 - v * tents.len, Math.sin(a) * r + (u - 0.5) * 0.015, tents.hex];
+      }));
+    }
+  }
+  const oral = J.oral;
+  if (oral) {
+    for (let i = 0; i < oral.n; i++) {
+      const a = (i / oral.n) * Math.PI * 2 + 0.3;
+      const r0 = oral.club ? 0.12 : 0.06;
+      if (oral.club) {
+        // 太いこぶ状の口腕（根元は細く、先が太い房になる）
+        parts.push(grid(6, 8, (u, v) => {
+          const t = u * Math.PI * 2;
+          const w = oral.width * (0.45 + 0.55 * Math.sin(Math.min(1, v * 1.3) * Math.PI * 0.5)) * (v > 0.95 ? 0.4 : 1);
+          const cx = Math.cos(a) * (r0 + v * 0.05);
+          const cz = Math.sin(a) * (r0 + v * 0.05);
+          const lumpy = 1 + 0.18 * Math.sin(v * 23 + t * 3);
+          return [cx + Math.cos(t) * w * lumpy, 0.02 - v * oral.len, cz + Math.sin(t) * w * lumpy, v < 0.35 ? body : oral.hex];
+        }));
+      } else {
+        // ひらひらと長く垂れる帯状の口腕
+        parts.push(grid(3, 14, (u, v) => {
+          const wave = Math.sin(v * 9 + i * 1.7) * 0.07 * v;
+          const w = oral.width * (1 - v * 0.6) * (0.6 + 0.4 * Math.sin(v * 31) ** 2);
+          const nx = -Math.sin(a), nz = Math.cos(a);
+          return [Math.cos(a) * r0 + wave * nx + (u - 0.5) * w * nx, 0.02 - v * oral.len, Math.sin(a) * r0 + wave * nz + (u - 0.5) * w * nz, oral.hex];
+        }));
+      }
+    }
+  }
+  const fil = J.filaments;
+  if (fil) {
+    for (let i = 0; i < fil.n; i++) {
+      const a = (i / fil.n) * Math.PI * 2 + 0.6;
+      parts.push(grid(2, 8, (u, v) => {
+        const r = 0.13 + v * 0.06;
+        const w = 0.045 * (1 - v * 0.5);
+        return [Math.cos(a) * r + (u - 0.5) * w, -0.15 - v * fil.len, Math.sin(a) * r + (u - 0.5) * w * 0.4, v > 0.92 ? 0xf6f2ea : fil.hex];
+      }));
+    }
+  }
+  return { parts, mode: 2, opacity: J.opacity ?? 0.82 };
+}
+
 /** クラゲ・クリオネ・メンダコ・イカ・エイ */
 function softParts(c) {
   const extra = extraSoftParts(c, { grid, fin, solid, tint });
   if (extra) return extra;
   const { body, belly, fin: finC } = c.colors;
   const parts = [];
-  if (c.form === 'jelly') {
-    parts.push(grid(16, 7, (u, v) => {
-      const a = u * Math.PI * 2;
-      const r = 0.5 * Math.sin(v * Math.PI * 0.56) * (1 + Math.sin(a * 8) * 0.03 * v);
-      const ring = Math.abs(v - 0.3) < 0.1 && Math.cos(a * 4) > 0.3; // 四つ葉の胃腔
-      return [Math.cos(a) * r, 0.3 * Math.cos(v * Math.PI * 0.56), Math.sin(a) * r, ring ? belly : body];
-    }));
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      parts.push(grid(2, 8, (u, v) => {
-        const r = 0.44 - v * 0.08;
-        const sway = Math.sin(v * 7 + i) * 0.03 * v;
-        return [Math.cos(a) * r + sway + (u - 0.5) * 0.02, 0.02 - v * 0.75, Math.sin(a) * r + (u - 0.5) * 0.02, finC];
-      }));
-    }
-    return { parts, mode: 2, opacity: 0.82 };
-  }
+  if (c.form === 'jelly') return jellyParts(c);
   if (c.form === 'clione') {
     parts.push(grid(10, 12, (u, v) => {
       const a = u * Math.PI * 2;

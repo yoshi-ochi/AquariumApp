@@ -124,7 +124,80 @@ function garden(c, { grid, solid }) {
   return parts;
 }
 
-const BUILDERS = { crab, lobster, octopus, flat, seahorse, garden };
+/**
+ * コウイカ：楕円の外套膜とそれを縁どるひれ、背中の細かな縞、8本の腕と2本の長い触腕。
+ * 参考画像（上から見た標本）の比率：外套長に対して幅0.73、腕は外套長の半分ほど
+ */
+function cuttle(c, { grid, solid }) {
+  const { body, belly, fin } = c.colors;
+  const stripe = c.mark ?? body;
+  const L = 0.46; // 外套膜の長さ（x: 0.5 → 0.04）
+  // 盾形：頭側は幅広く平ら、尾側は丸くすぼまる
+  const half = (v) => 0.17 * Math.pow(Math.max(0, 1 - Math.abs(2 * v - 1) ** 3), 0.45) * (0.82 + 0.18 * v);
+  const parts = [grid(16, 14, (u, v) => {
+    const a = u * Math.PI * 2;
+    const r = half(v);
+    const x = 0.5 - v * L;
+    const z = Math.sin(a) * r;
+    const top = Math.cos(a) > -0.1;
+    const zebra = Math.floor(x * 46 + Math.abs(z) * 18) % 2 === 0;
+    return [x, Math.cos(a) * r * 0.42, z, top ? (zebra ? stripe : body) : belly];
+  })];
+  // 外套膜のまわりのひれ（左右）
+  for (const s of [-1, 1]) {
+    parts.push(grid(2, 14, (u, v) => [0.5 - v * L, 0, s * (half(v) + 0.004 + u * 0.035 * Math.sin(Math.PI * Math.min(1, v * 1.1))), fin]));
+  }
+  parts.push(solid(new THREE.SphereGeometry(0.075, 10, 7).scale(1, 0.75, 1.05), body, at(0.01, 0, 0)));
+  parts.push(...eyes(solid, 0.01, 0.035, 0.068, 0.022));
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const len = i % 5 === 0 ? 0.48 : 0.28; // 2本の触腕は長い
+    const r0 = 0.05;
+    // 腕は扇のように広がる
+    const tip = [-0.04 - len * 0.85, Math.cos(a) * 0.07, Math.sin(a) * (i % 5 === 0 ? 0.28 : 0.2)];
+    parts.push(rod(solid, i % 5 === 0 ? 0.012 : 0.024, 0.005, [-0.04, Math.cos(a) * r0 * 0.6, Math.sin(a) * r0], tip, i % 5 === 0 ? belly : body));
+  }
+  return parts;
+}
+
+/**
+ * カブトガニ：馬蹄形の頭胸甲（両脇が後ろへ伸びる）、縁に棘が並ぶ六角形の腹甲、長い剣状の尾。
+ * 参考画像（上から見た標本）の比率：全長に対して頭胸甲の長さ0.38・幅0.45、腹甲0.25、尾0.52
+ */
+function horseshoe(c, { grid, solid }) {
+  const { body, belly, fin } = c.colors;
+  const ridge = c.mark ?? belly;
+  // 頭胸甲：前は半円、両脇は後ろへ角のように伸びる。中央の隆起と左右の隆起線
+  const parts = [grid(28, 6, (u, v) => {
+    const a = u * Math.PI * 2;
+    const r = v;
+    // 前は半円、後ろは中央がくぼみ両脇が角のように後ろへ伸びる
+    const back = Math.cos(a) < 0 ? -Math.cos(a) * Math.abs(Math.sin(a)) * 0.62 - 0.02 : 0;
+    const x = 0.2 + (Math.cos(a) >= 0 ? Math.cos(a) * 0.2 : -back) * r;
+    const z = Math.sin(a) * 0.225 * r;
+    const y = 0.07 * (1 - r * r) + 0.004;
+    const onRidge = Math.abs(z) < 0.015 || Math.abs(Math.abs(z) - 0.08) < 0.012;
+    return [x, y, z, onRidge && r < 0.85 ? ridge : body];
+  })];
+  // 腹甲：六角形のふくらみと、縁に並ぶ棘
+  parts.push(solid(new THREE.SphereGeometry(0.15, 6, 5).scale(1, 0.32, 1.05), body, at(0.02, 0.025, 0)));
+  parts.push(solid(new THREE.BoxGeometry(0.22, 0.01, 0.012), ridge, at(0.02, 0.072, 0)));
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 6; k++) {
+      const x = 0.1 - k * 0.035;
+      const zz = 0.15 - k * 0.014;
+      parts.push(rod(solid, 0.006, 0.001, [x, 0.02, s * zz], [x - 0.03, 0.01, s * (zz + 0.035)], fin));
+    }
+  }
+  // 剣状の尾
+  parts.push(rod(solid, 0.014, 0.003, [-0.12, 0.02, 0], [-0.68, 0.005, 0], fin));
+  // 複眼と、腹側の脚
+  for (const s of [-1, 1]) parts.push(solid(new THREE.SphereGeometry(0.012, 6, 4).scale(1.6, 0.6, 1), 0x2a2018, at(0.2, 0.06, s * 0.12)));
+  for (const s of [-1, 1]) for (let k = 0; k < 5; k++) parts.push(rod(solid, 0.008, 0.004, [0.2 - k * 0.04, 0.005, s * 0.04], [0.18 - k * 0.04, -0.02, s * 0.12], belly));
+  return parts;
+}
+
+const BUILDERS = { crab, lobster, octopus, flat, seahorse, garden, cuttle, horseshoe };
 
 /** 該当する体形なら { parts, mode } を返す（mode 3 = 体をくねらせない） */
 export function extraSoftParts(c, helpers) {
@@ -133,6 +206,6 @@ export function extraSoftParts(c, helpers) {
 }
 
 /** 水槽の底付近で暮らす体形 */
-export const BENTHIC_FORMS = new Set(['crab', 'lobster', 'octopus', 'flat', 'garden']);
+export const BENTHIC_FORMS = new Set(['crab', 'lobster', 'octopus', 'flat', 'garden', 'horseshoe']);
 /** その場からあまり動かない体形 */
 export const STATIONARY_FORMS = new Set(['seahorse', 'garden']);
