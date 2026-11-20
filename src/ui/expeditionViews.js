@@ -55,10 +55,10 @@ export class ExpeditionView {
       ${locked ? `<em class="gs-alert">ステージ${d.stage}で解放</em>` : `<button data-act="depart" data-id="${d.id}" class="primary" ${ok ? '' : 'disabled'}>${sel.method.name}で出港 ${yen(plan.cost)} ・ ${fmtTime(plan.seconds)}</button>`}</div>${status}`;
   }
 
-  /** 研究「採取技術」の割引を反映した費用と時間 */
+  /** 研究「採取技術」の割引を反映した費用。時間は距離だけで決まる（漁法によらない） */
   _plan(d, method) {
     const plan = travelPlan(d, this.getHome());
-    return { ...plan, cost: Math.round(plan.cost * method.cost * (1 - this.getDiscount())), seconds: Math.round(plan.seconds * method.time) };
+    return { ...plan, cost: Math.round(plan.cost * method.cost * (1 - this.getDiscount())) };
   }
 
   act(act, id) {

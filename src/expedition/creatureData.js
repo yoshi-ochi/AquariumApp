@@ -195,11 +195,25 @@ export function distanceKm(a, b) {
 /** 立地の移転費用（最初の設定は無料）。水族館の規模（Lv）の2乗で増える：Lv1 2000万円〜Lv4 3.2億円 */
 export const relocateCost = (level) => 20_000_000 * level ** 2;
 
-/** 立地からの距離で費用と時間が増える（地球の反対側で最大3倍） */
+/**
+ * 遠征の所要時間（秒）は立地からの距離だけで決まる（採取地・漁法によらない）。
+ * 100km で5分、5000km で2時間、10000km で3時間。その間は直線で補い、10000km より先も同じ傾きで伸ばす。
+ */
+const TIME_BY_KM = [[0, 120], [100, 300], [5000, 7200], [10000, 10800]];
+export function travelSeconds(km) {
+  const pts = TIME_BY_KM;
+  let i = 1;
+  while (i < pts.length - 1 && km > pts[i][0]) i++;
+  const [k0, t0] = pts[i - 1];
+  const [k1, t1] = pts[i];
+  return Math.round(t0 + ((t1 - t0) * (km - k0)) / (k1 - k0));
+}
+
+/** 立地からの距離で費用（地球の反対側で最大3倍）と時間が増える */
 export function travelPlan(dest, home) {
   const km = distanceKm(home ?? DEFAULT_HOME, dest);
   const k = 1 + Math.min(km, 12000) / 6000;
-  return { km: Math.round(km), cost: Math.round(dest.cost * k), seconds: Math.round(dest.seconds * k) };
+  return { km: Math.round(km), cost: Math.round(dest.cost * k), seconds: travelSeconds(km) };
 }
 
 // ---- 同盟の合同調査（費用・必要レベルは supabase/alliance.sql と同じ値） ----------

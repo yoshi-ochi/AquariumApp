@@ -33,7 +33,7 @@ function perDay(id) {
       const usable = m ? d.pool.filter((x) => SPECIES_METHODS[x]?.includes(m.id)) : d.pool;
       const total = usable.reduce((s, x) => s + RARITY_WEIGHT[getCreature(x).rarity], 0);
       const share = RARITY_WEIGHT[getCreature(id).rarity] / total;
-      const trips = (ACTIVE_HOURS * 3600) / Math.max(trip * (m?.time ?? 1), CHECK_SEC) + 1; // 寝ている間に1回
+      const trips = (ACTIVE_HOURS * 3600) / Math.max(trip, CHECK_SEC) + 1; // 寝ている間に1回
       best = Math.max(best, TEAMS * trips * FISH_PER_TRIP * share);
     }
   }

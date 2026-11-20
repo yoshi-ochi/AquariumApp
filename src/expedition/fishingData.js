@@ -1,6 +1,6 @@
 /**
  * 漁法の教材データ。how: 仕組み、note: 資源管理や環境の視点、steps: 再現する作業の順序。
- * cost / time はその漁法を使うときの遠征費用・時間の倍率。steps の順番は fishingGear の動きと対応する。
+ * cost はその漁法を使うときの遠征費用の倍率（time は使わない。遠征の時間は距離だけで決まる）。steps の順番は fishingGear の動きと対応する。
  */
 const step = (title, text, sec = 4) => ({ title, text, sec });
 const m = (id, name, cost, time, how, note, steps) => ({ id, name, cost, time, how, note, steps });
