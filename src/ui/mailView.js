@@ -32,11 +32,14 @@ export class MailView {
     this.open = null;
     this.tab = 'system';
     this.last = null; // 報告タブで直前に受け取った結果 { got, released, trips }
+    this.lastAlly = null; // 同盟タブで直前にまとめて受け取った結果 { got, runs }
+    this.busy = false;
   }
 
   /** シートを開き直したとき：未読のあるタブを開き、前回の受け取り結果は消す */
   reset() {
     this.last = null;
+    this.lastAlly = null;
     this.open = null;
     const unread = TABS.find(([id]) => this.mailbox.items.some((m) => !m.read && TAB_OF(m.kind) === id));
     if (unread) this.tab = unread[0];
@@ -114,7 +117,7 @@ export class MailView {
     }).join('');
     const list = mb.items.filter((m) => TAB_OF(m.kind) === this.tab);
     const tools = list.length ? `<div class="ml-tools"><small>${list.length}件 ・ 未読 ${unread(this.tab)}件</small><button data-act="mail-read-all" ${unread(this.tab) ? '' : 'disabled'}>すべて既読</button><button data-act="mail-clear">既読を整理</button></div>` : '';
-    const top = this.tab === 'report' ? this._gift() : '';
+    const top = this.tab === 'report' ? this._gift() : this.tab === 'ally' ? this._allyGift() : '';
     const empty = {
       system: '1日の報告（評価・まとめ）や留守中の報告、水槽の掃除・エサやりの依頼が届きます。',
       report: '調査隊が帰還すると、採取結果がここに届きます。',
@@ -131,6 +134,49 @@ export class MailView {
     if (!ready.length) return result;
     const names = ready.map((t) => getDestination(t.dest).name).join('・');
     return `${result}<div class="st-sum gf-ready"><b>🎁 受け取れる採取結果 ${ready.length}件</b><small>${esc(names)}</small><button data-act="mail-gift-all" class="primary tv-wide">すべて受け取る</button></div>`;
+  }
+
+  /** 受け取り待ちの合同調査のメール */
+  get pendingRuns() {
+    return this.mailbox.items.filter((m) => m.kind === 'allyrun' && m.actionable && !m.done);
+  }
+
+  /** 同盟タブの上部：受け取れる合同調査の成果と、直前にまとめて受け取った結果 */
+  _allyGift() {
+    const runs = this.pendingRuns;
+    const result = this.lastAlly ? `<div class="st-sum gf-result"><b>🎁 合同調査 ${this.lastAlly.runs}件分を受け取りました</b>${catchBlocks(this.previews, this.lastAlly.got)}</div>` : '';
+    if (!runs.length) return result;
+    const names = [...new Set(runs.map((m) => m.title.replace(/^合同調査「(.+)」.*$/, '$1')))].join('・');
+    return `${result}<div class="st-sum gf-ready"><b>🎁 受け取れる合同調査の成果 ${runs.length}件</b><small>${esc(names)}</small><button data-act="mail-ally-all" class="primary tv-wide" ${this.busy ? 'disabled' : ''}>${this.busy ? '受け取り中…' : 'すべて受け取る'}</button></div>`;
+  }
+
+  /** 合同調査の成果をまとめて受け取る（サーバーへ1件ずつ確認する） */
+  async claimAllRuns(rerender) {
+    if (this.busy) return;
+    this.busy = true;
+    rerender?.();
+    const got = [];
+    let runs = 0;
+    try {
+      for (const m of this.pendingRuns) {
+        const list = await this.allianceView.claimRun(m.data.project, m.data.run, { quiet: true });
+        if (!list.length) {
+          this.mailbox.finish(m.id, '受け取り済みです');
+          continue;
+        }
+        got.push(...list);
+        runs++;
+      }
+    } catch (err) {
+      this.toast(err.message, { error: true });
+    } finally {
+      this.busy = false;
+    }
+    if (runs) {
+      this.lastAlly = { got: countIds(got), runs };
+      this.toast(`合同調査の成果を受け取りました：${label(got)}`, { duration: 4000 });
+    }
+    rerender?.();
   }
 
   _row(m) {
@@ -205,6 +251,7 @@ export class MailView {
     if (act === 'mail-read-all') return mb.items.forEach((m) => TAB_OF(m.kind) === this.tab && mb.read(m.id)), true;
     if (act === 'mail-clear') return mb.clearDone((m) => TAB_OF(m.kind) === this.tab), (this.open = null), true;
     if (act === 'mail-gift-all') return (this.last = this.claimTrips(this.readyTrips.map((t) => t.seed))), true;
+    if (act === 'mail-ally-all') return this.claimAllRuns(rerender), true;
     const m = mb.get(+id);
     if (!m) return true;
     if (act === 'mail-open') {

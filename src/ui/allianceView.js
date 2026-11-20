@@ -59,12 +59,12 @@ export class AllianceView {
   }
 
   /** 合同調査の成果を受け取る（同盟画面・メールの両方から） */
-  async claimRun(pid, runId) {
+  async claimRun(pid, runId, { quiet = false } = {}) {
     if (!(await this.api.claim(runId))) return [];
     const project = JOINT_PROJECTS.find((p) => p.id === pid);
     const got = rollReward(project, runId, this.online.user.id);
     got.forEach((c) => this.expeditions.discover(c));
-    this.toast(`発見：${got.map((c) => getCreature(c).name).join('、')}`, { duration: 4000 });
+    if (!quiet) this.toast(`発見：${got.map((c) => getCreature(c).name).join('、')}`, { duration: 4000 });
     const mail = this.mailbox?.items.find((m) => m.key === `allyrun:${runId}`);
     if (mail) {
       mail.data.got = countIds(got);
