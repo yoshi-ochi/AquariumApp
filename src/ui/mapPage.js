@@ -6,8 +6,8 @@ import { WorldMap } from '../map/worldMap.js';
  * ピンをタップすると onDest / onPlace を呼ぶ。
  */
 export class MapPage {
-  constructor({ el, getHome, getLevel, isTripDone, loadPlaces, onDest, onPlace, onHomeSet, onTrips, toast }) {
-    Object.assign(this, { el, getHome, getLevel, isTripDone, loadPlaces, onDest, onPlace, onHomeSet, onTrips, toast });
+  constructor({ el, getHome, getLevel, getMoveCost, isTripDone, loadPlaces, onDest, onPlace, onHomeSet, onTrips, toast }) {
+    Object.assign(this, { el, getHome, getLevel, getMoveCost, isTripDone, loadPlaces, onDest, onPlace, onHomeSet, onTrips, toast });
     this.picking = false;
     this.places = [];
     el.innerHTML = `<canvas id="map-canvas" aria-label="地図"></canvas>
@@ -76,12 +76,18 @@ export class MapPage {
     for (const p of this.places) if (p.lat != null) pins.push({ kind: p.kind, id: p.id, lat: p.lat, lon: p.lon, label: p.name });
     const home = this.getHome();
     if (home) pins.push({ kind: 'me', id: 'me', lat: home.lat, lon: home.lon, label: '自分の水族館' });
+    this.el.querySelector('[data-map=home]').textContent = home ? '立地を移転' : '立地を設定';
     this.map.setPins(pins);
   }
 
   _setPicking(on) {
     this.picking = on;
-    this.el.querySelector('#map-note').hidden = !on;
+    const note = this.el.querySelector('#map-note');
+    note.hidden = !on;
+    const moving = !!this.getHome();
+    note.textContent = moving
+      ? `移転先をタップしてください。移転費用 ¥${this.getMoveCost().toLocaleString('ja-JP')}（航海中の調査隊の残り時間も新しい距離に変わります）`
+      : '水族館を建てる場所をタップしてください（0.1度単位で公開されます。最初の設定は無料）';
     this.el.querySelector('[data-map=home]').classList.toggle('active', on);
   }
 

@@ -60,7 +60,7 @@ import { FishingScene } from './expedition/fishingScene.js';
 import { zoneOf } from './expedition/husbandry.js';
 import { isHungry } from './expedition/husbandry.js';
 import { allianceBonus, allianceLevel } from './expedition/creatureData.js';
-import { CREATURES } from './expedition/creatureData.js';
+import { CREATURES, DEFAULT_HOME, relocateCost } from './expedition/creatureData.js';
 import { setLevelSource } from './expedition/growth.js';
 import { buildCreature } from './expedition/creatureBuilder.js';
 import { TankView } from './ui/tankView.js';
@@ -732,10 +732,22 @@ async function boot() {
       expeditionView.focus = null;
       gameSheet.openPanel('expedition');
     },
+    getMoveCost: () => relocateCost(economy.stage.level),
     onHomeSet: async (p) => {
+      if (visiting) return toast('訪問中は立地を変えられません', { error: true });
+      const old = home;
+      if (old) {
+        // 移転は高額。確認してから支払う
+        const cost = relocateCost(economy.stage.level);
+        if (!economy.canAfford(cost)) return toast(`移転には ¥${cost.toLocaleString('ja-JP')} が必要です`, { error: true });
+        if (!confirm(`水族館の立地を移転しますか？\n費用 ¥${cost.toLocaleString('ja-JP')}\n航海中の調査隊の残り時間も、新しい距離に合わせて変わります。`)) return;
+        economy.spend(cost);
+      }
       home = p;
+      expeditions.rescaleTrips(old ?? DEFAULT_HOME, p);
       mapPage.refresh();
-      toast('立地を設定しました');
+      if (gameSheet.view === 'expedition') gameSheet.render();
+      toast(old ? '立地を移転しました。採取地までの時間と費用が変わります' : '立地を設定しました');
       if (online.user) await allianceApi.setLocation(p).catch((err) => console.error(err));
     },
   });

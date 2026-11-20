@@ -192,6 +192,9 @@ export function distanceKm(a, b) {
   return 12742 * Math.asin(Math.sqrt(h));
 }
 
+/** 立地の移転費用（最初の設定は無料）。水族館の規模（Lv）の2乗で増える：Lv1 2000万円〜Lv4 3.2億円 */
+export const relocateCost = (level) => 20_000_000 * level ** 2;
+
 /** 立地からの距離で費用と時間が増える（地球の反対側で最大3倍） */
 export function travelPlan(dest, home) {
   const km = distanceKm(home ?? DEFAULT_HOME, dest);

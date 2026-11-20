@@ -1,6 +1,6 @@
 import { mulberry32 } from '../tanks/random.js';
 import { levelOf, xpForLevel, xpPerFish, fishToNext, MAX_LEVEL } from './growth.js';
-import { getCreature, getDestination, RARITY_WEIGHT } from './creatureData.js';
+import { getCreature, getDestination, RARITY_WEIGHT, travelPlan } from './creatureData.js';
 import { SPECIES_METHODS } from './fishingData.js';
 
 /**
@@ -68,6 +68,17 @@ export class Expeditions extends EventTarget {
 
   depart(dest, seconds = dest.seconds, method = null, now = Date.now()) {
     this.trips.push({ dest: dest.id, method, doneAt: now + seconds * 1000, seed: Math.floor(Math.random() * 2 ** 31) });
+    this._emit();
+  }
+
+  /** 立地を移したとき、航海中の隊の残り時間を新しい距離に合わせる（帰還済みの隊はそのまま） */
+  rescaleTrips(from, to, now = Date.now()) {
+    for (const t of this.trips) {
+      if (this.isDone(t, now)) continue;
+      const d = getDestination(t.dest);
+      const ratio = travelPlan(d, to).seconds / travelPlan(d, from).seconds;
+      t.doneAt = now + Math.round((t.doneAt - now) * ratio);
+    }
     this._emit();
   }
 
