@@ -6,6 +6,7 @@ import { CORAL_BUILDERS } from './coralBuilder.js';
 import { MODULAR_BUILDERS } from './coralModular.js';
 import { buildSouvenirShop, buildCafe, buildResearchLab, buildBreedingTank, buildWaterPlant, buildCleanCenter, buildFreezer, buildLiveFeed, buildFoodPrep } from './facilityBuilder.js';
 import { buildAirstone } from './aeration.js';
+import { SEAWEED_BUILDERS } from './seaweedBuilder.js';
 import { buildPolyTank } from './polyTank.js';
 import { normalizeGrowth } from './growth.js';
 import { waterSurfaceMesh } from '../water/waterSurface.js';
@@ -395,5 +396,6 @@ const BUILDERS = {
   plants: buildPlants,
   ...CORAL_BUILDERS,
   ...MODULAR_BUILDERS,
+  ...SEAWEED_BUILDERS,
   airstone: buildAirstone,
 };

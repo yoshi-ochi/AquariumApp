@@ -335,7 +335,35 @@ export class Room {
     mesh.rotation.y = theta;
     mesh.receiveShadow = true;
     mesh.castShadow = true;
+    // カメラと注視点の間に入ったら低くする（updateOcclusion）
+    if (height > 1) mesh.userData.wall = { axis: run.axis, line: run.line, from: run.from, to: run.to, H };
     return mesh;
+  }
+
+  /**
+   * カメラと注視点（水槽など）の間をさえぎる壁を、床すれすれまで下げる（足元の線だけ残す）。離れたら元に戻す。
+   * 上から見下ろして壁の上を越える視線のときは下げない。
+   */
+  updateOcclusion(cam, target, dt) {
+    const LOW = 0.06;
+    const k = Math.min(1, dt * 8);
+    const dx = target.x - cam.x;
+    const dz = target.z - cam.z;
+    for (const m of this.built.children) {
+      const w = m.userData.wall;
+      if (!w) continue;
+      let block = false;
+      // 視線（XZ）が壁の線を横切る位置 t（0=カメラ、1=注視点）
+      const t = w.axis === 'x' ? (Math.abs(dz) > 1e-6 ? (w.line - cam.z) / dz : -1) : Math.abs(dx) > 1e-6 ? (w.line - cam.x) / dx : -1;
+      if (t > 0 && t < 0.97) {
+        const along = w.axis === 'x' ? cam.x + dx * t : cam.z + dz * t;
+        const y = cam.y + (target.y - cam.y) * t;
+        block = along >= w.from - 0.3 && along <= w.to + 0.3 && y < w.H + 0.2;
+      }
+      const want = block ? Math.min(1, LOW / w.H) : 1;
+      const s = m.scale.y + (want - m.scale.y) * k;
+      m.scale.y = Math.abs(s - want) < 0.002 ? want : s;
+    }
   }
 
   /** 外壁の外側に、埋め込み水槽を囲うコンクリートの箱（前面は壁の穴）を作る */

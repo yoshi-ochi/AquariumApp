@@ -871,7 +871,7 @@ async function boot() {
   goHome();
 
   // 開発時だけ：ブラウザのコンソールから状態を調べられるようにする
-  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions, ops, get life() { return life; }, snapshot, applySnapshot, get views() { return views; }, startNewAquarium };
+  if (import.meta.env.DEV) window.__app = { sceneMgr, manager, room, economy, inventory, expeditions, ops, get life() { return life; }, snapshot, applySnapshot, get views() { return views; }, startNewAquarium, openTank: (t) => openTank(t), get cameraCtl() { return cameraCtl; } };
 
   // ---- ループ ---------------------------------------------------------------
   /**
@@ -935,6 +935,7 @@ async function boot() {
     economy.update(dt, manager.totalAppeal() * (visiting ? 1 : ops.visitorMult * allyBonus() * life.visitorMult));
     views.update(dt);
     room.updateCut(sceneMgr.camera.position.distanceTo(cameraCtl.controls.target), dt);
+    room.updateOcclusion(sceneMgr.camera.position, cameraCtl.controls.target, dt);
     life.crowd.setVisible(views.mode === 'floor' && mode !== 'interior-edit' && mode !== 'tank' && !mapPage.isOpen);
     life.crowd.update(dt, economy.visitors, visiting ? 80 : ops.satisfaction);
     if (!visiting) ops.update(dt, opsContext, economy);

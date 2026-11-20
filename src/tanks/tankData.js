@@ -101,7 +101,19 @@ const DECOR_DEFS = [
   { id: 'plants', name: '海藻・水草', shape: 'plants', size: { w: 0.3, h: 0.25, d: 0.2 }, price: 2500, appeal: 0.8, growth: 'colony' },
 ].map((d) => ({ ...d, group: 'decor' }));
 
-export const INTERIOR_DEFS = [...ROCK_DEFS, ...CORAL_DEFS, ...MODULAR_CORAL_DEFS, ...DECOR_DEFS].map(withCategory(CATEGORY.INTERIOR));
+// 海藻・海草（seaweedBuilder.js）。日本の水族館の藻場・海中林・沖縄の展示でよく見られる種類
+const SEAWEED_DEFS = [
+  { id: 'amamo', name: 'アマモ', shape: 'amamo', size: { w: 0.3, h: 0.45, d: 0.2 }, price: 3000, appeal: 1, text: '砂地に群落をつくる海草。稚魚のゆりかご' },
+  { id: 'kajime', name: 'カジメ', shape: 'kajime', size: { w: 0.28, h: 0.4, d: 0.28 }, price: 4000, appeal: 1.4, text: '海中林をつくる褐藻' },
+  { id: 'kelp', name: 'ジャイアントケルプ', shape: 'kelp', size: { w: 0.35, h: 1.2, d: 0.35 }, price: 12000, appeal: 3, text: '浮き袋で立ち上がる大型の褐藻。背の高い水槽向け' },
+  { id: 'hondawara', name: 'ホンダワラ', shape: 'hondawara', size: { w: 0.26, h: 0.45, d: 0.26 }, price: 3500, appeal: 1.2, text: '丸い気胞を持つ褐藻。ガラモ場をつくる' },
+  { id: 'umibudou', name: 'ウミブドウ', shape: 'umibudou', size: { w: 0.3, h: 0.1, d: 0.2 }, price: 3000, appeal: 1.2, text: '粒状の小枝がブドウのように付く緑藻（クビレズタ）' },
+  { id: 'aosa', name: 'アオサ', shape: 'aosa', size: { w: 0.25, h: 0.1, d: 0.2 }, price: 1500, appeal: 0.6, text: '薄く波打つ明るい緑の緑藻' },
+  { id: 'tengusa', name: 'テングサ', shape: 'tengusa', size: { w: 0.18, h: 0.16, d: 0.18 }, price: 2000, appeal: 0.9, text: '細かく枝分かれする紅藻。寒天の原料' },
+  { id: 'umiuchiwa', name: 'ウミウチワ', shape: 'umiuchiwa', size: { w: 0.2, h: 0.12, d: 0.14 }, price: 2500, appeal: 1, text: '白い縞のある扇形の褐藻' },
+].map((d) => ({ ...d, group: 'seaweed' }));
+
+export const INTERIOR_DEFS = [...ROCK_DEFS, ...CORAL_DEFS, ...MODULAR_CORAL_DEFS, ...SEAWEED_DEFS, ...DECOR_DEFS].map(withCategory(CATEGORY.INTERIOR));
 
 /** カタログのタブ */
 export const GROUP_LABELS = {
@@ -109,7 +121,8 @@ export const GROUP_LABELS = {
   structure: '館内オブジェ',
   rock: 'ライブロック',
   coral: 'サンゴ',
-  decor: '流木・海藻',
+  seaweed: '海藻',
+  decor: '流木・水草',
 };
 export const groupOf = (def) => def.group ?? def.category;
 
