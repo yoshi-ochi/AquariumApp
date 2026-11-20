@@ -8,7 +8,16 @@ const today = (t = Date.now()) => {
   const d = new Date(t);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-const newDay = (date = today()) => ({ date, income: 0, peak: 0, trips: 0, cleans: 0, feeds: 0, caught: 0 });
+const newDay = (date = today()) => ({ date, income: 0, peak: 0, trips: 0, cleans: 0, feeds: 0, caught: 0, satSum: 0, satN: 0 });
+
+/** メールの種類 → 表示するタブ（system / report / ally） */
+export const TAB_OF = (kind) => (kind === 'trip' ? 'report' : kind === 'ally' || kind === 'allyrun' ? 'ally' : 'system');
+
+/** 1日の総合評価：お客さまの満足度の平均で決める */
+export function gradeOf(day) {
+  const sat = day.satN ? day.satSum / day.satN : 0;
+  return sat >= 90 ? 'S' : sat >= 75 ? 'A' : sat >= 60 ? 'B' : sat >= 40 ? 'C' : 'D';
+}
 
 export class Mailbox extends EventTarget {
   constructor() {
@@ -80,19 +89,25 @@ export class Mailbox extends EventTarget {
     this._emit();
   }
 
-  /** 既読で、指示の要らない（または済んだ）メールを消す */
-  clearDone() {
-    this.items = this.items.filter((m) => !m.read || (m.actionable && !m.done));
+  /** 既読で、指示の要らない（または済んだ）メールを消す。only でタブなどに絞る */
+  clearDone(only = () => true) {
+    this.items = this.items.filter((m) => !only(m) || !m.read || (m.actionable && !m.done));
     this._emit();
   }
 
   // ---- 1日の報告 ---------------------------------------------------------------
 
   /** 毎秒：その日の集計を進め、日付が変わっていたら前日の報告を届ける */
-  tickDay({ incomePerSec, visitors }, now = Date.now()) {
+  tickDay({ incomePerSec, visitors, satisfaction }, now = Date.now()) {
     if (this.day.date !== today(now)) this.closeDay(now);
     this.day.income += incomePerSec;
     this.day.peak = Math.max(this.day.peak, visitors);
+    // 満足度は1分ごとに記録する（評価の平均に使う）
+    if (Number.isFinite(satisfaction) && now - (this._satAt ?? 0) >= 60000) {
+      this._satAt = now;
+      this.day.satSum += satisfaction;
+      this.day.satN++;
+    }
   }
 
   /** 出来事を数える（trips / cleans / feeds / caught） */
@@ -107,8 +122,8 @@ export class Mailbox extends EventTarget {
     if (!d.income && !d.trips && !d.cleans && !d.feeds) return;
     const [, m, dd] = d.date.split('-').map(Number);
     this.add({
-      key: `daily:${d.date}`, kind: 'daily', title: `${m}月${dd}日の報告`,
-      body: '昨日の営業のまとめです。',
+      key: `daily:${d.date}`, kind: 'daily', title: `${m}月${dd}日の報告（評価・まとめ）`,
+      body: `${m}月${dd}日の営業の評価とまとめです。`,
       data: { ...d },
     });
   }

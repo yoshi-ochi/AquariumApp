@@ -1,5 +1,6 @@
 import { JOINT_PROJECTS, ALLIANCE_NEXT_XP, allianceLevel, allianceBonus, getCreature } from '../expedition/creatureData.js';
 import { mulberry32 } from '../tanks/random.js';
+import { countIds } from './catchBlocks.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
@@ -16,8 +17,8 @@ function rollReward(project, runId, userId) {
 
 /** 同盟水族館：加入・メンバー訪問・合同調査 */
 export class AllianceView {
-  constructor({ api, online, economy, expeditions, toast, onVisit, onChanged }) {
-    Object.assign(this, { api, online, economy, expeditions, toast, onVisit, onChanged });
+  constructor({ api, online, economy, expeditions, mailbox, toast, onVisit, onChanged }) {
+    Object.assign(this, { api, online, economy, expeditions, mailbox, toast, onVisit, onChanged });
     this.list = null;
     this.error = '';
     this.loading = false;
@@ -30,12 +31,49 @@ export class AllianceView {
     try {
       await this.api.refresh();
       this.list = this.api.state ? null : await this.api.list();
+      this.notifyRuns();
     } catch (err) {
       this.error = err.message;
     }
     this.loading = false;
     this.onChanged();
     rerender();
+  }
+
+  /** 同盟の活動をメール（同盟タブ）に記録する */
+  _log(title, body, extra = {}) {
+    this.mailbox?.add({ key: `ally:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`, kind: 'ally', title, body, ...extra });
+  }
+
+  /** 出資した合同調査が完了していたら、受け取りのメールを届ける */
+  notifyRuns() {
+    const st = this.api.state;
+    if (!st || !this.mailbox) return;
+    const now = new Date();
+    for (const r of st.runs) {
+      if (!r.done_at || new Date(r.done_at) > now || !st.contribs.some((c) => c.run_id === r.id && !c.claimed)) continue;
+      const p = JOINT_PROJECTS.find((x) => x.id === r.project);
+      if (!p) continue;
+      this.mailbox.add({ key: `allyrun:${r.id}`, kind: 'allyrun', title: `合同調査「${p.name}」が完了しました`, body: `同盟「${st.alliance.name}」で出資した合同調査が完了しました。成果を受け取ってください。`, data: { project: p.id, run: r.id }, actionable: true });
+    }
+  }
+
+  /** 合同調査の成果を受け取る（同盟画面・メールの両方から） */
+  async claimRun(pid, runId) {
+    if (!(await this.api.claim(runId))) return [];
+    const project = JOINT_PROJECTS.find((p) => p.id === pid);
+    const got = rollReward(project, runId, this.online.user.id);
+    got.forEach((c) => this.expeditions.discover(c));
+    this.toast(`発見：${got.map((c) => getCreature(c).name).join('、')}`, { duration: 4000 });
+    const mail = this.mailbox?.items.find((m) => m.key === `allyrun:${runId}`);
+    if (mail) {
+      mail.data.got = countIds(got);
+      this.mailbox.finish(mail.id, '成果を受け取りました');
+    } else {
+      this.mailbox?.add({ key: `allyrun:${runId}`, kind: 'allyrun', title: `合同調査「${project.name}」の成果を受け取りました`, body: '合同調査で見つかった生き物を受け取りました。', data: { project: pid, run: runId, got: countIds(got) } });
+    }
+    this.onChanged();
+    return got;
   }
 
   html() {
@@ -95,13 +133,18 @@ export class AllianceView {
       if (!name || name.length < 2) throw new Error('同盟の名前は2文字以上にしてください');
       await api.create(name);
       this.toast(`同盟「${name}」を設立しました`);
+      this._log(`同盟「${name}」を設立しました`, '盟主として同盟を設立しました。仲間を誘って合同調査に挑みましょう。');
     } else if (act === 'ally-join') {
       await api.join(id);
       this.toast('同盟に加入しました');
+      const name = api.state?.alliance?.name ?? this.list?.find((a) => a.id === id)?.name ?? '';
+      this._log(`同盟${name ? `「${name}」` : ''}に加入しました`, '同盟の仲間と合同調査に出資したり、仲間の水族館を訪問できます。');
     } else if (act === 'ally-leave') {
+      const name = api.state?.alliance?.name ?? '';
       await api.leave();
       this.list = await api.list();
       this.toast('同盟を脱退しました');
+      this._log(`同盟${name ? `「${name}」` : ''}を脱退しました`, '同盟から脱退しました。');
     } else if (act === 'ally-visit') {
       await this.onVisit(id, btn.dataset.name);
     } else if (act === 'ally-fund') {
@@ -112,17 +155,15 @@ export class AllianceView {
         const taken = await api.fund(pid, amount);
         if (taken < amount) this.economy.earn(amount - taken); // 目標額を超えた分は返金
         this.toast(`${yen(taken)} を出資しました`);
+        const p = JOINT_PROJECTS.find((x) => x.id === pid);
+        this._log(`合同調査「${p?.name ?? pid}」に出資しました`, `${yen(taken)} を出資しました。資金が集まると調査が始まります。`, { data: { amount: taken } });
       } catch (err) {
         this.economy.earn(amount);
         throw err;
       }
     } else if (act === 'ally-claim') {
       const [pid, runId] = id.split(':');
-      if (!(await api.claim(runId))) return;
-      const project = JOINT_PROJECTS.find((p) => p.id === pid);
-      const got = rollReward(project, runId, this.online.user.id);
-      got.forEach((c) => this.expeditions.discover(c));
-      this.toast(`発見：${got.map((c) => getCreature(c).name).join('、')}`, { duration: 4000 });
+      await this.claimRun(pid, runId);
     }
   }
 }
