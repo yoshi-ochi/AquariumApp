@@ -926,10 +926,15 @@ async function boot() {
   }
 
   const clock = new THREE.Clock();
+  let manual = false; // 開発用：録画中は時計を止め、frame() を外から1コマずつ呼ぶ
   sceneMgr.renderer.setAnimationLoop(() => {
     // 間取りを選んでいる間は裏の館内を描画しない
-    if (!$('layout-picker').hidden) return;
-    const dt = Math.min(clock.getDelta(), 0.1);
+    if (!$('layout-picker').hidden || manual) return;
+    frame(Math.min(clock.getDelta(), 0.1), clock.elapsedTime);
+  });
+  /** 1コマ分の更新と描画（dt: 前のコマからの秒、time: 経過秒） */
+  function frame(dt, time) {
+    clock.elapsedTime = time;
     updateViewShift();
     if (wallsDirty) refreshRoom();
     interiorCam.update(dt);
@@ -950,7 +955,8 @@ async function boot() {
     if (!visiting) ops.update(dt, opsContext, economy);
     customizer.update();
     sceneMgr.render();
-  });
+  }
+  if (import.meta.env.DEV) Object.assign(window.__app ?? {}, { frame, setManual: (v) => (manual = v), setMode: (m) => shell.setMode(m), goHome: () => goHome() });
 
   const wait = MIN_SPLASH_MS - (performance.now() - startedAt);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));

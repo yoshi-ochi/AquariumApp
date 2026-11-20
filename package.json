@@ -17,6 +17,7 @@
     "world-atlas": "^2.0.2"
   },
   "devDependencies": {
+    "mp4-muxer": "^5.2.2",
     "vite": "^5.4.10"
   }
 }
