@@ -90,6 +90,7 @@ export class Expeditions extends EventTarget {
       this.creatures[id] = this.count(id) + 1;
       kept.push(id);
     }
+    this.dispatchEvent(new CustomEvent('claimed', { detail: caught }));
     this._emit();
     return kept;
   }

@@ -494,3 +494,37 @@ body:not([data-view=floor]) #side-actions, body:not([data-view=floor]) #goal-car
 .cthumb > img { display: block; }
 .cstars { position: absolute; top: 2px; right: 2px; padding: 1px 3px; border-radius: 6px; background: rgba(10, 20, 30, .62); color: #ffc93c; font-size: 9px; font-style: normal; line-height: 1.2; letter-spacing: -1px; pointer-events: none; white-space: nowrap; }
 .zk-mode { grid-template-columns: repeat(2, 1fr); margin-bottom: 6px; }
+
+/* メール */
+.ml-tools { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ml-tools small { flex: 1; color: var(--muted, #6a7a86); }
+.ml-mail { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; background: #fff; overflow: hidden; }
+.ml-mail.open { border-color: #7fb8d8; }
+.ml-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 6px 10px; text-align: left; background: none; border: 0; border-radius: 0; font-weight: 400; }
+.ml-head.unread .ml-title { font-weight: 700; }
+.ml-head.unread::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #2f8fd0; }
+.ml-ico { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: #1f6f9c; background: #e6f2f9; }
+.ml-title { flex: 1; min-width: 0; font-size: 13px; line-height: 1.35; }
+.ml-head small { flex: none; color: #8a98a3; font-size: 11px; }
+.ml-todo { flex: none; padding: 1px 6px; border-radius: 8px; color: #fff; background: #e8862e; font-size: 10px; font-style: normal; font-weight: 700; }
+.ml-body { padding: 4px 12px 10px 50px; font-size: 13px; }
+.ml-body p { margin: 4px 0; }
+.ml-result { color: #2a7d4f; font-weight: 700; }
+.ml-dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 6px 0; }
+.ml-dl dt { color: #6a7a86; }
+.ml-dl dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#side-mail.has-mail { border-color: #e8862e; }
+@media (max-width: 420px) { .ml-body { padding-left: 12px; } }
+
+/* 採取結果のブロック（プレゼント・メール） */
+.cb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin: 6px 0; }
+.cb-cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 4px 4px 5px; background: #fff; border: 1px solid var(--border); border-radius: 10px; }
+.cb-cell .cthumb, .cb-cell .cthumb > img { width: 100%; }
+.cb-cell .cthumb > img { aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: #e6f2f9; }
+.cb-n { font-size: 16px; font-variant-numeric: tabular-nums; color: #1f6f9c; line-height: 1.1; }
+.cb-cell small { width: 100%; overflow: hidden; font-size: 10px; line-height: 1.2; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.cb-cell.gone { opacity: .55; }
+.cb-tag { position: absolute; top: 4px; left: 4px; padding: 0 4px; border-radius: 5px; color: #fff; background: #7a8690; font-size: 9px; font-style: normal; line-height: 1.5; }
+.gf-result { margin-bottom: 8px; }
+.gf-box { flex: none; font-size: 24px; line-height: 1; }
+#side-gift.has-gift { border-color: #f0b429; }

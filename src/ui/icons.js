@@ -1,5 +1,7 @@
 /** 線画アイコン（24×24、currentColor） */
 const P = {
+  gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8"/><path d="M12 8v12"/><path d="M12 8c-1.5-3-5-3.5-5-1.2C7 8.5 10 8 12 8zM12 8c1.5-3 5-3.5 5-1.2C17 8.5 14 8 12 8z"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5L12 13l8.5-6.5"/>',
   layout: '<path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/>',
   shop: '<path d="M4 10v10h16V10"/><path d="M2 10l2-6h16l2 6a3.3 3.3 0 0 1-6.7 0 3.3 3.3 0 0 1-6.6 0A3.3 3.3 0 0 1 2 10z"/><path d="M10 20v-5h4v5"/>',
   ally: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12c1.5-2 5-2 6.5 0-1.5 2-5 2-6.5 0z"/><path d="M15 12l2-1.5v3z"/>',

@@ -62,6 +62,8 @@ import { CREATURES } from './expedition/creatureData.js';
 import { buildCreature } from './expedition/creatureBuilder.js';
 import { TankView } from './ui/tankView.js';
 import { BuildView } from './ui/buildView.js';
+import { MailView } from './ui/mailView.js';
+import { GiftView } from './ui/giftView.js';
 import { BuildInPlace } from './interaction/buildInPlace.js';
 import { setCustomHandler, registerCustomIds } from './tanks/customTanks.js';
 import { tankLabel } from './tanks/tankLabel.js';
@@ -710,6 +712,22 @@ async function boot() {
       if (mode === 'tank' && focusTank) shell.setMode('tank', tankLabel(manager, focusTank));
     },
   });
+  const mailView = new MailView({ mailbox: life.mail, manager, expeditions, economy, ops, cleanView, careView: life.panels.care.view, previews, toast });
+  const giftView = new GiftView({ expeditions, mailView, previews });
+  expeditions.addEventListener('claimed', (e) => {
+    life.mail.count('trips');
+    life.mail.count('caught', e.detail.length);
+  });
+  const syncMailBadge = () => {
+    const n = life.mail.unread;
+    $('mail-badge').hidden = !n;
+    $('mail-badge').textContent = n > 99 ? '99+' : n;
+    $('side-mail').classList.toggle('has-mail', life.mail.pending > 0);
+  };
+  life.mail.addEventListener('change', () => {
+    syncMailBadge();
+    if (gameSheet.view === 'mail') gameSheet.render();
+  });
   const gameSheet = new GameSheet({
     el: $('game-sheet'), economy, inventory, expeditions, ops, previews, toast,
     panels: {
@@ -722,6 +740,8 @@ async function boot() {
       staff: { title: 'スタッフ', live: true, view: new StaffView({ ops }) },
       shop: { title: '店舗運営', live: true, view: new ShopView({ ops, economy, inventory, onPlace: (id) => { gameSheet.close(); mapPage.close(); if (mode !== 'hall-edit') enterHallEdit(); hall.startPlacement(id); } }) },
       ...life.panels,
+      mail: { title: 'メール', live: true, view: mailView },
+      gift: { title: 'プレゼント（採取結果）', view: giftView },
       zones: {
         title: '館内エリア',
         view: new ZoneView({
@@ -775,7 +795,9 @@ async function boot() {
       if (wasOpen !== `feature:${id}`) gameSheet.openFeature(id);
     },
   });
-  for (const [btn, id, ic] of [['side-clean', 'clean', 'clean'], ['side-care', 'care', 'care'], ['side-zukan', 'zukan', 'zukan'], ['side-staff', 'staff', 'staff']]) {
+  // 開き直したときは前回の受け取り結果を消す（下の開閉処理より先に動かす）
+  $('side-gift').addEventListener('click', () => giftView.reset(), true);
+  for (const [btn, id, ic] of [['side-gift', 'gift', 'gift'], ['side-mail', 'mail', 'mail'], ['side-clean', 'clean', 'clean'], ['side-care', 'care', 'care'], ['side-zukan', 'zukan', 'zukan'], ['side-staff', 'staff', 'staff']]) {
     $(btn).querySelector('.sa-ico').innerHTML = icon(ic, 24);
     $(btn).addEventListener('click', () => {
       if (visiting) return;
@@ -801,7 +823,16 @@ async function boot() {
     for (const id of inventory.collect()) toast(`外注の ${getDef(id).name} が完成しました`);
     $('nav-map').classList.toggle('has-badge', expeditions.trips.some((t) => expeditions.isDone(t)));
     mapPage.refresh();
-    for (const t of finishCleaning(manager.tanks)) toast(`${tankLabel(manager, t)} の掃除が終わりました`);
+    for (const t of finishCleaning(manager.tanks)) {
+      toast(`${tankLabel(manager, t)} の掃除が終わりました`);
+      life.mail.count('cleans');
+    }
+    mailView.scan();
+    const gifts = giftView.ready.length;
+    $('gift-badge').hidden = !gifts;
+    $('gift-badge').textContent = gifts;
+    $('side-gift').classList.toggle('has-gift', gifts > 0);
+    life.mail.tickDay(economy);
     const dirty = manager.tanks.filter((t) => needsCleaning(t)).length;
     $('clean-badge').hidden = !dirty;
     $('clean-badge').textContent = dirty;

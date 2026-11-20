@@ -7,6 +7,7 @@ import { BackyardView } from '../building/buildingViews.js';
 import { Crowd } from '../visitors/crowd.js';
 import { CareView, EventView, ZukanView } from './lifeViews.js';
 import { EVENTS, GOALS, OFFLINE_MAX_HOURS, OFFLINE_RATE } from './gameData.js';
+import { Mailbox } from './mailbox.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
 const emptyState = () => ({ goals: [], flags: {}, zukan: [], event: null, cooldown: {} });
@@ -16,6 +17,7 @@ export class LifeSystems {
   constructor({ sceneMgr, room, manager, economy, ops, inventory, expeditions, previews, toast, getHome, goalEl, reportEl, isUnlocked }) {
     Object.assign(this, { manager, economy, ops, inventory, expeditions, toast, getHome, goalEl, reportEl });
     this.state = emptyState();
+    this.mail = new Mailbox();
     this.crowd = new Crowd({ scene: sceneMgr.scene, room, manager });
     this.backyard = new Backyard({ manager, ops, economy, expeditions, toast, isUnlocked });
     expeditions.getCapacity = () => this.backyard.capacity;
@@ -101,7 +103,7 @@ export class LifeSystems {
 
   // ---- 閉じていた間の収入 ------------------------------------------------------
 
-  /** 前回の保存からの経過時間ぶんの収入を受け取り、報告を表示する */
+  /** 前回の保存からの経過時間ぶんの収入を計算し、受け取りのメールを届ける */
   settleOffline(savedAt, visitorMult) {
     const away = (Date.now() - Date.parse(savedAt)) / 1000;
     if (!(away >= 300)) return;
@@ -110,26 +112,28 @@ export class LifeSystems {
     const income = visitors * INCOME_PER_VISITOR * secs * OFFLINE_RATE;
     const wages = this.ops.wages * secs * OFFLINE_RATE;
     const net = Math.max(0, Math.floor(income - wages));
-    this.economy.earn(net);
     const h = Math.floor(away / 3600);
     const m = Math.floor((away % 3600) / 60);
-    this.reportEl.innerHTML = `<h3>留守中の報告</h3><p>${h ? `${h}時間` : ''}${m}分の営業結果です。</p>
-      <dl><dt>来館者</dt><dd>${visitors.toLocaleString('ja-JP')}人</dd><dt>入館料</dt><dd>${yen(income)}</dd><dt>賃金</dt><dd>−${yen(wages)}</dd><dt>受け取り</dt><dd><b>${yen(net)}</b></dd></dl>
-      ${away > OFFLINE_MAX_HOURS * 3600 ? `<small>計算されるのは最大${OFFLINE_MAX_HOURS}時間までです。</small>` : ''}<button class="primary">受け取る</button>`;
-    this.reportEl.hidden = false;
+    this.mail.add({
+      key: `offline:${savedAt}`, kind: 'offline', title: '留守中の報告', actionable: net > 0,
+      body: `${h ? `${h}時間` : ''}${m}分の営業結果です。${net > 0 ? '収入を受け取ってください。' : ''}`,
+      data: { visitors, income: Math.floor(income), wages: Math.floor(wages), net, capped: away > OFFLINE_MAX_HOURS * 3600 ? OFFLINE_MAX_HOURS : 0 },
+    });
+    this.toast('留守中の報告がメールで届きました');
   }
 
   // ---- 保存 ------------------------------------------------------------------
 
   toJSON() {
-    return { ...this.state, backyard: this.backyard.toJSON() };
+    return { ...this.state, backyard: this.backyard.toJSON(), mail: this.mail.toJSON() };
   }
 
   /** 読み込み。旧データの「開店済み店舗」は設置待ちの在庫に変換する */
   fromJSON(data, { own, oldShops = 0 } = {}) {
-    const { backyard, ...rest } = data ?? {};
+    const { backyard, mail, ...rest } = data ?? {};
     Object.assign(this.state, emptyState(), rest);
     this.backyard.fromJSON(backyard);
+    this.mail.fromJSON(own ? mail : null); // 訪問先のメールは読まない
     this._goalKey = null;
     if (!own) return;
     for (const t of this.manager.tanks) for (const id of Object.keys(t.userData.creatures ?? {})) this.expeditions.markSeen(id);
