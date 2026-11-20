@@ -135,6 +135,23 @@ export class Online {
     this.profile.name = name;
   }
 
+  // ---- ランキング（supabase/ranking.sql） ---------------------------------------
+
+  /** 総合レベルを送る。ランキング用の SQL がまだ無いときは送らずに済ませる */
+  async submitScore(score, species) {
+    if (!this.user || this.noRanking) return;
+    const { error } = await this.sb.rpc('submit_score', { p_score: score, p_species: species });
+    if (error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message))) this.noRanking = true;
+    else if (error) throw new Error(ja(error.message));
+  }
+
+  /** 上位100人と自分の順位 */
+  async ranking() {
+    const [top, mine] = await Promise.all([this.sb.rpc('top_ranking', { p_limit: 100 }), this.sb.rpc('my_rank')]);
+    if (top.error && (top.error.code === 'PGRST202' || /could not find the function/i.test(top.error.message))) throw new Error('ランキングは準備中です');
+    return { rows: this._check(top), rank: mine.error ? null : mine.data };
+  }
+
   // ---- セーブ ----------------------------------------------------------------
 
   /** 前回の読込・保存以降に別の端末が更新していたら SaveConflict。force なら上書き */

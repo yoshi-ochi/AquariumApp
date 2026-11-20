@@ -3,6 +3,7 @@ import { creatureGrid, qtyPanel, updateQty, creatureInfo } from './creatureGrid.
 import { tankLabel } from '../tanks/tankLabel.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { CREATURES, RARITY, getCreature, getDestination, travelPlan } from '../expedition/creatureData.js';
+import { xpPerFish, progressOf, sizeOf, MAX_LEVEL } from '../expedition/growth.js';
 import { tankCapacity, usedCapacity, syncLife } from '../expedition/tankLife.js';
 import { getMethod, methodsAt } from '../expedition/fishingData.js';
 
@@ -128,15 +129,16 @@ export class CreatureView {
   _list() {
     const ex = this.expeditions;
     const cafe = this.hasCafe();
-    const items = CREATURES.filter((c) => ex.count(c.id) > 0).map((c) => ({ id: c.id, n: ex.count(c.id) }));
+    const items = CREATURES.filter((c) => ex.count(c.id) > 0).map((c) => ({ id: c.id, n: ex.count(c.id), lv: ex.level(c.id) }));
     if (this.sel && !ex.count(this.sel)) this.sel = null;
     let panel = '';
     if (this.sel) {
       const c = getCreature(this.sel);
       const n = ex.count(c.id);
       panel = qtyPanel({
-        title: c.name, info: creatureInfo(c.id, `所持 ${n}`), max: n, qty: this.qty,
+        title: c.name, info: creatureInfo(c.id, `所持 ${n}`), max: n, qty: this.qty, extra: this._growBar(c.id),
         buttons: [
+          { act: 'grow', id: `${c.id}:{n}`, label: '{n}匹で成長 +{xp}', xp: xpPerFish(c.id), disabled: ex.level(c.id) >= MAX_LEVEL },
           { act: 'pick', id: `${c.id}:{n}`, label: '{n}匹 水槽に展示', primary: true },
           { act: 'release', id: `${c.id}:{n}`, label: '{n}匹 放流' },
           { act: 'dish', id: `${c.id}:{n}`, label: '{n}匹 食堂で提供 {yen}', unit: dishPrice(c), disabled: !cafe },
@@ -151,6 +153,25 @@ export class CreatureView {
       ),
     );
     return `${note}${owned.join('') || '<p class="gs-empty">生物を持っていません。採取遠征で捕まえましょう。</p>'}${shown.length ? `<h4 class="gs-sub">展示中</h4>${shown.join('')}` : ''}`;
+  }
+
+  /** 成長のレベルと次のレベルまでの進み具合 */
+  _growBar(id) {
+    const p = progressOf(this.expeditions.xp[id] ?? 0);
+    const size = Math.round(sizeOf(p.lv) * 100);
+    const rest = p.need ? `次まで ${(p.need - p.have).toLocaleString('ja-JP')} ・ 1匹 +${xpPerFish(id).toLocaleString('ja-JP')}` : '最大レベル';
+    return `<div class="cg-grow"><b>Lv ${p.lv}</b><div class="mo-bar"><span style="width:${p.need ? (p.have / p.need) * 100 : 100}%"></span></div><small>体の大きさ ${size}% ・ ${rest}</small></div>`;
+  }
+
+  /** 同じ魚種を使って成長させる。展示中の同じ魚種も大きくなる */
+  _grow(key) {
+    const [id, n] = key.split(':');
+    const r = this.expeditions.grow(id, Math.min(Number(n) || 1, this.expeditions.count(id)));
+    if (!r) return;
+    for (const t of this._tanks) if (t.userData.creatures?.[id]) syncLife(t);
+    this.qty = 1;
+    this.toast(r.to > r.from ? `${getCreature(id).name} が Lv${r.to} に成長しました！` : `${getCreature(id).name} に経験値 +${r.gained.toLocaleString('ja-JP')}`);
+    this.onChanged();
   }
 
   _picker() {
@@ -184,6 +205,7 @@ export class CreatureView {
     else if (act === 'show') this._show(+id);
     else if (act === 'unshow') this._unshow(id);
     else if (act === 'release' || act === 'dish') this._letGo(act, id);
+    else if (act === 'grow') this._grow(id);
     else return false;
     return true;
   }

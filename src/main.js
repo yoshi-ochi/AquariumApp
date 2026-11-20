@@ -60,11 +60,13 @@ import { zoneOf } from './expedition/husbandry.js';
 import { isHungry } from './expedition/husbandry.js';
 import { allianceBonus, allianceLevel } from './expedition/creatureData.js';
 import { CREATURES } from './expedition/creatureData.js';
+import { setLevelSource } from './expedition/growth.js';
 import { buildCreature } from './expedition/creatureBuilder.js';
 import { TankView } from './ui/tankView.js';
 import { BuildView } from './ui/buildView.js';
 import { MailView } from './ui/mailView.js';
 import { Tutorial } from './ui/tutorial.js';
+import { RankingView } from './ui/rankingView.js';
 import { BuildInPlace } from './interaction/buildInPlace.js';
 import { setCustomHandler, registerCustomIds } from './tanks/customTanks.js';
 import { tankLabel } from './tanks/tankLabel.js';
@@ -98,6 +100,7 @@ async function boot() {
   const economy = new Economy();
   const inventory = new Inventory();
   const expeditions = new Expeditions();
+  setLevelSource((id) => expeditions.level(id)); // 展示の大きさ・集客は在庫側のレベルで決める
   const ops = new Operations();
   let home = null; // 自分の立地 { lat, lon }
   const manager = new TankManager(sceneMgr.scene);
@@ -667,6 +670,10 @@ async function boot() {
     sceneMgr, room, manager, economy, ops, inventory, expeditions, previews, toast,
     getHome: () => home, goalEl: $('goal-card'), reportEl: $('offline-report'),
   });
+  // 総合レベルのランキング（イベント画面のタブ）。点数は5分ごとに送る
+  const rankingView = new RankingView({ manager, expeditions, online, previews, isVisiting: () => !!visiting, onLoaded: () => gameSheet.view === 'event' && gameSheet.render() });
+  life.panels.event.view.ranking = rankingView;
+  setInterval(() => document.visibilityState === 'visible' && rankingView.submit().catch((err) => console.warn(err.message)), 300000);
   const tutorial = new Tutorial({ getState: () => life.state, getStats: () => life.stats(), economy, toast });
   $('btn-tutorial').addEventListener('click', () => {
     shell.toggleMenu(false);

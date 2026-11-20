@@ -1,4 +1,5 @@
 import { mulberry32 } from '../tanks/random.js';
+import { levelOf, xpForLevel, xpPerFish, MAX_LEVEL } from './growth.js';
 import { getCreature, getDestination, RARITY_WEIGHT } from './creatureData.js';
 import { SPECIES_METHODS } from './fishingData.js';
 
@@ -17,6 +18,7 @@ export class Expeditions extends EventTarget {
     this.extraTeams = 0;
     this.creatures = {};
     this.seen = {}; // 図鑑：これまでに手に入れた数
+    this.xp = {}; // 成長：魚種ごとの累計経験値
     this.getCapacity = () => Infinity;
     this.released = []; // 満杯で放流した生き物（直前の受け取り分）
   }
@@ -102,13 +104,29 @@ export class Expeditions extends EventTarget {
     return true;
   }
 
+  /** 魚種のレベル（1〜999） */
+  level(id) {
+    return levelOf(this.xp[id] ?? 0);
+  }
+
+  /** 在庫の同じ魚種 n 匹を成長に使う。{ from, to, gained } を返す（使えなければ null） */
+  grow(id, n = 1) {
+    if (n < 1 || this.count(id) < n || this.level(id) >= MAX_LEVEL) return null;
+    const from = this.level(id);
+    const gained = xpPerFish(id) * n;
+    this.creatures[id] -= n;
+    this.xp[id] = Math.min(xpForLevel(MAX_LEVEL), (this.xp[id] ?? 0) + gained);
+    this._emit();
+    return { from, to: this.level(id), gained };
+  }
+
   give(id, n = 1) {
     this.creatures[id] = this.count(id) + n;
     this._emit();
   }
 
   toJSON() {
-    return { extraTeams: this.extraTeams, trips: this.trips.map((t) => ({ ...t })), creatures: { ...this.creatures }, seen: { ...this.seen } };
+    return { extraTeams: this.extraTeams, trips: this.trips.map((t) => ({ ...t })), creatures: { ...this.creatures }, seen: { ...this.seen }, xp: { ...this.xp } };
   }
 
   fromJSON(data) {
@@ -116,6 +134,7 @@ export class Expeditions extends EventTarget {
     this.trips = Array.isArray(data?.trips) ? data.trips.filter((t) => getDestination(t.dest)).map((t) => ({ ...t })) : [];
     this.creatures = { ...(data?.creatures ?? {}) };
     this.seen = { ...(data?.seen ?? {}) };
+    this.xp = { ...(data?.xp ?? {}) };
     for (const [id, n] of Object.entries(this.creatures)) if (n > 0) this.markSeen(id);
     this._emit();
   }

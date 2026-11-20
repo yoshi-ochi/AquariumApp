@@ -611,3 +611,16 @@ body.sheet-full #view-rail, body.sheet-full #side-actions, body.sheet-full #goal
 .tt-acts .tt-skip { margin-right: auto; color: var(--muted); background: none; border: none; }
 .tt-acts em + button, .tt-acts .tt-skip + button { margin-left: auto; }
 body.tutorial-on #goal-card { display: none; }
+
+/* ---- 成長（魚種ごとのレベル） ---- */
+.cg-lv { position: absolute; left: 6px; top: 22px; padding: 0 4px; border-radius: 6px; color: #0f3550; background: var(--gold); font-size: 10px; font-style: normal; font-weight: 800; line-height: 1.5; }
+.cg-grow { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 8px; margin: 6px 0; }
+.cg-grow b { font-size: 15px; color: #1f6f9c; }
+.cg-grow .mo-bar { margin: 0; }
+.cg-grow small { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
+.rk-row { display: grid; grid-template-columns: 40px 1fr auto auto; align-items: center; gap: 8px; padding: 8px 10px; background: #fff; border-bottom: 1px solid var(--border); font-size: 13px; }
+.rk-row b { color: #1f6f9c; text-align: right; }
+.rk-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-row small { color: var(--muted); font-size: 11px; }
+.rk-row em { font-style: normal; font-weight: 800; }
+.rk-row.me { background: #fff4d6; }

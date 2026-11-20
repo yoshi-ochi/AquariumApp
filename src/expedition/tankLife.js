@@ -4,6 +4,7 @@ import { mulberry32 } from '../tanks/random.js';
 import { getCreature } from './creatureData.js';
 import { buildCreature } from './creatureBuilder.js';
 import { BENTHIC_FORMS, STATIONARY_FORMS } from './creatureSoft.js';
+import { speciesLevel, sizeOf, appealOf } from './growth.js';
 
 /** 水槽内の展示生物：収容枠の計算、モデルの同期、遊泳アニメーション */
 const LIFE = 'life';
@@ -23,7 +24,8 @@ export function tankCapacity(def) {
 const sumBy = (tank, key) => Object.entries(tank.userData.creatures ?? {}).reduce((s, [id, n]) => s + (getCreature(id)?.[key] ?? 0) * n, 0);
 export const usedCapacity = (tank) => sumBy(tank, 'slots');
 /** 同じ種を増やすほど1匹あたりの魅力は少しずつ下がる（群れは見栄えするが青天井にはしない） */
-export const lifeAppeal = (tank) => Object.entries(tank.userData.creatures ?? {}).reduce((s, [id, n]) => s + (getCreature(id)?.appeal ?? 0) * n ** 0.75, 0);
+/** 育った魚種ほど集客力が上がる（growth.js） */
+export const lifeAppeal = (tank) => Object.entries(tank.userData.creatures ?? {}).reduce((s, [id, n]) => s + (getCreature(id)?.appeal ?? 0) * n ** 0.75 * appealOf(speciesLevel(id)), 0);
 /** 混み具合（1 を超えると過密） */
 export const crowding = (tank, def) => usedCapacity(tank) / tankCapacity(def);
 
@@ -58,7 +60,7 @@ export function syncLife(tank) {
     for (let i = 0; i < shown; i++) {
       const fish = buildCreature(c);
       const rand = mulberry32(tank.userData.uid * 131 + index++ * 977);
-      const scale = Math.min(1, room / c.len);
+      const scale = Math.min(1, room / c.len) * sizeOf(speciesLevel(id)); // 大きな生物は水槽に収め、レベルに応じて育つ
       fish.scale.setScalar(scale);
       const margin = (c.len * scale) / 2;
       const ax = Math.max(0.01, (box.hx - margin) * (0.45 + rand() * 0.55));

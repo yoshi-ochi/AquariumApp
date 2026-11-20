@@ -7,14 +7,14 @@ const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
 /**
  * 生き物を4列のアイコンで並べる（種類が多くても一覧しやすい）。
  * タップで選ぶと、その行のすぐ下に操作カード（panel）を差し込む。カードの吹き出しの先が選んだアイコンを指す。
- *   items: [{ id, n }]（n は所持数など、アイコンの左上に ×n で出す）
+ *   items: [{ id, n, lv? }]（n は所持数など、アイコンの左上に ×n で出す。lv は成長レベル）
  */
 export function creatureGrid(previews, items, { sel = null, panel = '' } = {}) {
   const at = items.findIndex((it) => it.id === sel);
   const out = [];
-  items.forEach(({ id, n }, i) => {
+  items.forEach(({ id, n, lv }, i) => {
     const c = getCreature(id);
-    out.push(`<button class="cg-cell ${sel === id ? 'sel' : ''}" data-act="cg-pick" data-id="${id}" aria-label="${c?.name ?? id} ${n}匹" aria-expanded="${sel === id}">${creatureThumb(previews, id)}<i class="cg-n">×${n}</i><small>${c?.name ?? id}</small></button>`);
+    out.push(`<button class="cg-cell ${sel === id ? 'sel' : ''}" data-act="cg-pick" data-id="${id}" aria-label="${c?.name ?? id} ${n}匹" aria-expanded="${sel === id}">${creatureThumb(previews, id)}<i class="cg-n">×${n}</i>${lv ? `<i class="cg-lv">Lv${lv}</i>` : ''}<small>${c?.name ?? id}</small></button>`);
     // 選んだアイコンの行の最後（または一覧の最後）にカードを入れる
     const rowEnd = Math.min(items.length - 1, Math.floor(at / COLS) * COLS + COLS - 1);
     if (at >= 0 && panel && i === rowEnd) {
@@ -28,12 +28,12 @@ export function creatureGrid(previews, items, { sel = null, panel = '' } = {}) {
 /**
  * 操作カードの中身：名前と説明、数の選択（−・スライダー・＋・数・最大）、操作ボタン。
  * buttons: [{ act, id, label, unit?, primary?, disabled? }]
- *   id と label の {n} は選んだ数、{yen} は unit×数 の金額に置き換わる（スライダーを動かすとその場で更新）
+ *   id と label の {n} は選んだ数、{yen} は unit×数 の金額、{xp} は xp×数 の経験値に置き換わる（スライダーを動かすとその場で更新）
  */
-export function qtyPanel({ title, info = '', max, qty, buttons, field = 'cg-qty' }) {
+export function qtyPanel({ title, info = '', extra = '', max, qty, buttons, field = 'cg-qty' }) {
   const n = Math.max(1, Math.min(qty, max));
-  const fill = (s, b) => s.replaceAll('{n}', n).replaceAll('{yen}', yen((b.unit ?? 0) * n));
-  const btns = buttons.map((b) => `<button data-act="${b.act}" data-id="${fill(b.id, b)}" data-idtpl="${b.id}" data-tpl="${b.label}" data-unit="${b.unit ?? 0}" class="${b.primary ? 'primary' : ''}" ${b.disabled ? 'disabled' : ''}>${fill(b.label, b)}</button>`);
+  const fill = (s, b) => s.replaceAll('{n}', n).replaceAll('{yen}', yen((b.unit ?? 0) * n)).replaceAll('{xp}', ((b.xp ?? 0) * n).toLocaleString('ja-JP'));
+  const btns = buttons.map((b) => `<button data-act="${b.act}" data-id="${fill(b.id, b)}" data-idtpl="${b.id}" data-tpl="${b.label}" data-unit="${b.unit ?? 0}" data-xp="${b.xp ?? 0}" class="${b.primary ? 'primary' : ''}" ${b.disabled ? 'disabled' : ''}>${fill(b.label, b)}</button>`);
   const stepper = max > 1
     ? `<div class="cg-step">
         <button data-act="cg-qty" data-id="${Math.max(1, n - 1)}" aria-label="1つ減らす" ${n <= 1 ? 'disabled' : ''}>−</button>
@@ -43,7 +43,7 @@ export function qtyPanel({ title, info = '', max, qty, buttons, field = 'cg-qty'
         <button data-act="cg-qty" data-id="${max}" class="cg-max" aria-label="最大" ${n >= max ? 'disabled' : ''}>最大</button>
       </div>`
     : '';
-  return `<div class="cg-head"><b>${title}</b>${info ? `<small>${info}</small>` : ''}</div>${stepper}<div class="cg-acts">${btns.join('')}</div>`;
+  return `<div class="cg-head"><b>${title}</b>${info ? `<small>${info}</small>` : ''}</div>${extra}${stepper}<div class="cg-acts">${btns.join('')}</div>`;
 }
 
 /** スライダーを動かしたとき：再描画せずに数と、ボタンの文字・対象の数を更新する */
@@ -61,7 +61,7 @@ export function updateQty(el) {
   plus.disabled = n >= max;
   top.disabled = n >= max;
   pop.querySelectorAll('.cg-acts button[data-tpl]').forEach((b) => {
-    const fill = (s) => s.replaceAll('{n}', n).replaceAll('{yen}', yen(Number(b.dataset.unit) * n));
+    const fill = (s) => s.replaceAll('{n}', n).replaceAll('{yen}', yen(Number(b.dataset.unit) * n)).replaceAll('{xp}', (Number(b.dataset.xp) * n).toLocaleString('ja-JP'));
     b.textContent = fill(b.dataset.tpl);
     b.dataset.id = fill(b.dataset.idtpl);
   });

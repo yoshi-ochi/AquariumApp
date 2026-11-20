@@ -117,6 +117,8 @@ export class ZukanView {
 export class EventView {
   constructor({ economy, state, monthly, previews, getStats, toast, onStart }) {
     Object.assign(this, { economy, state, monthly, previews, getStats, toast, onStart });
+    this.ranking = null; // RankingView（main で設定）
+    this.tab = 'event';
   }
 
   /** 報酬は水族館の規模に合わせて増やす（Lv1 で1倍） */
@@ -159,10 +161,18 @@ export class EventView {
       const note = lack || (cool > 0 ? `次の開催まで ${span(cool / 1000)}` : `${e.minutes}分間 ・ 来館者 ${e.mult}倍`);
       return `<div class="gs-row"><div class="gs-info"><b>${e.name}</b><small>${e.text}</small><small>${note}</small></div><button data-act="event-start" data-id="${e.id}" class="primary" ${ok ? '' : 'disabled'}>${yen(e.cost)}</button></div>`;
     });
-    return this._monthlyHtml() + head + rows.join('');
+    const tabs = this.ranking ? `<div class="sp-seg zk-mode"><button data-act="ev-tab" data-id="event" class="${this.tab === 'rank' ? '' : 'active'}">特集・イベント</button><button data-act="ev-tab" data-id="rank" class="${this.tab === 'rank' ? 'active' : ''}">ランキング</button></div>` : '';
+    if (this.ranking && this.tab === 'rank') return tabs + this.ranking.html();
+    return tabs + this._monthlyHtml() + head + rows.join('');
   }
 
   act(act, id) {
+    if (act === 'ev-tab') {
+      this.tab = id === 'rank' ? 'rank' : 'event';
+      if (this.tab === 'rank') this.ranking?.load();
+      return true;
+    }
+    if (this.ranking?.act(act, id)) return true;
     if (act === 'mo-claim') {
       const got = this.monthly.claim(id, this.scale);
       if (got) {
