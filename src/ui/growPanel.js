@@ -1,5 +1,5 @@
 import { getCreature } from '../expedition/creatureData.js';
-import { xpPerFish, progressOf, sizeOf, MAX_LEVEL } from '../expedition/growth.js';
+import { progressOf, fishToNext, sizeOf, MAX_LEVEL } from '../expedition/growth.js';
 import { syncLife } from '../expedition/tankLife.js';
 import { qtyPanel, creatureInfo } from './creatureGrid.js';
 
@@ -10,9 +10,9 @@ export const shownCount = (manager, id) => manager.tanks.reduce((s, t) => s + (t
 
 /** レベルと次のレベルまでのバー */
 export function growBar(expeditions, id) {
-  const p = progressOf(expeditions.xp[id] ?? 0);
+  const p = progressOf(id, expeditions.xp[id] ?? 0);
   const size = Math.round(sizeOf(p.lv) * 100);
-  const rest = p.need ? `次まで ${num(p.need - p.have)} ・ 1匹 +${num(xpPerFish(id))}` : '最大レベル';
+  const rest = p.need ? `あと ${num(p.need - p.have)}匹で Lv${p.lv + 1}` : '最大レベル';
   return `<div class="cg-grow"><b>Lv ${p.lv}</b><div class="mo-bar"><span style="width:${p.need ? (p.have / p.need) * 100 : 100}%"></span></div><small>体の大きさ ${size}% ・ ${rest}</small></div>`;
 }
 
@@ -32,7 +32,7 @@ export function growPanel({ expeditions, manager, id, qty, note = '' }) {
   }
   return qtyPanel({
     title: c.name, info, extra, max: have, qty,
-    buttons: [{ act: 'zk-grow', id: `${id}:{n}`, label: '{n}匹で成長させる +{xp}', xp: xpPerFish(id), primary: true }],
+    buttons: [{ act: 'zk-grow', id: `${id}:{n}`, label: '{n}匹で成長させる', primary: true }],
   });
 }
 
@@ -43,6 +43,7 @@ export function growSpecies({ expeditions, manager, toast }, key) {
   if (!r) return false;
   for (const t of manager.tanks) if (t.userData.creatures?.[id]) syncLife(t);
   const name = getCreature(id).name;
-  toast(r.to > r.from ? `${name} が Lv${r.to} に成長しました！` : `${name} に経験値 +${num(r.gained)}`);
+  const left = fishToNext(id, expeditions.xp[id] ?? 0);
+  toast(r.to > r.from ? `${name} が Lv${r.to} に成長しました！` : `${name} の成長 あと${num(left)}匹で Lv${r.to + 1}`);
   return true;
 }

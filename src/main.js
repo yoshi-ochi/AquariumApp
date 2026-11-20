@@ -896,6 +896,10 @@ async function boot() {
     const hungry = manager.tanks.filter((t) => isHungry(t)).length;
     $('care-badge').hidden = !hungry;
     $('care-badge').textContent = hungry;
+    // 在庫で次のレベルに上げられる魚種がある（図鑑で育てられる）
+    const growable = CREATURES.filter((c) => expeditions.canLevelUp(c.id)).length;
+    $('zukan-badge').hidden = !growable;
+    $('zukan-badge').textContent = growable;
   }, 1000);
   $('btn-visit-end').addEventListener('click', () => {
     if (!visiting) return;
