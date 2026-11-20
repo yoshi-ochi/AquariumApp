@@ -6,7 +6,7 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
  * 全定義のサムネイルをオフスクリーンで撮影し、Map<defId, dataURL> を返す。
  * オブジェクトの BoundingBox 中心を注視し、外接球が視野に収まる距離にカメラを置く。
  */
-export async function generatePreviews(defs, build, { dispose, width = 256, height = 192, onProgress } = {}) {
+export async function generatePreviews(defs, build, { dispose, width = 256, height = 192, onProgress, type = 'image/png', quality } = {}) {
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
@@ -51,7 +51,7 @@ export async function generatePreviews(defs, build, { dispose, width = 256, heig
       camera.updateMatrixWorld();
 
       renderer.render(scene, camera);
-      results.set(def.id, renderer.domElement.toDataURL('image/png'));
+      results.set(def.id, renderer.domElement.toDataURL(type, quality));
 
       scene.remove(obj);
       dispose?.(obj);

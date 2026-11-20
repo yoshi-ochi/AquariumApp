@@ -8,9 +8,10 @@ import { Crowd } from '../visitors/crowd.js';
 import { CareView, EventView, ZukanView } from './lifeViews.js';
 import { EVENTS, GOALS, OFFLINE_MAX_HOURS, OFFLINE_RATE } from './gameData.js';
 import { Mailbox } from './mailbox.js';
+import { Monthly } from './monthly.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
-const emptyState = () => ({ goals: [], flags: {}, zukan: [], event: null, cooldown: {} });
+const emptyState = () => ({ goals: [], flags: {}, zukan: [], event: null, cooldown: {}, monthly: null, badges: [] });
 
 /** 目標・オフライン収入・来館者・飼育・図鑑・イベントをまとめて管理する */
 export class LifeSystems {
@@ -19,13 +20,14 @@ export class LifeSystems {
     this.state = emptyState();
     this.mail = new Mailbox();
     this.crowd = new Crowd({ scene: sceneMgr.scene, room, manager });
+    this.monthly = new Monthly({ state: this.state, manager, expeditions });
     this.backyard = new Backyard({ manager, ops, economy, expeditions, toast, isUnlocked });
     expeditions.getCapacity = () => this.backyard.capacity;
     this.panels = {
       backyard: { title: 'バックヤード', live: true, view: new BackyardView({ backyard: this.backyard, expeditions, economy, previews, toast }) },
       care: { title: '飼育', live: true, view: new CareView({ manager, economy, toast, onFed: () => (this.state.flags.fed = true) }) },
       zukan: { title: '生き物図鑑', view: new ZukanView({ expeditions, previews, economy, state: this.state, toast }) },
-      event: { title: 'イベント', live: true, view: new EventView({ economy, state: this.state, getStats: () => this.stats(), toast, onStart: () => (this.state.flags.event = true) }) },
+      event: { title: 'イベント', live: true, view: new EventView({ economy, state: this.state, monthly: this.monthly, previews, getStats: () => this.stats(), toast, onStart: () => { this.state.flags.event = true; this.monthly.countEvent(); } }) },
     };
     goalEl.addEventListener('click', (e) => e.target.closest('button') && this._claimGoal());
     reportEl.addEventListener('click', (e) => e.target.closest('button') && (reportEl.hidden = true));
@@ -42,6 +44,7 @@ export class LifeSystems {
       shops: count('souvenirShop'),
       cafes: count('cafe'),
       hasHome: !!this.getHome(),
+      trips: this.expeditions.trips.length,
       flags: this.state.flags,
     };
   }
@@ -50,7 +53,7 @@ export class LifeSystems {
   get visitorMult() {
     const e = this.state.event;
     const event = e && e.until > Date.now() ? EVENTS.find((x) => x.id === e.id).mult : 1;
-    return event * (1 + this.backyard.level('display') * 0.05);
+    return event * (1 + this.backyard.level('display') * 0.05) * this.monthly.bonus;
   }
 
   // ---- 毎秒の処理 ------------------------------------------------------------
@@ -65,6 +68,7 @@ export class LifeSystems {
     setCleanIntervalBoost(1 + Math.min(4, count('waterPlant')) * 0.25);
     setCareFacilities({ freezer: count('freezer'), liveFeed: count('liveFeed'), foodPrep: count('foodPrep') });
     this.backyard.tick();
+    this._month();
     this._husbandry();
     this._renderGoal(s);
   }
@@ -75,6 +79,13 @@ export class LifeSystems {
     for (const t of this.manager.tanks.filter(hasLife)) {
       if (staffed && isHungry(t) && this.economy.spend(feedCost(t))) feed(t);
     }
+  }
+
+  /** 月が変わったら特集イベントを始め、メールで知らせる */
+  _month() {
+    if (!this.monthly.ensure()) return;
+    const t = this.monthly.theme;
+    this.mail.add({ key: `monthly:${this.state.monthly.key}`, kind: 'monthly', title: `今月の特集「${t.name}」が始まりました`, body: `${t.text}。特集の生き物を展示すると来館者が増えます。イベントタブでミッションに挑戦しましょう。` });
   }
 
   get _goal() {

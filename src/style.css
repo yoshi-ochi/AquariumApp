@@ -578,3 +578,36 @@ body.sheet-full #view-rail, body.sheet-full #side-actions, body.sheet-full #goal
 .art-ico { flex: none; width: 52px; height: 52px; border-radius: 10px; background: #eef6fb; }
 .gs-row.locked .art-ico { filter: grayscale(1); opacity: .5; }
 .gs-row.wrap > .art-ico + .gs-info { flex: 1 1 0; flex-basis: calc(100% - 64px); }
+
+/* ---- 月替わりの特集イベント ---- */
+.mo-card { display: flex; flex-direction: column; gap: 3px; padding: 12px; color: #fff; background: linear-gradient(135deg, #0f3550, #1f6f9c); border-radius: 12px; }
+.mo-card b { font-size: 18px; }
+.mo-card small { color: #cfe6f5; }
+.mo-card .mo-bonus { color: var(--gold); font-weight: 700; }
+.mo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 8px 0; }
+.mo-cell { position: relative; display: flex; flex-direction: column; align-items: center; padding: 3px; background: #fff; border: 1px solid var(--border); border-radius: 8px; opacity: 0.6; }
+.mo-cell.on { opacity: 1; border-color: var(--ok); }
+.mo-cell img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 5px; }
+.mo-cell small { font-size: 10px; text-align: center; }
+.mo-cell i { position: absolute; top: 4px; left: 4px; padding: 1px 5px; font-size: 9px; font-style: normal; color: #fff; background: var(--ok); border-radius: 6px; }
+.mo-bar { height: 6px; margin: 4px 0 1px; background: #e2ebf1; border-radius: 3px; overflow: hidden; }
+.mo-bar span { display: block; height: 100%; background: var(--accent); }
+.mo-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 2px; font-size: 12px; color: var(--muted); }
+.mo-badges span { padding: 2px 8px; color: var(--text); background: #fff4d6; border-radius: 10px; }
+
+/* ---- チュートリアル（光る枠と吹き出し。画面の操作はそのままできる） ---- */
+#tutorial { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+#tutorial[hidden] { display: none; }
+.tt-ring { position: fixed; border: 3px solid var(--gold); border-radius: 12px; animation: tt-pulse 1.2s ease-in-out infinite; }
+@keyframes tt-pulse { 50% { border-color: #fff; transform: scale(1.06); } }
+.tt-card { position: fixed; left: 12px; right: 12px; top: 50%; transform: translateY(-50%); max-width: 420px; margin: 0 auto; padding: 14px; color: var(--text); background: #fff; border: 2px solid var(--gold); border-radius: 14px; pointer-events: auto; }
+.tt-card.above { top: auto; bottom: calc(var(--nav-h) + var(--safe-bottom) + 18px); transform: none; }
+.tt-card.below { top: calc(var(--hud-h) + var(--safe-top) + 18px); transform: none; }
+.tt-card small { color: var(--muted); font-size: 11px; }
+.tt-card b { display: block; margin: 2px 0 4px; font-size: 17px; }
+.tt-card p { margin: 0 0 10px; font-size: 13px; line-height: 1.6; }
+.tt-acts { display: flex; align-items: center; gap: 8px; }
+.tt-acts em { flex: 1; font-size: 11px; font-style: normal; color: var(--muted); }
+.tt-acts .tt-skip { margin-right: auto; color: var(--muted); background: none; border: none; }
+.tt-acts em + button, .tt-acts .tt-skip + button { margin-left: auto; }
+body.tutorial-on #goal-card { display: none; }

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { SceneManager } from './core/scene.js';
 import { CameraController } from './core/controls.js';
 import { generatePreviews } from './core/previewRenderer.js';
+import { loadThumbManifest, splitThumbs } from './core/thumbCache.js';
 import { Economy } from './management/economy.js';
 import { Inventory } from './management/inventory.js';
 import { HALL_DEFS, INTERIOR_DEFS, ALL_DEFS, CATEGORY, getDef } from './tanks/tankData.js';
@@ -63,6 +64,7 @@ import { buildCreature } from './expedition/creatureBuilder.js';
 import { TankView } from './ui/tankView.js';
 import { BuildView } from './ui/buildView.js';
 import { MailView } from './ui/mailView.js';
+import { Tutorial } from './ui/tutorial.js';
 import { BuildInPlace } from './interaction/buildInPlace.js';
 import { setCustomHandler, registerCustomIds } from './tanks/customTanks.js';
 import { tankLabel } from './tanks/tankLabel.js';
@@ -103,11 +105,16 @@ async function boot() {
   let roomSettings = defaultRoomSettings();
 
   // ---- 事前準備（スプラッシュの裏で）：サムネイル撮影と水面モーション ----------
-  const previews = await generatePreviews(ALL_DEFS, buildObject, {
-    dispose: disposeObject,
-    onProgress: (i, n, def) => splash.setProgress(i / n, `${def.name} を撮影中… (${i}/${n})`),
-  });
-  const creatureShots = await generatePreviews(CREATURES, buildCreature, { dispose: disposeObject });
+  // 配信サムネイル（GitHub Pages）を使い、無い物・形が変わった物だけ端末で撮影する
+  const manifest = await loadThumbManifest();
+  const objThumbs = splitThumbs('d', ALL_DEFS, manifest);
+  const fishThumbs = splitThumbs('c', CREATURES, manifest);
+  const previews = objThumbs.urls;
+  for (const [id, url] of fishThumbs.urls) previews.set(`creature:${id}`, url);
+  const shoot = objThumbs.missing.length + fishThumbs.missing.length;
+  const progress = (off) => (i, n, def) => splash.setProgress((off + i) / shoot, `${def.name} を撮影中… (${off + i}/${shoot})`);
+  for (const [id, url] of await generatePreviews(objThumbs.missing, buildObject, { dispose: disposeObject, onProgress: progress(0) })) previews.set(id, url);
+  const creatureShots = await generatePreviews(fishThumbs.missing, buildCreature, { dispose: disposeObject, onProgress: progress(objThumbs.missing.length) });
   for (const [id, url] of creatureShots) previews.set(`creature:${id}`, url);
   const waveKey = waveCacheKey();
   let waves = await loadCached(waveKey);
@@ -414,6 +421,7 @@ async function boot() {
     if (from === 'hall') interiorCam.enter(tank);
     interior.attach(tank);
     mode = 'interior-edit';
+    if (!visiting) life.state.flags.interior = true;
     catalog.setDefs(INTERIOR_DEFS);
     shell.setMode('interior-edit', `${tankLabel(manager, tank)} の水槽内`);
     shell.setHint(HINT.interior);
@@ -658,6 +666,26 @@ async function boot() {
     isUnlocked: (id) => unlocked.has(id),
     sceneMgr, room, manager, economy, ops, inventory, expeditions, previews, toast,
     getHome: () => home, goalEl: $('goal-card'), reportEl: $('offline-report'),
+  });
+  const tutorial = new Tutorial({ getState: () => life.state, getStats: () => life.stats(), economy, toast });
+  $('btn-tutorial').addEventListener('click', () => {
+    shell.toggleMenu(false);
+    tutorial.restart();
+  });
+  // 来館者（人の表示）の表示・非表示。端末ごとに覚える。非表示の間は人の動きの計算も止まる
+  let showVisitors = true;
+  try { showVisitors = localStorage.getItem('aq.visitors') !== 'off'; } catch { /* 保存できない環境 */ }
+  const visitorsBtn = $('btn-visitors');
+  const syncVisitorsBtn = () => {
+    visitorsBtn.textContent = showVisitors ? '来館者：表示中' : '来館者：非表示';
+    visitorsBtn.classList.toggle('primary', showVisitors);
+    visitorsBtn.setAttribute('aria-pressed', String(showVisitors));
+  };
+  syncVisitorsBtn();
+  visitorsBtn.addEventListener('click', () => {
+    showVisitors = !showVisitors;
+    try { localStorage.setItem('aq.visitors', showVisitors ? 'on' : 'off'); } catch { /* 保存できない環境 */ }
+    syncVisitorsBtn();
   });
   const allianceApi = new AllianceApi(online);
   const allianceView = new AllianceView({
@@ -926,6 +954,7 @@ async function boot() {
   }
 
   const clock = new THREE.Clock();
+  let splashDone = false; // スプラッシュを閉じてから（セーブ反映後に）チュートリアルを判定する
   let manual = false; // 開発用：録画中は時計を止め、frame() を外から1コマずつ呼ぶ
   sceneMgr.renderer.setAnimationLoop(() => {
     // 間取りを選んでいる間は裏の館内を描画しない
@@ -950,7 +979,11 @@ async function boot() {
     views.update(dt);
     room.updateCut(sceneMgr.camera.position.distanceTo(cameraCtl.controls.target), dt);
     room.updateOcclusion(sceneMgr.camera.position, cameraCtl.controls.target, dt);
-    life.crowd.setVisible(views.mode === 'floor' && mode !== 'interior-edit' && mode !== 'tank' && !mapPage.isOpen);
+    life.crowd.setVisible(showVisitors && views.mode === 'floor' && mode !== 'interior-edit' && mode !== 'tank' && !mapPage.isOpen);
+    if (!visiting && splashDone) {
+      tutorial.check();
+      tutorial.update(!mapPage.isOpen && (!gameSheet.view || gameSheet.view === 'tank') && mode !== 'interior-edit' && mode !== 'hall-edit');
+    } else tutorial.update(false);
     life.crowd.update(dt, economy.visitors, visiting ? 80 : ops.satisfaction);
     if (!visiting) ops.update(dt, opsContext, economy);
     customizer.update();
@@ -1003,6 +1036,7 @@ async function boot() {
     startNewAquarium(await pickLayout($('layout-picker'))); // 開発用：オフラインで間取りを試す
   }
   await splash.hide();
+  splashDone = true;
 }
 
 boot().catch((err) => {

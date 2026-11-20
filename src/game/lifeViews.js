@@ -5,6 +5,7 @@ import { CREATURES, DESTINATIONS, JOINT_PROJECTS, RARITY, MAX_STARS, getCreature
 import { NOTES } from '../expedition/creatureNotes.js';
 import { WATER, ensureCare, feed, feedCost, hasLife, isHungry, predatorConflict, tankHealth, waterMismatch, nextFeedIn, crowdFactor, zoneOf, FEED_INTERVAL } from '../expedition/husbandry.js';
 import { EVENTS } from './gameData.js';
+import { monthEnd } from './monthly.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
 const span = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}時間${Math.floor((s % 3600) / 60)}分` : `${Math.max(1, Math.ceil(s / 60))}分`);
@@ -114,8 +115,34 @@ export class ZukanView {
 
 /** イベント開催 */
 export class EventView {
-  constructor({ economy, state, getStats, toast, onStart }) {
-    Object.assign(this, { economy, state, getStats, toast, onStart });
+  constructor({ economy, state, monthly, previews, getStats, toast, onStart }) {
+    Object.assign(this, { economy, state, monthly, previews, getStats, toast, onStart });
+  }
+
+  /** 報酬は水族館の規模に合わせて増やす（Lv1 で1倍） */
+  get scale() {
+    return this.economy.stage.visitorFactor / 4;
+  }
+
+  /** 今月の特集：特集の生き物・ミッション・記念バッジ */
+  _monthlyHtml() {
+    const mo = this.monthly;
+    mo.ensure();
+    const t = mo.theme;
+    const shown = new Set(mo.shownFeatured());
+    const sec = (monthEnd() - Date.now()) / 1000;
+    const left = sec >= 86400 ? `${Math.floor(sec / 86400)}日${Math.floor((sec % 86400) / 3600)}時間` : span(sec);
+    const cells = t.featured.map((id) => `<div class="mo-cell ${shown.has(id) ? 'on' : ''}">${creatureThumb(this.previews, id)}<small>${getCreature(id).name}</small>${shown.has(id) ? '<i>展示中</i>' : ''}</div>`).join('');
+    const rows = mo.missions().map(({ mission: m, have, need, done, claimed }) => {
+      const btn = claimed
+        ? '<button disabled>受け取り済み</button>'
+        : `<button data-act="mo-claim" data-id="${m.id}" class="primary" ${done ? '' : 'disabled'}>${yen(m.reward * this.scale)}${m.badge ? '＋記念バッジ' : ''}</button>`;
+      return `<div class="gs-row"><div class="gs-info"><b>${m.text}</b><div class="mo-bar"><span style="width:${(have / need) * 100}%"></span></div><small>${have} / ${need}</small></div>${btn}</div>`;
+    });
+    const badges = this.state.badges?.length ? `<p class="mo-badges">記念バッジ：${this.state.badges.map((b) => `<span>🏅 ${esc(b)}</span>`).join('')}</p>` : '';
+    return `<div class="mo-card"><small>今月の特集 ・ 残り ${left}</small><b>${t.name}</b><small>${t.text}</small>
+      <small class="mo-bonus">特集の生き物 ${shown.size}/${t.featured.length}種を展示中 ・ 来館者 +${Math.round((mo.bonus - 1) * 100)}%</small></div>
+      <div class="mo-grid">${cells}</div>${rows.join('')}${badges}<h4 class="gs-sub">館内イベント</h4>`;
   }
 
   html() {
@@ -132,10 +159,18 @@ export class EventView {
       const note = lack || (cool > 0 ? `次の開催まで ${span(cool / 1000)}` : `${e.minutes}分間 ・ 来館者 ${e.mult}倍`);
       return `<div class="gs-row"><div class="gs-info"><b>${e.name}</b><small>${e.text}</small><small>${note}</small></div><button data-act="event-start" data-id="${e.id}" class="primary" ${ok ? '' : 'disabled'}>${yen(e.cost)}</button></div>`;
     });
-    return head + rows.join('');
+    return this._monthlyHtml() + head + rows.join('');
   }
 
   act(act, id) {
+    if (act === 'mo-claim') {
+      const got = this.monthly.claim(id, this.scale);
+      if (got) {
+        this.economy.earn(got.money);
+        this.toast(got.badge ? `ミッション達成！ ${yen(got.money)} と記念バッジ「${got.badge}」を獲得` : `ミッション達成！ ${yen(got.money)} を獲得`);
+      }
+      return true;
+    }
     if (act !== 'event-start') return false;
     const e = EVENTS.find((x) => x.id === id);
     const now = Date.now();
