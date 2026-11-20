@@ -2,18 +2,19 @@ import { CREATURES, DESTINATIONS, JOINT_PROJECTS, RARITY_WEIGHT, DEFAULT_HOME, t
 import { SPECIES_METHODS, METHODS } from './fishingData.js';
 
 /**
- * 生き物の成長（魚種ごとのレベル 1〜999）。在庫の同じ魚種を使うとレベルが上がる。
+ * 生き物の成長（魚種ごとのレベル 1〜999）。在庫の同じ魚種を使うと経験値が入り、レベルが上がる。
  * レベルが上がるほど体が大きくなり（成魚の60%→100%）、集客力も上がる。
  *
- * 進み具合は「その魚種を何匹使ったか」で持つ。1レベル上げるには最低2匹。
  * 目安：やり込む人（調査隊10隊・1日8時間ほど遊ぶ）が1つの魚種に集中して、Lv300 まで約30日。
- *   捕れやすさは魚種ごとに違うので、魚種ごとに「30日で捕れる数」で Lv300 に届く曲線を作る。
- *   とても珍しい魚（1日20匹未満）は 2匹×299 に届かないので、30日より長くかかる。
+ *   1匹あたりの経験値は「その魚種がどれだけ捕れやすいか」から決める（捕れにくい魚ほど多い）。
+ *   1日に得られる経験値が DAILY_XP、Lv300 までの累計が DAILY_XP×30 になるよう、全魚種共通の曲線を作る。
+ *   星2までの魚は、Lv1→2 でも2匹分以上の経験値が要るように、1レベルの経験値に下限を設ける。
  */
 export const MAX_LEVEL = 999;
+const DAILY_XP = 10000;
 const DAYS_TO_300 = 30;
-const MIN_PER_LEVEL = 2;
-const CURVE = 1.5; // 次のレベルまでの匹数 ∝ Lv^1.5（後半ほどゆっくり）
+const CURVE = 1.5; // 次のレベルまでの経験値 ∝ Lv^1.5（後半ほどゆっくり。Lv999 は約20か月）
+const MIN_FISH = 2; // 星2までの魚で、1レベルに最低何匹ぶん要るか
 
 // やり込みの想定（調査隊は最大の10隊）
 const TEAMS = 10;
@@ -41,61 +42,57 @@ function perDay(id) {
   return best || 1;
 }
 
-const step = (a, k) => Math.max(MIN_PER_LEVEL, Math.round(a * k ** CURVE));
-/** 魚種ごとの累計の表。cum[lv] = Lv1 から lv までに使う匹数 */
-const tables = new Map();
-function tableOf(id) {
-  let cum = tables.get(id);
-  if (cum) return cum;
-  const target = Math.round(perDay(id) * DAYS_TO_300);
+/** 1匹を成長に使ったときの経験値 */
+export const XP_PER_FISH = Object.fromEntries(CREATURES.map((c) => [c.id, Math.max(1, Math.min(50000, Math.round(DAILY_XP / perDay(c.id))))]));
+export const xpPerFish = (id) => XP_PER_FISH[id] ?? 1;
+
+/** 1レベルの経験値の下限：星2までの魚の「1匹の経験値」の最大×2 */
+const FLOOR = MIN_FISH * Math.max(...CREATURES.filter((c) => c.stars <= 2).map((c) => XP_PER_FISH[c.id]));
+
+/** 累計の表。CUM[lv] = Lv1 から lv までに必要な経験値。Lv300 までの累計が DAILY_XP×30 になる a を探す */
+const CUM = (() => {
+  const step = (a, k) => Math.max(FLOOR, Math.round(a * k ** CURVE));
   const total = (a) => {
     let s = 0;
     for (let k = 1; k < 300; k++) s += step(a, k);
     return s;
   };
+  const target = DAILY_XP * DAYS_TO_300;
   let lo = 0;
   let hi = 10;
   while (total(hi) < target) hi *= 2;
-  for (let i = 0; i < 40; i++) {
+  for (let n = 0; n < 50; n++) {
     const mid = (lo + hi) / 2;
     if (total(mid) < target) lo = mid;
     else hi = mid;
   }
-  cum = [0, 0];
-  for (let lv = 1; lv < MAX_LEVEL; lv++) cum.push(cum[lv] + step(lo, lv));
-  tables.set(id, cum);
+  const cum = [0, 0];
+  for (let lv = 1; lv < MAX_LEVEL; lv++) cum.push(cum[lv] + step(hi, lv));
   return cum;
-}
+})();
 
-/** Lv にするまでに使う匹数（累計） */
-export const fishForLevel = (id, lv) => tableOf(id)[Math.min(MAX_LEVEL, Math.max(1, lv))];
-/** 使った匹数からレベル */
-export function levelOf(id, fish = 0) {
-  const cum = tableOf(id);
+export const xpForLevel = (lv) => CUM[Math.min(MAX_LEVEL, Math.max(1, lv))];
+export function levelOf(xp = 0) {
   let lo = 1;
   let hi = MAX_LEVEL;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
-    if (cum[mid] <= fish) lo = mid;
+    if (CUM[mid] <= xp) lo = mid;
     else hi = mid - 1;
   }
   return lo;
 }
-/** 今のレベルの中での進み具合 { lv, have, need }（匹） */
-export function progressOf(id, fish = 0) {
-  const cum = tableOf(id);
-  const lv = levelOf(id, fish);
+/** 今のレベルの中での進み具合 { lv, have, need }（経験値） */
+export function progressOf(xp = 0) {
+  const lv = levelOf(xp);
   if (lv >= MAX_LEVEL) return { lv, have: 0, need: 0 };
-  return { lv, have: fish - cum[lv], need: cum[lv + 1] - cum[lv] };
+  return { lv, have: xp - CUM[lv], need: CUM[lv + 1] - CUM[lv] };
 }
-/** 次のレベルまであと何匹か（最大レベルなら Infinity） */
-export function fishToNext(id, fish = 0) {
-  const p = progressOf(id, fish);
-  return p.need ? p.need - p.have : Infinity;
+/** 次のレベルまでに要る匹数（最大レベルなら Infinity） */
+export function fishToNext(id, xp = 0) {
+  const p = progressOf(xp);
+  return p.need ? Math.ceil((p.need - p.have) / xpPerFish(id)) : Infinity;
 }
-
-/** 旧形式（経験値）のセーブを匹数に直すときの、1匹あたりの経験値 */
-export const legacyXpPerFish = (id) => Math.max(1, Math.min(50000, Math.round(10000 / perDay(id))));
 
 /** 体の大きさの倍率（Lv1 で 0.6、Lv999 で 1） */
 export const sizeOf = (lv) => 0.6 + 0.4 * Math.sqrt((lv - 1) / (MAX_LEVEL - 1));

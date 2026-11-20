@@ -897,7 +897,9 @@ async function boot() {
     $('care-badge').hidden = !hungry;
     $('care-badge').textContent = hungry;
     // 在庫で次のレベルに上げられる魚種がある（図鑑で育てられる）
-    const growable = CREATURES.filter((c) => expeditions.canLevelUp(c.id)).length;
+    const shownBy = {};
+    for (const t of manager.tanks) for (const [id, n] of Object.entries(t.userData.creatures ?? {})) shownBy[id] = (shownBy[id] ?? 0) + n;
+    const growable = CREATURES.filter((c) => expeditions.canLevelUp(c.id, shownBy[c.id] ?? 0)).length;
     $('zukan-badge').hidden = !growable;
     $('zukan-badge').textContent = growable;
   }, 1000);

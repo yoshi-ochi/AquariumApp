@@ -1,5 +1,5 @@
 import { mulberry32 } from '../tanks/random.js';
-import { levelOf, fishForLevel, fishToNext, legacyXpPerFish, MAX_LEVEL } from './growth.js';
+import { levelOf, xpForLevel, xpPerFish, fishToNext, MAX_LEVEL } from './growth.js';
 import { getCreature, getDestination, RARITY_WEIGHT } from './creatureData.js';
 import { SPECIES_METHODS } from './fishingData.js';
 
@@ -18,7 +18,7 @@ export class Expeditions extends EventTarget {
     this.extraTeams = 0;
     this.creatures = {};
     this.seen = {}; // 図鑑：これまでに手に入れた数
-    this.xp = {}; // 成長：魚種ごとに成長に使った累計の匹数
+    this.xp = {}; // 成長：魚種ごとの累計経験値
     this.getCapacity = () => Infinity;
     this.released = []; // 満杯で放流した生き物（直前の受け取り分）
   }
@@ -106,22 +106,32 @@ export class Expeditions extends EventTarget {
 
   /** 魚種のレベル（1〜999） */
   level(id) {
-    return levelOf(id, this.xp[id] ?? 0);
+    return levelOf(this.xp[id] ?? 0);
   }
 
-  /** 在庫で次のレベルに上げられるか（図鑑の通知バッジ） */
-  canLevelUp(id) {
-    return this.count(id) > 0 && this.count(id) >= fishToNext(id, this.xp[id] ?? 0);
+  /**
+   * 成長に使える匹数。展示中の魚は使わない。
+   * 展示していない魚種は、在庫に最低1匹残す（全部使うと手元からいなくなるため）
+   */
+  usable(id, shown = 0) {
+    return Math.max(0, this.count(id) - (shown > 0 ? 0 : 1));
+  }
+
+  /** 使える在庫で次のレベルに上げられるか（図鑑の通知バッジ） */
+  canLevelUp(id, shown = 0) {
+    const n = this.usable(id, shown);
+    return n > 0 && n >= fishToNext(id, this.xp[id] ?? 0);
   }
 
   /** 在庫の同じ魚種 n 匹を成長に使う。{ from, to, gained } を返す（使えなければ null） */
-  grow(id, n = 1) {
-    if (n < 1 || this.count(id) < n || this.level(id) >= MAX_LEVEL) return null;
+  grow(id, n = 1, shown = 0) {
+    if (n < 1 || this.usable(id, shown) < n || this.level(id) >= MAX_LEVEL) return null;
     const from = this.level(id);
     this.creatures[id] -= n;
-    this.xp[id] = Math.min(fishForLevel(id, MAX_LEVEL), (this.xp[id] ?? 0) + n);
+    const gained = xpPerFish(id) * n;
+    this.xp[id] = Math.min(xpForLevel(MAX_LEVEL), (this.xp[id] ?? 0) + gained);
     this._emit();
-    return { from, to: this.level(id), used: n };
+    return { from, to: this.level(id), gained };
   }
 
   give(id, n = 1) {
@@ -130,7 +140,7 @@ export class Expeditions extends EventTarget {
   }
 
   toJSON() {
-    return { extraTeams: this.extraTeams, trips: this.trips.map((t) => ({ ...t })), creatures: { ...this.creatures }, seen: { ...this.seen }, xp: { ...this.xp }, xpv: 2 };
+    return { extraTeams: this.extraTeams, trips: this.trips.map((t) => ({ ...t })), creatures: { ...this.creatures }, seen: { ...this.seen }, xp: { ...this.xp }, xpv: 3 };
   }
 
   fromJSON(data) {
@@ -139,8 +149,8 @@ export class Expeditions extends EventTarget {
     this.creatures = { ...(data?.creatures ?? {}) };
     this.seen = { ...(data?.seen ?? {}) };
     this.xp = { ...(data?.xp ?? {}) };
-    // 旧形式（経験値）は使った匹数に直す
-    if (data?.xpv !== 2) for (const id of Object.keys(this.xp)) this.xp[id] = Math.round(this.xp[id] / legacyXpPerFish(id));
+    // 一時期の形式（使った匹数, xpv 2）は経験値に直す。それ以前（版なし）は経験値のまま
+    if (data?.xpv === 2) for (const id of Object.keys(this.xp)) this.xp[id] *= xpPerFish(id);
     for (const [id, n] of Object.entries(this.creatures)) if (n > 0) this.markSeen(id);
     this._emit();
   }
