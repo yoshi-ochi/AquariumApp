@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { SaveConflict } from './autoSave.js';
+import { encodeRow, decodeRow } from './saveCodec.js';
+
+/** データベースに zdata 列がまだ無い（compress.sql 未実行） */
+const missingColumn = (err) => !!err && (err.code === '42703' || err.code === 'PGRST204') && /zdata/.test(err.message ?? '');
 
 /**
  * オンライン機能（Supabase）：アカウント・セーブ・フレンド。
@@ -135,12 +139,18 @@ export class Online {
 
   /** 前回の読込・保存以降に別の端末が更新していたら SaveConflict。force なら上書き */
   async save(data, force = false) {
-    const row = { user_id: this.user.id, data, updated_at: new Date().toISOString() };
+    // 圧縮の列（zdata）がまだ無いデータベースでは、圧縮せずに保存する
+    const body = this.noZ ? { data } : encodeRow(data);
+    const row = { user_id: this.user.id, ...body, updated_at: new Date().toISOString() };
     const table = this.sb.from('saves');
     let res;
     if (force) res = await table.upsert(row).select('updated_at');
     else if (this.rev) res = await table.update(row).eq('user_id', this.user.id).eq('updated_at', this.rev).select('updated_at');
     else res = await table.insert(row).select('updated_at');
+    if (!this.noZ && missingColumn(res.error)) {
+      this.noZ = true;
+      return this.save(data, force);
+    }
     if (res.error?.code === '23505') throw new SaveConflict('別の端末で更新されています');
     const rows = this._check(res);
     if (!rows.length) throw new SaveConflict('別の端末で更新されています');
@@ -149,9 +159,14 @@ export class Online {
 
   /** 自分（id 省略）またはフレンドのセーブ。無ければ null */
   async load(id = this.user.id) {
-    const rows = this._check(await this.sb.from('saves').select('data, updated_at').eq('user_id', id).limit(1));
+    let res = await this.sb.from('saves').select(this.noZ ? 'data, updated_at' : 'data, zdata, updated_at').eq('user_id', id).limit(1);
+    if (!this.noZ && missingColumn(res.error)) {
+      this.noZ = true;
+      return this.load(id);
+    }
+    const rows = this._check(res);
     if (id === this.user.id) this.rev = rows[0]?.updated_at ?? null;
-    return rows[0]?.data ?? null;
+    return decodeRow(rows[0]);
   }
 
   // ---- フレンド --------------------------------------------------------------

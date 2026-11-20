@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { compressOn } from '../online/saveCodec.js';
 
 /**
  * ライブロックの局所スカルプト。
@@ -38,23 +39,72 @@ export function sculptAt(mesh, center, normal, { mode, radius, strength }) {
   return true;
 }
 
-/** 頂点座標を保存用に base64 化 */
-export function encodePositions(geo) {
-  const bytes = new Uint8Array(geo.attributes.position.array.buffer.slice(0));
+const toB64 = (bytes) => {
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
-}
-
-/** 保存データから頂点座標を復元（頂点数が一致しない場合は無視） */
-export function applyEncodedPositions(geo, b64) {
+};
+const fromB64 = (b64) => {
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const arr = new Float32Array(bytes.buffer);
+  return bytes;
+};
+
+/** 削る前の形を覚えておく（保存は元の形からの差分だけにする） */
+export const rememberBase = (geo) => (geo.userData.base = geo.attributes.position.array.slice());
+
+/** 差分の単位（0.05mm）。int16 で ±1.6m まで表せる */
+const Q = 20000;
+const DELTA = 'd1:';
+
+/**
+ * 頂点座標を保存用の文字列にする。
+ *   d1:… 元の形から動いた頂点だけ（頂点番号 uint32 ＋ 移動量 int16×3）。岩1個で数百バイト〜
+ *   それ以外 … 全頂点の座標（Float32）をそのまま base64（旧形式）
+ */
+export function encodePositions(geo) {
+  const arr = geo.attributes.position.array;
+  const base = geo.userData.base;
+  if (compressOn() && base?.length === arr.length) {
+    const moved = [];
+    let ok = true;
+    for (let i = 0; i < arr.length; i += 3) {
+      const d = [0, 1, 2].map((k) => Math.round((arr[i + k] - base[i + k]) * Q));
+      if (!d[0] && !d[1] && !d[2]) continue;
+      if (d.some((v) => Math.abs(v) > 32767)) ok = false;
+      moved.push([i / 3, d]);
+    }
+    if (ok) {
+      const view = new DataView(new ArrayBuffer(moved.length * 10));
+      moved.forEach(([n, [dx, dy, dz]], k) => {
+        view.setUint32(k * 10, n, true);
+        view.setInt16(k * 10 + 4, dx, true);
+        view.setInt16(k * 10 + 6, dy, true);
+        view.setInt16(k * 10 + 8, dz, true);
+      });
+      return DELTA + toB64(new Uint8Array(view.buffer));
+    }
+  }
+  return toB64(new Uint8Array(arr.buffer.slice(0)));
+}
+
+/** 保存データから頂点座標を復元（頂点数が一致しない場合は無視）。geo は元の形のまま渡す */
+export function applyEncodedPositions(geo, code) {
   const pos = geo.attributes.position;
-  if (arr.length !== pos.array.length) return false;
-  pos.array.set(arr);
+  if (code.startsWith(DELTA)) {
+    const bytes = fromB64(code.slice(DELTA.length));
+    const view = new DataView(bytes.buffer);
+    for (let o = 0; o + 10 <= bytes.length; o += 10) {
+      const n = view.getUint32(o, true);
+      if (n >= pos.count) return false;
+      for (let k = 0; k < 3; k++) pos.array[n * 3 + k] += view.getInt16(o + 4 + k * 2, true) / Q;
+    }
+  } else {
+    const arr = new Float32Array(fromB64(code).buffer);
+    if (arr.length !== pos.array.length) return false;
+    pos.array.set(arr);
+  }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
   geo.computeBoundingBox();

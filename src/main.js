@@ -563,9 +563,19 @@ async function boot() {
   // ---- オンライン：クラウド保存・フレンド・訪問 -------------------------------
   const online = new Online();
   let visiting = null; // { mine: 自分のスナップショット }
+  /** 訪問先のセーブを5分間だけ覚えておく（続けて訪問しても読み直さない＝転送量を減らす） */
+  const VISIT_CACHE_MS = 5 * 60 * 1000;
+  const visitCache = new Map();
+  async function loadVisit(id) {
+    const hit = visitCache.get(id);
+    if (hit && Date.now() - hit.at < VISIT_CACHE_MS) return structuredClone(hit.data);
+    const data = await online.load(id);
+    if (data) visitCache.set(id, { at: Date.now(), data: structuredClone(data) });
+    return data;
+  }
   /** フレンド・同盟の仲間の水族館を訪問する */
   async function visitAquarium(id, name) {
-    const data = await online.load(id);
+    const data = await loadVisit(id);
     if (!data) return toast(`${name} さんはまだ水族館を保存していません`, { error: true });
     if (!visiting) visiting = { mine: snapshot() };
     gameSheet.close();
@@ -968,7 +978,8 @@ async function boot() {
     // 同盟ボーナスの反映と、完了した合同調査のメール（5分ごとに確認）
     const checkAlliance = () => allianceApi.refresh().then(() => allianceView.notifyRuns()).catch((err) => console.warn(err.message));
     checkAlliance();
-    setInterval(() => !visiting && document.visibilityState === 'visible' && checkAlliance(), 300000);
+    // 同盟に入っていない人は確認しない（加入したら同盟画面を開いた時点で state が入る）
+    setInterval(() => allianceApi.state && !visiting && document.visibilityState === 'visible' && checkAlliance(), 300000);
     if (online.recovery) friendPanel.open(); // 再設定メールから来たら新しいパスワードの入力へ
     // 別タブでログアウトしたらこのタブも閉じる
     online.sb.auth.onAuthStateChange((event) => event === 'SIGNED_OUT' && location.reload());

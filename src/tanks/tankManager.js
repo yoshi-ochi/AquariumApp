@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { getDef, hasDef, CATEGORY } from './tankData.js';
 import { buildObject, disposeObject } from './tankBuilder.js';
 import { createClipUniforms, updateClipUniforms, applyClip, floorAt } from './tankClip.js';
-import { encodePositions, applyEncodedPositions } from '../interior/sculpt.js';
+import { encodePositions, applyEncodedPositions, rememberBase } from '../interior/sculpt.js';
 import { applyTankLook } from './tankLook.js';
 import { updateBubbles } from './aeration.js';
 import { syncLife, updateLife, lifeAppeal } from '../expedition/tankLife.js';
@@ -77,6 +77,7 @@ export class TankManager {
     if (bubbles !== undefined) item.userData.bubbles = bubbles;
     if (locked) item.userData.locked = true;
     const rock = item.getObjectByName('rock');
+    if (rock) rememberBase(rock.geometry);
     if (sculpt && rock && applyEncodedPositions(rock.geometry, sculpt)) item.userData.sculpted = true;
     item.position.set(x, y, z);
     item.rotation.y = rotY;

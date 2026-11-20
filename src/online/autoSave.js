@@ -14,8 +14,8 @@ export class SaveConflict extends Error {}
 const fingerprint = (s) => JSON.stringify({ ...s, savedAt: 0, economy: { ...s.economy, money: 0 }, ops: { ...s.ops, live: 0 }, life: s.life?.mail ? { ...s.life, mail: { ...s.life.mail, day: 0 } } : s.life });
 
 export class AutoSave {
-  constructor({ save, getSnapshot, isPaused, onState, onConflict, now = () => Date.now() }) {
-    Object.assign(this, { save, getSnapshot, isPaused, onState, onConflict, now });
+  constructor({ save, getSnapshot, isPaused, onState, onConflict, now = () => Date.now(), visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden' }) {
+    Object.assign(this, { save, getSnapshot, isPaused, onState, onConflict, now, visible });
     this.saving = null;
     this.blocked = false;
   }
@@ -55,7 +55,8 @@ export class AutoSave {
       if (settled) return this._write(s, fp);
       return this.onState('dirty');
     }
-    if (s.economy.money !== this.savedMoney && t - this.savedAt >= MONEY_INTERVAL_MS) return this._write(s, fp);
+    // 資金だけの変化の定期保存は、画面が見えている間だけ（裏に回すときは flush で保存する）
+    if (s.economy.money !== this.savedMoney && t - this.savedAt >= MONEY_INTERVAL_MS && this.visible()) return this._write(s, fp);
   }
 
   /** 未保存の内容があれば今すぐ保存する */
