@@ -12,7 +12,7 @@ const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
  * モード: 'home' | 'tank' | 'hall-edit' | 'interior-edit'
  */
 export class AppShell {
-  constructor({ economy, manager, getFloorOrder, onBack, onEdit, onDone, onFloorChange, onUpgrade, onSave, onLoad }) {
+  constructor({ economy, manager, getFloorOrder, onBack, onEdit, onDone, onFloorChange, onUpgrade }) {
     this.economy = economy;
     this.manager = manager;
     this.mode = 'home';
@@ -28,13 +28,6 @@ export class AppShell {
     $('floor-up').addEventListener('click', () => step(1));
     $('floor-down').addEventListener('click', () => step(-1));
     $('btn-upgrade').addEventListener('click', onUpgrade);
-    $('btn-save').addEventListener('click', onSave);
-    const file = $('file-load');
-    $('btn-load').addEventListener('click', () => file.click());
-    file.addEventListener('change', () => {
-      if (file.files[0]) onLoad(file.files[0]);
-      file.value = '';
-    });
     // メニュー外をタップしたら閉じる
     document.addEventListener('pointerdown', (e) => {
       if (!$('menu-sheet').hidden && !e.target.closest('#menu-sheet, #hud-account')) this.toggleMenu(false);

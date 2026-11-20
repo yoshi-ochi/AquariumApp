@@ -20,7 +20,7 @@ const fromB64 = (b64) => {
   return u8;
 };
 
-export const packJSON = (obj) => toB64(gzipSync(strToU8(JSON.stringify(obj)), { level: 9 }));
+export const packJSON = (obj, level = 9) => toB64(gzipSync(strToU8(JSON.stringify(obj)), { level }));
 export const unpackJSON = (b64) => JSON.parse(strFromU8(gunzipSync(fromB64(b64))));
 
 /** 保存する行の中身 { data, zdata } */

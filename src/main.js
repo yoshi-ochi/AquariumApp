@@ -28,7 +28,8 @@ import { toast } from './ui/toast.js';
 import { WAVE_PARAMS, bakeWaves, waveCacheKey } from './water/waveBaker.js';
 import { loadCached, saveCached } from './water/waveCache.js';
 import { setWaveData, updateWater } from './water/waterSurface.js';
-import { LAYOUT_VERSION, downloadJSON, readLayoutFile } from './io/layoutIO.js';
+import { LAYOUT_VERSION } from './io/layoutIO.js';
+import { writeJournal, markJournalSynced, pendingJournal } from './online/localJournal.js';
 import { Online } from './online/online.js';
 import { AutoSave } from './online/autoSave.js';
 import { FriendPanel } from './ui/friendPanel.js';
@@ -483,19 +484,6 @@ async function boot() {
       if (gameSheet.view) gameSheet.render();
       toast(`「${economy.stage.name}」に拡張しました！`);
     },
-    onSave: () => {
-      downloadJSON(snapshot(), `aquarium-layout-${Date.now()}.json`);
-      toast('レイアウトをファイルに保存しました');
-    },
-    onLoad: async (file) => {
-      try {
-        applySnapshot(await readLayoutFile(file));
-        toast('レイアウトを読み込みました');
-      } catch (err) {
-        console.error(err);
-        toast(`読み込みに失敗しました: ${err.message}`, { error: true });
-      }
-    },
   });
 
   /** 現在の状態を保存用データにする */
@@ -604,6 +592,9 @@ async function boot() {
     isPaused: () => !!visiting || !online.user,
     onState: (s) => hud.setSaveState(s),
     onConflict: () => ($('save-conflict').hidden = false),
+    // 端末内の控え（急に閉じてもクラウドへ届かなかった変更を次回に送り直す）
+    keep: (s) => online.user && writeJournal(online.user.id, s, online.rev),
+    onSaved: () => online.user && markJournalSynced(online.user.id, online.rev),
   });
   $('btn-conflict-load').addEventListener('click', async () => {
     try {
@@ -1017,6 +1008,7 @@ async function boot() {
 
   let lastSavedAt = null;
   let layoutChosen = false;
+  let restored = false; // 端末内の控えから戻した
   // ログイン必須：完了してそのアカウントのセーブを反映するまでスプラッシュを閉じない
   if (online.enabled) {
     await runLoginGate({
@@ -1031,13 +1023,17 @@ async function boot() {
           pendingLayout = await pickLayout($('layout-picker'));
           layoutChosen = true;
         }
-        if (data) applySnapshot(data);
+        // クラウドに届いていない端末内の控えがあれば、そちらを使う（急に閉じたときの最後の変更）
+        const kept = pendingJournal(online.user.id, data, online.rev);
+        if (kept) restored = true;
+        const use = kept ?? data;
+        if (use) applySnapshot(use);
         else startNewAquarium(pendingLayout ?? DEFAULT_LAYOUT);
-        lastSavedAt = data?.savedAt ?? null;
+        lastSavedAt = use?.savedAt ?? null;
       },
     });
     autoSave.start();
-    if (layoutChosen) autoSave.saveNow().catch((err) => console.warn(err.message));
+    if (layoutChosen || restored) autoSave.saveNow().catch((err) => console.warn(err.message));
     if (lastSavedAt) {
       life.settleOffline(lastSavedAt, ops.visitorMult);
       autoSave.flush(); // 受け取った収入をすぐ保存（二重受け取りを防ぐ）

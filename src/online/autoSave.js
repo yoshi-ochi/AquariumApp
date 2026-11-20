@@ -2,7 +2,9 @@
  * クラウドへの自動保存。
  * レイアウト等の変更は操作が落ち着いてから保存し、資金だけの変化は5分ごとにまとめる。
  * 画面を閉じる・裏へ回すときにも保存する。別の端末の新しいデータは上書きしない。
+ * keep(s) があれば、変更のたびと閉じる瞬間に端末内の控えへ書く（通信が間に合わなくても失わない）。
  */
+const KEEP_MONEY_MS = 60_000;
 const TICK_MS = 10_000;
 const MAX_WAIT_MS = 30_000;
 const MONEY_INTERVAL_MS = 300_000;
@@ -14,8 +16,8 @@ export class SaveConflict extends Error {}
 const fingerprint = (s) => JSON.stringify({ ...s, savedAt: 0, economy: { ...s.economy, money: 0 }, ops: { ...s.ops, live: 0 }, life: s.life?.mail ? { ...s.life, mail: { ...s.life.mail, day: 0 } } : s.life });
 
 export class AutoSave {
-  constructor({ save, getSnapshot, isPaused, onState, onConflict, now = () => Date.now(), visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden' }) {
-    Object.assign(this, { save, getSnapshot, isPaused, onState, onConflict, now, visible });
+  constructor({ save, getSnapshot, isPaused, onState, onConflict, keep = () => {}, onSaved = () => {}, now = () => Date.now(), visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden' }) {
+    Object.assign(this, { save, getSnapshot, isPaused, onState, onConflict, keep, onSaved, now, visible });
     this.saving = null;
     this.blocked = false;
   }
@@ -23,7 +25,10 @@ export class AutoSave {
   start() {
     this.markLoaded();
     setInterval(() => this.tick(), TICK_MS);
-    const flush = () => this.flush();
+    const flush = () => {
+      this._keep(true); // 通信より先に、端末内へ同期的に書く
+      this.flush();
+    };
     document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush());
     window.addEventListener('pagehide', flush);
   }
@@ -36,7 +41,22 @@ export class AutoSave {
     this.savedAt = this.now();
     this.dirtySince = null;
     this.blocked = false;
+    this.keptFp = this.savedFp;
+    this.keptAt = this.now();
     this.onState('saved');
+  }
+
+  /** 端末内の控えを書く。force でなければ、構造の変更はすぐ、資金だけの変化は1分ごと */
+  _keep(force = false) {
+    if (this.isPaused()) return;
+    const s = this.getSnapshot();
+    const fp = fingerprint(s);
+    const t = this.now();
+    if (!force && fp === this.keptFp && t - this.keptAt < KEEP_MONEY_MS) return;
+    if (fp === this.savedFp && s.economy.money === this.savedMoney) return; // クラウドと同じ
+    this.keep(s);
+    this.keptFp = fp;
+    this.keptAt = t;
   }
 
   get _idle() {
@@ -44,6 +64,7 @@ export class AutoSave {
   }
 
   tick() {
+    if (!this.isPaused()) this._keep();
     if (!this._idle) return;
     const s = this.getSnapshot();
     const fp = fingerprint(s);
@@ -92,6 +113,7 @@ export class AutoSave {
         this.savedMoney = s.economy.money;
         this.savedAt = this.now();
         this.dirtySince = null;
+        this.onSaved();
         this.onState('saved');
         return true;
       } catch (err) {
