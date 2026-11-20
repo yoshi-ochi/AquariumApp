@@ -1,4 +1,6 @@
 import { ANATOMY } from '../expedition/creatureAnatomy.js';
+import { CREATURES } from '../expedition/creatureData.js';
+import { ALL_DEFS } from '../tanks/tankData.js';
 
 /**
  * 配信サムネイル（GitHub Pages の public/thumbs/ に置いた WebP）。
@@ -20,8 +22,15 @@ function hash(str) {
   return (h >>> 0).toString(36);
 }
 
+// 形のデータは組み立て時に展開・追記されることがあるので、読み込んだ直後の内容で版を決める
+const anatomyAtLoad = new Map(Object.entries(ANATOMY).map(([id, v]) => [id, JSON.stringify(v)]));
+const defAtLoad = new Map([...ALL_DEFS.map((d) => [`d:${d.id}`, JSON.stringify(d)]), ...CREATURES.map((c) => [`c:${c.id}`, JSON.stringify(c)])]);
+
 /** 定義の中身から作る版。kind: 'd'（水槽・オブジェ）/ 'c'（生き物） */
-export const thumbKey = (kind, def) => hash(`${THUMB_REV}|${JSON.stringify(def)}|${kind === 'c' ? JSON.stringify(ANATOMY[def.id] ?? null) : ''}`);
+export const thumbKey = (kind, def) => {
+  const body = defAtLoad.get(`${kind}:${def.id}`) ?? JSON.stringify(def);
+  return hash(`${THUMB_REV}|${body}|${kind === 'c' ? anatomyAtLoad.get(def.id) ?? 'null' : ''}`);
+};
 export const thumbFile = (kind, id) => `${kind}_${id}.webp`;
 
 export async function loadThumbManifest() {
