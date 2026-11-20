@@ -449,28 +449,53 @@ if (uMode < 0.5) {
   transformed.y += sin(position.x * 4.0 + uTime * 4.5) * 0.06 * amp;
 }`;
 
-/** c.len に拡大した1メッシュの生物を作る。fish.userData.uni.uTime を進めると泳ぐ */
+/**
+ * 種類ごとの形（ジオメトリ）。同じ種類の個体はすべてこれを共有する（メモリと作る時間を種類数ぶんにする）。
+ * 写真から模様を細かく写した種は、離れて見るとき用の粗い形（lite）も持つ。
+ */
+const SHAPES = new Map();
+function shapeOf(c) {
+  let s = SHAPES.get(c.id);
+  if (s) return s;
+  const f = FORMS[c.form];
+  const make = (a) => {
+    const { parts, mode = 0, opacity = 1 } = a ? { parts: tracedParts(c, a), mode: a.mode ?? 0, opacity: a.opacity ?? 1 } : f ? { parts: fishParts(c, f) } : softParts(c);
+    const merge = (list) => {
+      const geo = mergeGeometries(list.map((g) => {
+        g.deleteAttribute('uv');
+        g.deleteAttribute('normal');
+        return g;
+      }), false);
+      bakeFacets(geo, Boolean(a?.cells));
+      geo.userData.shared = true;
+      return geo;
+    };
+    const clear = parts.filter((g) => g.userData.clear); // ひれの透ける膜
+    const geo = merge(parts.filter((g) => !g.userData.clear));
+    const clearGeo = clear.length ? merge(clear) : null;
+    parts.forEach((g) => g.dispose());
+    return { geo, clearGeo, mode, opacity };
+  };
+  s = make(ANATOMY[c.id]);
+  const lite = ANATOMY[`${c.id}__lite`];
+  if (lite) s.lite = make(lite);
+  s.wave = f?.wave ?? 1;
+  SHAPES.set(c.id, s);
+  return s;
+}
+
+/** 詳しい形に切り替える距離（体長の何倍まで近づいたら） */
+const DETAIL_RANGE = 14;
+
+/** c.len に拡大した生物を作る。fish.userData.uni.uTime を進めると泳ぐ。形は種類ごとに共有する */
 export function buildCreature(c) {
   const root = new THREE.Group();
   root.userData.creature = c.id;
-  const f = FORMS[c.form];
-  const { parts, mode = 0, opacity = 1 } = ANATOMY[c.id] ? { parts: tracedParts(c, ANATOMY[c.id]), mode: ANATOMY[c.id].mode ?? 0, opacity: ANATOMY[c.id].opacity ?? 1 } : f ? { parts: fishParts(c, f) } : softParts(c);
-  const merge = (list) => {
-    const geo = mergeGeometries(list.map((g) => {
-      g.deleteAttribute('uv');
-      g.deleteAttribute('normal');
-      return g;
-    }), false);
-    bakeFacets(geo, Boolean(ANATOMY[c.id]?.cells));
-    return geo;
-  };
-  const clear = parts.filter((g) => g.userData.clear); // ひれの透ける膜
-  const geo = merge(parts.filter((g) => !g.userData.clear));
-  const clearGeo = clear.length ? merge(clear) : null;
-  parts.forEach((g) => g.dispose());
-  const uni = { uTime: { value: 0 }, uMode: { value: mode }, uWave: { value: f?.wave ?? 1 } };
+  const shape = shapeOf(c);
+  const { geo, clearGeo, mode, opacity } = shape;
+  const uni = { uTime: { value: 0 }, uMode: { value: mode }, uWave: { value: shape.wave } };
   // 色は焼き込み済みなので、館内の照明に左右されない
-  const addMesh = (g, alpha) => {
+  const addMesh = (g, alpha, parent = root) => {
     const mat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide, transparent: alpha < 1, opacity: alpha, depthWrite: alpha >= 1 });
     mat.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uni);
@@ -480,10 +505,26 @@ export function buildCreature(c) {
     const mesh = new THREE.Mesh(g, mat);
     mesh.scale.setScalar(c.len);
     mesh.raycast = () => {};
-    root.add(mesh);
+    parent.add(mesh);
   };
-  addMesh(geo, opacity);
-  if (clearGeo) addMesh(clearGeo, 0.38);
+  if (shape.lite) {
+    // 近くでは詳しい形、離れたら粗い形（距離は体長に合わせる。水槽で縮めた分は描画時の大きさで判定される）
+    const near = new THREE.Group();
+    const far = new THREE.Group();
+    addMesh(geo, opacity, near);
+    if (clearGeo) addMesh(clearGeo, 0.38, near);
+    addMesh(shape.lite.geo, shape.lite.opacity, far);
+    if (shape.lite.clearGeo) addMesh(shape.lite.clearGeo, 0.38, far);
+    const lod = new THREE.LOD();
+    lod.addLevel(near, 0);
+    lod.addLevel(far, c.len * DETAIL_RANGE);
+    lod.userData.detailRange = c.len * DETAIL_RANGE;
+    root.add(lod);
+    root.userData.lod = lod;
+  } else {
+    addMesh(geo, opacity);
+    if (clearGeo) addMesh(clearGeo, 0.38);
+  }
   root.userData.uni = uni;
   return root;
 }

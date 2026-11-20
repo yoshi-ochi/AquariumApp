@@ -59,7 +59,7 @@ export function buildObject(def, { seed = 1, growth, surface } = {}) {
 /** 共有マテリアル以外のリソースを解放する */
 export function disposeObject(obj) {
   obj.traverse((child) => {
-    if (child.geometry) child.geometry.dispose();
+    if (child.geometry && !child.geometry.userData.shared) child.geometry.dispose(); // 生き物の形は種類ごとに共有
     const mats = Array.isArray(child.material) ? child.material : child.material ? [child.material] : [];
     for (const m of mats) {
       if (m.userData.shared) continue;

@@ -42,6 +42,15 @@ const projector = ({ origin: [ox, oy], slope, length }) => ([x, y], z = 0) => {
 };
 
 const ROW_DEPTH = [0, 0.78, 1, 0.78, 0]; // 背・腹は薄く、体側の中央が最も厚い
+/**
+ * 段の数（背から腹へ）。通常は4段。模様を写真から細かく写す種は段を増やす（stations の各列の点の数 − 1）。
+ * 細かい段の厚みは、4段のときの形（sin の 0.6 乗）に合わせる
+ */
+const rowsOf = (a) => a.stations[0].length - 1;
+const rowDepth = (a, r) => {
+  const R = rowsOf(a);
+  return R === 4 ? ROW_DEPTH[r] : Math.sin((Math.PI * r) / R) ** 0.6;
+};
 
 const lerp = (p, q, u) => p + (q - p) * u;
 
@@ -50,9 +59,9 @@ function surfaceDepth(a, [x, y]) {
   const sample = (i) => {
     const st = a.stations[i];
     let r = 0;
-    while (r < 3 && y > st[r + 1][1]) r++;
+    while (r < rowsOf(a) - 1 && y > st[r + 1][1]) r++;
     const u = Math.min(1, Math.max(0, (y - st[r][1]) / Math.max(1e-6, st[r + 1][1] - st[r][1])));
-    return { x: lerp(st[r][0], st[r + 1][0], u), z: a.depth[i] * lerp(ROW_DEPTH[r], ROW_DEPTH[r + 1], u) };
+    return { x: lerp(st[r][0], st[r + 1][0], u), z: a.depth[i] * lerp(rowDepth(a, r), rowDepth(a, r + 1), u) };
   };
   for (let i = 0; i < a.stations.length - 1; i++) {
     const [p, q] = [sample(i), sample(i + 1)];
@@ -63,7 +72,7 @@ function surfaceDepth(a, [x, y]) {
 
 /** 写真上の点 (x, y) を含む体の三角形から、実際の面の半幅を求める */
 function exactDepth(a, [x, y]) {
-  const v = (i, r) => [a.stations[i][r][0], a.stations[i][r][1], a.depth[i] * ROW_DEPTH[r]];
+  const v = (i, r) => [a.stations[i][r][0], a.stations[i][r][1], a.depth[i] * rowDepth(a, r)];
   const inTri = (p, q, s) => {
     const det = (q[1] - s[1]) * (p[0] - s[0]) + (s[0] - q[0]) * (p[1] - s[1]);
     if (Math.abs(det) < 1e-9) return null;
@@ -71,7 +80,7 @@ function exactDepth(a, [x, y]) {
     const w = ((s[1] - p[1]) * (x - s[0]) + (p[0] - s[0]) * (y - s[1])) / det;
     return u >= -0.001 && w >= -0.001 && u + w <= 1.001 ? u * p[2] + w * q[2] + (1 - u - w) * s[2] : null;
   };
-  for (let i = 0; i < a.stations.length - 1; i++) for (let r = 0; r < 4; r++) {
+  for (let i = 0; i < a.stations.length - 1; i++) for (let r = 0; r < rowsOf(a); r++) {
     const [p, q, m, n] = [v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1)];
     const tris = (i + r) % 2 ? [[p, m, q], [q, m, n]] : [[p, m, n], [p, n, q]];
     for (const [e, f, g] of tris) {
@@ -110,10 +119,10 @@ function tracedBody(a, c, P) {
     return named[name === 'body' ? a.rows?.[r] ?? 'body' : name];
   };
   for (const s of [-1, 1]) {
-    const v = (i, r) => P(a.stations[i][r], s * a.depth[i] * ROW_DEPTH[r]);
+    const v = (i, r) => P(a.stations[i][r], s * a.depth[i] * rowDepth(a, r));
     const tip = P(a.snout);
-    for (let r = 0; r < 4; r++) mesh.tri(tip, v(0, r), v(0, r + 1), s > 0 && a.ventral ? a.ventral : hexOf(0, r));
-    for (let i = 0; i < a.stations.length - 1; i++) for (let r = 0; r < 4; r++) {
+    for (let r = 0; r < rowsOf(a); r++) mesh.tri(tip, v(0, r), v(0, r + 1), s > 0 && a.ventral ? a.ventral : hexOf(0, r));
+    for (let i = 0; i < a.stations.length - 1; i++) for (let r = 0; r < rowsOf(a); r++) {
       mesh.quad(v(i, r), v(i, r + 1), v(i + 1, r), v(i + 1, r + 1), s > 0 && a.ventral ? a.ventral : hexOf(i + 1, r), (i + r) % 2);
     }
   }
@@ -200,7 +209,48 @@ function tracedDecal(mesh, a, d, P, side) {
   for (let i = 0; i < d.a.length - 1; i++) mesh.quad(at(d.a[i]), at(d.b[i]), at(d.a[i + 1]), at(d.b[i + 1]), d.hex, i % 2);
 }
 
+/** 折れ線の補間（x で並べた点列 → y）。生成スクリプトの lerp と同じ */
+function profileAt(pts, x) {
+  const l = [...pts].sort((p, q) => p[0] - q[0]);
+  if (x <= l[0][0]) return l[0][1];
+  for (let i = 0; i < l.length - 1; i++) {
+    const [a, b] = l[i];
+    const [c, d] = l[i + 1];
+    if (x <= c) return b + ((d - b) * (x - a)) / Math.max(1e-6, c - a);
+  }
+  return l[l.length - 1][1];
+}
+
+/**
+ * 詰めた形式（grid ＋ cellsB64）を、通常の stations ／ cells に広げる（最初に使うときに1回だけ）。
+ * grid: 背・腹の輪郭と、列の数 n・段の数 rows。cellsB64: 三角形ごとの色（RGB 3バイト）を並べたもの
+ */
+function unpack(a) {
+  if (a.grid && !a.stations) {
+    const { top, bot, x0, x1, n, rows } = a.grid;
+    a.stations = Array.from({ length: n }, (_, i) => {
+      const x = x0 + ((x1 - x0) * i) / (n - 1);
+      const t = profileAt(top, x);
+      const b = profileAt(bot, x);
+      return Array.from({ length: rows + 1 }, (_, k) => [x, t + ((b - t) * k) / rows]);
+    });
+  }
+  if (a.cellsB64 && !a.cells) {
+    const bin = atob(a.cellsB64);
+    let o = 0;
+    const next = () => {
+      const hex = (bin.charCodeAt(o) << 16) | (bin.charCodeAt(o + 1) << 8) | bin.charCodeAt(o + 2);
+      o += 3;
+      return hex;
+    };
+    const rows = a.stations[0].length - 1;
+    a.cells = a.stations.map((_, i) => Array.from({ length: rows }, () => (i === 0 ? next() : [next(), next()])));
+  }
+  return a;
+}
+
 export function tracedParts(c, a) {
+  unpack(a);
   const P = projector(a.photo);
   const parts = [tracedBody(a, c, P)];
   for (const f of a.fins) {

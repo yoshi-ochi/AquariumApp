@@ -197,6 +197,8 @@ export const SPECIES_METHODS = {
   aoumigame: ['setnet'],
   bandou: ['setnet'],
   shiroiruka: ['setnet'],
+  togecho: ['diving', 'oikomi'],
+  fuuraicho: ['diving', 'oikomi'],
   // ガラパゴス諸島
   gingame: ['pole', 'diving'], kingangel: ['diving'], galashark: ['longline'], hammer: ['longline', 'setnet'], madaraotobi: ['setnet', 'longline'],
 };
