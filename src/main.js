@@ -637,7 +637,8 @@ async function boot() {
   });
 
   // ---- 上部バー・下部メニュー・アイテム ---------------------------------------
-  const hud = new Hud({ el: $('hud'), economy, online, onAccount: () => online.enabled && friendPanel.open() });
+  // プレイヤーアイコン：これまでの「その他」のメニュー（拡張・館内エリア・フレンド・保存など）を開く
+  const hud = new Hud({ el: $('hud'), economy, online, onAccount: () => !visiting && shell.toggleMenu() });
   /** エリアを解放して建物を作り直す */
   function unlockZone(id) {
     unlocked.add(id);
@@ -778,7 +779,7 @@ async function boot() {
       hall.startPlacement(id);
     },
   });
-  new BottomNav({
+  const bottomNav = new BottomNav({
     el: $('bottom-nav'),
     onSelect: (id) => {
       if (mode !== 'home' || visiting) return;
@@ -787,8 +788,11 @@ async function boot() {
       gameSheet.close();
       friendPanel.close();
       if (id === 'map') return mapPage.toggle();
-      if (id === 'more') return shell.toggleMenu();
       shell.toggleMenu(false);
+      if (id === 'event') {
+        mapPage.close();
+        return wasOpen === 'event' ? undefined : gameSheet.openPanel('event');
+      }
       if (id === 'layout') {
         mapPage.close();
         return enterHallEdit();
@@ -803,6 +807,11 @@ async function boot() {
       if (wasOpen !== `feature:${id}`) gameSheet.openFeature(id);
     },
   });
+  // 地図を開いている間は、地図のボタンを「水族館」（戻る）にする
+  new MutationObserver(() => {
+    const open = !mapPage.el.hidden;
+    bottomNav.setButton('map', open ? 'layout' : 'map', open ? '水族館' : '地図');
+  }).observe(mapPage.el, { attributes: true, attributeFilter: ['hidden'] });
   // 開き直したときは前回の受け取り結果を消す（下の開閉処理より先に動かす）
   // 開き直したときは未読のあるタブを開き、前回の受け取り結果を消す（下の開閉処理より先に動かす）
   $('side-mail').addEventListener('click', () => mailView.reset(), true);

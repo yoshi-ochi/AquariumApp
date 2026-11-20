@@ -23,12 +23,16 @@ export class ViewModes {
     this.tween = null;
     this.slide = 0;
     this.raycaster = new THREE.Raycaster();
+    // プレイヤーアイコンの下の小さなボタンに今の表示を出し、タップで一覧（プルダウン）を開く
     railEl.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
+      if (b.classList.contains('vr-cur')) return this._openList(this.railEl.querySelector('.vr-list').hidden);
+      this._openList(false);
       if (b.dataset.view) this.setMode(b.dataset.view);
       else this.goFloor(+b.dataset.floor);
     });
+    document.addEventListener('pointerdown', (e) => !e.target.closest('#view-rail') && this._openList(false));
     const dom = sceneMgr.renderer.domElement;
     dom.addEventListener('pointerdown', (e) => (this.down = [e.clientX, e.clientY]));
     dom.addEventListener('pointerup', (e) => this._tapStack(e));
@@ -41,16 +45,27 @@ export class ViewModes {
     const key = floors.join(',');
     if (key === this.railKey) return;
     this.railKey = key;
-    this.railEl.innerHTML = `<button data-view="exterior">外観</button><button data-view="stack">全館</button>
-      ${floors.map((f) => `<button data-floor="${f}" class="${isWing(f) ? 'wing' : ''}">${floorLabel(f)}</button>`).join('')}`;
+    this.railEl.innerHTML = `<button class="vr-cur" aria-haspopup="listbox" aria-label="表示の切り替え"></button>
+      <div class="vr-list" role="listbox" hidden><button data-view="exterior">外観</button><button data-view="stack">全館</button>
+      ${floors.map((f) => `<button data-floor="${f}" class="${isWing(f) ? 'wing' : ''}">${floorLabel(f)}</button>`).join('')}</div>`;
+  }
+
+  _openList(open) {
+    const list = this.railEl.querySelector('.vr-list');
+    if (!list) return;
+    list.hidden = !open;
+    this.railEl.classList.toggle('open', open);
   }
 
   syncRail() {
     this._rail();
-    this.railEl.querySelectorAll('button').forEach((b) => {
+    let label = '';
+    this.railEl.querySelectorAll('.vr-list button').forEach((b) => {
       const on = b.dataset.view ? b.dataset.view === this.mode : this.mode === 'floor' && +b.dataset.floor === this.getFloor();
       b.classList.toggle('active', on);
+      if (on) label = b.textContent;
     });
+    this.railEl.querySelector('.vr-cur').innerHTML = `<span>${label}</span><i>▾</i>`;
   }
 
   /** 階を移動する（上下にスライドして切り替える） */

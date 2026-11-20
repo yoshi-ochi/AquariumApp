@@ -5,7 +5,7 @@ const ITEMS = [
   ['shop', 'shop', '店舗運営'],
   ['ally', 'ally', '同盟水族館'],
   ['items', 'items', 'アイテム'],
-  ['more', 'more', 'その他'],
+  ['event', 'event', 'イベント'],
   ['map', 'map', '地図'],
 ];
 
@@ -19,5 +19,14 @@ export class BottomNav {
       const b = e.target.closest('button[data-nav]');
       if (b) onSelect(b.dataset.nav);
     });
+    this.el = el;
+  }
+
+  /** ボタンの表示を変える（地図を開いている間は「地図」を「水族館」にする など） */
+  setButton(id, iconName, label) {
+    const b = this.el.querySelector(`#nav-${id}`);
+    if (!b) return;
+    const big = b.classList.contains('nav-main');
+    b.innerHTML = `<span class="nav-ico">${icon(iconName, big ? 30 : 24)}</span><span>${label}</span>`;
   }
 }

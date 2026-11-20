@@ -206,7 +206,11 @@ export const JOINT_PROJECTS = [
   { id: 'polar', name: '極地探検', text: '砕氷船で北極と南極の海へ遠征します', cost: 80000000, level: 3, hours: 12, pool: ['koori', 'greenland', 'daiou'] },
 ];
 
-export const allianceLevel = (xp) => (xp >= 5000 ? 5 : xp >= 2000 ? 4 : xp >= 500 ? 3 : xp >= 100 ? 2 : 1);
-export const ALLIANCE_NEXT_XP = { 1: 100, 2: 500, 3: 2000, 4: 5000 };
+/** 同盟レベル（最大10）。各レベルに必要な累計の貢献（xp）。データベースの alliance_level と同じ値 */
+export const ALLIANCE_XP = [0, 100, 500, 2000, 5000, 12000, 25000, 50000, 100000, 200000];
+export const ALLIANCE_MAX = ALLIANCE_XP.length;
+export const allianceLevel = (xp) => ALLIANCE_XP.filter((need) => xp >= need).length;
+/** 次のレベルに必要な累計の貢献（最大レベルでは無し） */
+export const ALLIANCE_NEXT_XP = Object.fromEntries(ALLIANCE_XP.slice(1).map((need, i) => [i + 1, need]));
 /** 同盟に入っている間の来館者ボーナス（Lv1で+5%、1Lvごとに+3%） */
 export const allianceBonus = (level) => 1.02 + level * 0.03;

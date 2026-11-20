@@ -1,6 +1,7 @@
 import { JOINT_PROJECTS, ALLIANCE_NEXT_XP, allianceLevel, allianceBonus, getCreature } from '../expedition/creatureData.js';
 import { mulberry32 } from '../tanks/random.js';
 import { countIds } from './catchBlocks.js';
+import { artIcon } from './artIcons.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
@@ -106,7 +107,7 @@ export class AllianceView {
   }
 
   _project(p, level, runs, contribs) {
-    if (p.level > level) return `<div class="gs-row"><div class="gs-info"><b>${p.name}</b><small>同盟Lv${p.level}で解放 ・ 総額 ${yen(p.cost)}</small></div></div>`;
+    if (p.level > level) return `<div class="gs-row locked">${artIcon(p.id)}<div class="gs-info"><b>${p.name}</b><small>同盟Lv${p.level}で解放 ・ 総額 ${yen(p.cost)}</small></div></div>`;
     const list = runs.filter((r) => r.project === p.id);
     const claimable = list.find((r) => r.done_at && new Date(r.done_at) <= new Date() && contribs.some((c) => c.run_id === r.id && !c.claimed));
     const running = list.find((r) => r.done_at && new Date(r.done_at) > new Date());
@@ -114,7 +115,7 @@ export class AllianceView {
     const funded = open?.funded ?? 0;
     const species = p.pool.map((id) => getCreature(id).name).join('、');
     const buttons = FUND_STEPS.map((n) => `<button data-act="ally-fund" data-id="${p.id}:${n}" ${this.economy.canAfford(n) ? '' : 'disabled'}>${n / 10000}万出資</button>`).join('');
-    return `<div class="gs-row wrap"><div class="gs-info"><b>${p.name}</b><small>${p.text}</small><small>発見できる生物：${species}</small>
+    return `<div class="gs-row wrap">${artIcon(p.id)}<div class="gs-info"><b>${p.name}</b><small>${p.text}</small><small>発見できる生物：${species}</small>
         ${running ? `<small>調査中 ・ 残り <span data-until="${new Date(running.done_at).getTime()}"></span></small>` : ''}
         <div class="st-bar"><i style="width:${(funded / p.cost) * 100}%"></i></div><small>資金 ${yen(funded)} / ${yen(p.cost)}（${p.hours}時間）</small></div>
       <div class="gs-btns">${claimable ? `<button data-act="ally-claim" data-id="${p.id}:${claimable.id}" class="primary">成果を受け取る</button>` : ''}${buttons}</div></div>`;

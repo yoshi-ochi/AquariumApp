@@ -1,4 +1,5 @@
 import { creatureThumb } from './creatureThumb.js';
+import { creatureGrid, qtyPanel, updateQty, creatureInfo } from './creatureGrid.js';
 import { CREATURES, RARITY, getCreature } from '../expedition/creatureData.js';
 import { tankCapacity, usedCapacity, syncLife } from '../expedition/tankLife.js';
 import { WATER, ensureCare, feedCost, hasLife, isHungry, predatorConflict, tankHealth, waterMismatch, nextFeedIn, crowdFactor, FEED_INTERVAL } from '../expedition/husbandry.js';
@@ -17,6 +18,8 @@ export class TankView {
     Object.assign(this, { manager, expeditions, economy, previews, toast, careView, cleanView, onInterior, onChanged });
     this.tank = null;
     this.adding = false;
+    this.sel = null; // 4列の一覧で選んでいる生き物
+    this.qty = 1;
   }
 
   get title() {
@@ -26,6 +29,7 @@ export class TankView {
   open(tank) {
     this.tank = tank;
     this.adding = false;
+    this.sel = null;
   }
 
   _img(id) {
@@ -45,8 +49,17 @@ export class TankView {
     const cap = tankCapacity(def);
     const name = `<div class="tv-name"><input id="tv-name" value="${esc(t.userData.name ?? '')}" maxlength="20" placeholder="${esc(defaultTankLabel(this.manager, t))}" aria-label="水槽の名前"><button data-act="tank-rename" class="primary">名前を付ける</button></div>
       <small class="tv-def">${esc(def.name)}</small>`;
-    const shown = Object.entries(t.userData.creatures ?? {}).map(([id, n]) =>
-      `<div class="gs-row wrap">${this._img(id)}<div class="gs-info"><b>${esc(getCreature(id)?.name ?? id)} ×${n}</b><small>1匹 ${getCreature(id)?.slots ?? 0}枠 ・ ${RARITY[getCreature(id)?.rarity] ?? ''}</small></div><div class="gs-btns"><button data-act="tank-unshow" data-id="${id}:1">1匹戻す</button>${n > 1 ? `<button data-act="tank-unshow" data-id="${id}:${n}">全部戻す</button>` : ''}</div></div>`);
+    // 展示中の生き物：4列のアイコン。選ぶと数を選んでバックヤードへ戻せる
+    const list = Object.entries(t.userData.creatures ?? {}).filter(([id]) => getCreature(id));
+    if (this.sel && !t.userData.creatures?.[this.sel]) this.sel = null;
+    const shown = [];
+    if (list.length) {
+      const n = this.sel ? t.userData.creatures[this.sel] : 0;
+      const panel = this.sel
+        ? qtyPanel({ title: getCreature(this.sel).name, info: creatureInfo(this.sel, `展示中 ${n}`), max: n, qty: this.qty, buttons: [{ act: 'tank-unshow', id: `${this.sel}:{n}`, label: '{n}匹 バックヤードへ戻す', primary: true }] })
+        : '';
+      shown.push(creatureGrid(this.previews, list.map(([id, k]) => ({ id, n: k })), { sel: this.sel, panel }));
+    }
     const over = used > cap ? `<em class="gs-alert">収容枠の目安を超えています。過密で幸福度が下がります</em>` : '';
     const life = `<h4 class="gs-sub">展示生物（収容枠 ${used}/${cap}）</h4>${over}
       ${shown.join('') || '<p class="gs-empty">展示している生物はいません。</p>'}
@@ -74,14 +87,25 @@ export class TankView {
 
   _picker(t) {
     const free = tankCapacity(this.manager.defOf(t)) - usedCapacity(t);
-    const rows = CREATURES.filter((c) => this.expeditions.count(c.id) > 0).map((c) => {
+    const owned = CREATURES.filter((c) => this.expeditions.count(c.id) > 0);
+    if (this.sel && !this.expeditions.count(this.sel)) this.sel = null;
+    let panel = '';
+    if (this.sel) {
+      const c = getCreature(this.sel);
       const have = this.expeditions.count(c.id);
       const fit = Math.max(0, Math.floor(free / c.slots));
-      const btn = (n, label) => `<button data-act="tank-show" data-id="${c.id}:${n}" class="primary">${label}</button>`;
-      const many = [have >= 10 ? btn(10, '10匹') : '', fit > 1 && fit < have ? btn(fit, `空きまで${fit}匹`) : '', have > 1 ? btn(have, `全部${have}匹`) : ''].join('');
-      return `<div class="gs-row wrap">${this._img(c.id)}<div class="gs-info"><b>${esc(c.name)}</b><small>所持 ${have} ・ 1匹 ${c.slots}枠</small></div><div class="gs-btns">${btn(1, '1匹')}${many}</div></div>`;
-    });
-    return `<button data-act="tank-add-back">← 戻る</button><p class="gs-empty">空き枠 ${free}（目安）。超えても展示できますが、過密になると幸福度が下がります。</p>${rows.join('') || '<p class="gs-empty">生物を持っていません。採取遠征で捕まえましょう。</p>'}`;
+      panel = qtyPanel({
+        title: c.name, info: creatureInfo(c.id, `所持 ${have} ・ ${fit > 0 ? `空き枠に収まるのは ${fit}匹まで` : '空き枠なし（過密になります）'}`), max: have, qty: this.qty,
+        buttons: [{ act: 'tank-show', id: `${c.id}:{n}`, label: '{n}匹 展示する', primary: true }],
+      });
+    }
+    const grid = owned.length ? creatureGrid(this.previews, owned.map((c) => ({ id: c.id, n: this.expeditions.count(c.id) })), { sel: this.sel, panel }) : '<p class="gs-empty">生物を持っていません。採取遠征で捕まえましょう。</p>';
+    return `<button data-act="tank-add-back">← 戻る</button><p class="gs-empty">空き枠 ${free}（目安）。アイコンをタップして、展示する数を選んでください。</p>${grid}`;
+  }
+
+  /** 数のスライダー（再描画しない） */
+  input(el) {
+    if (el.dataset.field === 'cg-qty') this.qty = updateQty(el);
   }
 
   act(act, id, b) {
@@ -95,8 +119,17 @@ export class TankView {
       else delete t.userData.name;
       this.toast(name ? `「${name}」と名付けました` : '名前を外しました');
       this.onChanged();
-    } else if (act === 'tank-add') this.adding = true;
-    else if (act === 'tank-add-back') this.adding = false;
+    } else if (act === 'cg-pick') {
+      this.sel = this.sel === id ? null : id;
+      this.qty = 1;
+    } else if (act === 'cg-qty') this.qty = +id;
+    else if (act === 'tank-add') {
+      this.adding = true;
+      this.sel = null;
+    } else if (act === 'tank-add-back') {
+      this.adding = false;
+      this.sel = null;
+    }
     else if (act === 'tank-show') this._show(t, id);
     else if (act === 'tank-unshow') this._unshow(t, id);
     else if (act === 'tank-interior') this.onInterior(t);

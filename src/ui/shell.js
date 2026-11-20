@@ -37,7 +37,7 @@ export class AppShell {
     });
     // メニュー外をタップしたら閉じる
     document.addEventListener('pointerdown', (e) => {
-      if (!$('menu-sheet').hidden && !e.target.closest('#menu-sheet, #nav-more')) this.toggleMenu(false);
+      if (!$('menu-sheet').hidden && !e.target.closest('#menu-sheet, #hud-account')) this.toggleMenu(false);
     });
 
     economy.addEventListener('change', () => this.update());

@@ -23,7 +23,7 @@ export class GameSheet {
       if (b) this._act(b.dataset.act, b.dataset.id, b);
     });
     // 色・数値の入力は再描画せずに各画面へ渡す
-    el.addEventListener('input', (e) => this.panels[this.view]?.view.input?.(e.target));
+    el.addEventListener('input', (e) => (this.panels[this.view]?.view ?? (this.view === 'creatures' ? this.creatureView : null))?.input?.(e.target));
     inventory.addEventListener('change', () => this.view && this.render());
     expeditions.addEventListener('change', () => this.view && this.render());
     ops.addEventListener('change', () => this.view && this.render());
@@ -60,10 +60,15 @@ export class GameSheet {
   close() {
     this.view = null;
     this.el.hidden = true;
+    document.body.classList.remove('sheet-full');
   }
 
   render() {
     if (!this.view) return; // 操作の結果シートが閉じた（別棟の建設で階を移るなど）
+    // 水槽のシート以外は、地図と同じく画面全体を切り替えて表示する
+    const full = this.view !== 'tank';
+    this.el.classList.toggle('gs-full', full);
+    document.body.classList.toggle('sheet-full', full);
     const scroll = this.el.querySelector('.gs-list')?.scrollTop ?? 0;
     this._render();
     const list = this.el.querySelector('.gs-list');

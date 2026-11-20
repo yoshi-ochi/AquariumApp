@@ -1,4 +1,5 @@
 import { tankLabel } from '../tanks/tankLabel.js';
+import { artIcon } from './artIcons.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 import { ROLES, PRODUCTS, PRICE_TIERS, LOT_SIZE, SALES_PER_STAFF } from '../management/opsData.js';
 import { cleanSpec, dirtLevel, isCleaning, needsCleaning, startCleaning, busyCleaners } from '../tanks/tankCleaning.js';
@@ -111,11 +112,11 @@ export class ShopView {
       <div class="gs-btns"><button data-act="shop-place" data-id="souvenirShop" class="primary">お土産店を設置${stock ? `（在庫${stock}）` : ' ¥30,000'}</button><button data-act="shop-place" data-id="cafe">カフェを設置 ¥50,000</button></div></div>`;
     if (!o.shops) return head;
     const rows = PRODUCTS.map((p) => {
-      if (p.stage > level) return `<div class="gs-row"><div class="gs-info"><b>${p.name}</b><small>ステージ${p.stage}で解放</small></div></div>`;
+      if (p.stage > level) return `<div class="gs-row locked">${artIcon(p.id)}<div class="gs-info"><b>${p.name}</b><small>ステージ${p.stage}で解放</small></div></div>`;
       const tier = o.tierOf(p.id);
       const seg = Object.entries(PRICE_TIERS).map(([k, t]) => `<button data-act="shop-tier" data-id="${p.id}:${k}" class="${k === tier ? 'active' : ''}">${t.label}</button>`).join('');
       const cost = p.cost * LOT_SIZE;
-      return `<div class="gs-row wrap"><div class="gs-info"><b>${p.name}</b><small>販売 ${yen(o.priceOf(p))} ・ 原価 ${yen(p.cost)} ・ 在庫 ${o.stock[p.id] ?? 0}</small></div>
+      return `<div class="gs-row wrap">${artIcon(p.id)}<div class="gs-info"><b>${p.name}</b><small>販売 ${yen(o.priceOf(p))} ・ 原価 ${yen(p.cost)} ・ 在庫 ${o.stock[p.id] ?? 0}</small></div>
         <div class="gs-btns"><div class="sp-seg">${seg}</div><button data-act="shop-stock" data-id="${p.id}" class="primary" ${this.economy.canAfford(cost) ? '' : 'disabled'}>${LOT_SIZE}個仕入れ ${yen(cost)}</button></div></div>`;
     });
     return head + rows.join('');
