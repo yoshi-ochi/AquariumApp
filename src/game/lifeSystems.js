@@ -26,7 +26,7 @@ export class LifeSystems {
     this.panels = {
       backyard: { title: 'バックヤード', live: true, view: new BackyardView({ backyard: this.backyard, expeditions, economy, previews, toast }) },
       care: { title: '飼育', live: true, view: new CareView({ manager, economy, toast, onFed: () => (this.state.flags.fed = true) }) },
-      zukan: { title: '生き物図鑑', view: new ZukanView({ expeditions, previews, economy, state: this.state, toast }) },
+      zukan: { title: '生き物図鑑', view: new ZukanView({ expeditions, manager, previews, economy, state: this.state, toast }) },
       event: { title: 'イベント', live: true, view: new EventView({ economy, state: this.state, monthly: this.monthly, previews, getStats: () => this.stats(), toast, onStart: () => { this.state.flags.event = true; this.monthly.countEvent(); } }) },
     };
     goalEl.addEventListener('click', (e) => e.target.closest('button') && this._claimGoal());

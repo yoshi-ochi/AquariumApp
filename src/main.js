@@ -753,6 +753,11 @@ async function boot() {
     manager, expeditions, economy, previews, toast, cleanView,
     careView: life.panels.care.view,
     onInterior: (tank) => enterInteriorEdit(tank, 'tank'),
+    onGrow: (id) => {
+      life.panels.zukan.view.focus(id); // 図鑑の育成カードを開く
+      gameSheet.openPanel('zukan');
+      requestAnimationFrame(() => document.querySelector('.cg-pop')?.scrollIntoView({ block: 'center' }));
+    },
     onChanged: () => {
       shell.update();
       if (mode === 'tank' && focusTank) shell.setMode('tank', tankLabel(manager, focusTank));

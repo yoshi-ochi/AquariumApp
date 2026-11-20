@@ -6,6 +6,8 @@ import { NOTES } from '../expedition/creatureNotes.js';
 import { WATER, ensureCare, feed, feedCost, hasLife, isHungry, predatorConflict, tankHealth, waterMismatch, nextFeedIn, crowdFactor, zoneOf, FEED_INTERVAL } from '../expedition/husbandry.js';
 import { EVENTS } from './gameData.js';
 import { monthEnd } from './monthly.js';
+import { growPanel, growSpecies, shownCount } from '../ui/growPanel.js';
+import { updateQty } from '../ui/creatureGrid.js';
 
 const yen = (n) => `¥${Math.floor(n).toLocaleString('ja-JP')}`;
 const span = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}時間${Math.floor((s % 3600) / 60)}分` : `${Math.max(1, Math.ceil(s / 60))}分`);
@@ -55,12 +57,16 @@ export class CareView {
   }
 }
 
-/** 生き物図鑑 */
+/**
+ * 生き物図鑑。発見した魚種のレベルを表示し、タップした魚種のすぐ下に説明と育成カードを出す。
+ * 育成（成長）はここで行う（在庫の同じ魚種を使う）。並べ方は 地域別 / レア度別 / 育成（レベルの高い順）。
+ */
 export class ZukanView {
-  constructor({ expeditions, previews, economy, state, toast }) {
-    Object.assign(this, { expeditions, previews, economy, state, toast });
+  constructor({ expeditions, manager, previews, economy, state, toast }) {
+    Object.assign(this, { expeditions, manager, previews, economy, state, toast });
     this.pick = null;
     this.mode = 'area';
+    this.qty = 1;
   }
 
   /** レア度（星の数）ごとのまとまり。報酬はなし */
@@ -75,33 +81,65 @@ export class ZukanView {
     return [...DESTINATIONS.map((d) => ({ id: d.id, name: d.name, ids: d.pool, reward: d.cost * 5 })), { id: 'joint', name: '合同調査', ids: joint, reward: 3000000 }];
   }
 
+  /** 育成：在庫があるか展示している魚種を、レベルの高い順に */
+  get growGroups() {
+    const ex = this.expeditions;
+    const ids = CREATURES.filter((c) => ex.count(c.id) > 0 || shownCount(this.manager, c.id) > 0)
+      .sort((a, b) => ex.level(b.id) - ex.level(a.id) || b.stars - a.stars).map((c) => c.id);
+    return [{ id: 'grow', name: '育てられる魚種（レベルの高い順）', ids }];
+  }
+
+  _pop(id, col) {
+    const c = getCreature(id);
+    const detail = `<div class="zk-note"><small>全長 ${Math.round(c.len * 100)}cm ・ 捕獲 ${this.expeditions.seenCount(id)}匹 ・ ${WATER[zoneOf(id)].label}</small><small>${NOTES[id] ?? ''}</small></div>`;
+    return `<div class="cg-pop" style="--tip:${((col + 0.5) / 4) * 100}%">${growPanel({ expeditions: this.expeditions, manager: this.manager, id, qty: this.qty, note: detail })}</div>`;
+  }
+
   html() {
-    const seen = (id) => this.expeditions.seenCount(id) > 0;
+    const ex = this.expeditions;
+    const seen = (id) => ex.seenCount(id) > 0;
     const total = CREATURES.filter((c) => seen(c.id)).length;
-    let detail = '';
-    if (this.pick && seen(this.pick)) {
-      const c = getCreature(this.pick);
-      detail = `<div class="st-sum zk-detail">${creatureThumb(this.previews, c.id)}<div class="gs-info"><b>${c.name}</b><small>${RARITY[c.rarity]} ・ 全長 ${Math.round(c.len * 100)}cm ・ 捕獲 ${this.expeditions.seenCount(c.id)}匹 ・ ${WATER[zoneOf(c.id)].label}</small><small>${NOTES[c.id]}</small></div></div>`;
-    }
-    const byStar = this.mode === 'star';
-    const tabs = `<div class="sp-seg zk-mode"><button data-act="zk-mode" data-id="area" class="${byStar ? '' : 'active'}">地域別</button><button data-act="zk-mode" data-id="star" class="${byStar ? 'active' : ''}">レア度別</button></div>`;
-    const sections = (byStar ? this.starGroups : this.groups).map((g) => {
+    if (this.pick && !seen(this.pick)) this.pick = null;
+    const mode = this.mode;
+    const tab = (id, label) => `<button data-act="zk-mode" data-id="${id}" class="${mode === id ? 'active' : ''}">${label}</button>`;
+    const tabs = `<div class="sp-seg zk-mode">${tab('area', '地域別')}${tab('star', 'レア度別')}${tab('grow', '育成')}</div>`;
+    const list = mode === 'star' ? this.starGroups : mode === 'grow' ? this.growGroups : this.groups;
+    let opened = false; // 同じ魚種が複数の地域にあっても、カードは最初の1か所だけ
+    const sections = list.map((g) => {
       const got = g.ids.filter(seen).length;
-      const done = !byStar && got === g.ids.length;
+      const done = mode === 'area' && got === g.ids.length;
       const claimed = this.state.zukan.includes(g.id);
-      const cells = g.ids.map((id) => (seen(id)
-        ? `<button class="zk-cell" data-act="zk-pick" data-id="${id}">${creatureThumb(this.previews, id)}<small>${getCreature(id).name}</small></button>`
-        : '<div class="zk-cell unknown"><span>？</span><small>未発見</small></div>')).join('');
+      const at = opened ? -1 : g.ids.indexOf(this.pick);
+      if (at >= 0) opened = true;
+      const rowEnd = at >= 0 ? Math.min(g.ids.length - 1, Math.floor(at / 4) * 4 + 3) : -1;
+      const cells = g.ids.map((id, i) => {
+        const cell = seen(id)
+          ? `<button class="zk-cell ${this.pick === id ? 'sel' : ''}" data-act="zk-pick" data-id="${id}">${creatureThumb(this.previews, id)}<i class="zk-lv">Lv${ex.level(id)}</i><small>${getCreature(id).name}</small></button>`
+          : '<div class="zk-cell unknown"><span>？</span><small>未発見</small></div>';
+        return i === rowEnd ? cell + this._pop(this.pick, at % 4) : cell;
+      }).join('');
       const reward = done && !claimed ? `<button data-act="zk-claim" data-id="${g.id}" class="primary">達成報酬 ${yen(g.reward)}</button>` : '';
-      return `<h4 class="gs-sub">${g.name} ${got}/${g.ids.length}${!byStar && claimed ? ' ・ 達成' : ''}</h4><div class="zk-grid">${cells}</div>${reward}`;
+      const count = mode === 'grow' ? `${g.ids.length}種` : `${got}/${g.ids.length}`;
+      return `<h4 class="gs-sub">${g.name} ${count}${mode === 'area' && claimed ? ' ・ 達成' : ''}</h4><div class="zk-grid">${cells || '<p class="gs-empty">在庫か展示中の生き物がいません。</p>'}</div>${reward}`;
     });
-    return `<p class="gs-empty">発見 ${total}/${CREATURES.length}種</p>${tabs}${detail}${sections.join('')}`;
+    const hint = '<p class="gs-empty">魚種をタップすると、在庫の同じ魚種を使って育てられます。育つほど体が大きくなり、集客とランキングの点数が上がります。</p>';
+    return `<p class="gs-empty">発見 ${total}/${CREATURES.length}種</p>${tabs}${mode === 'grow' ? hint : ''}${sections.join('')}`;
+  }
+
+  /** 数のスライダー（再描画しない） */
+  input(el) {
+    if (el.dataset.field === 'cg-qty') this.qty = updateQty(el);
   }
 
   act(act, id) {
-    if (act === 'zk-pick') this.pick = id;
-    else if (act === 'zk-mode') this.mode = id === 'star' ? 'star' : 'area';
-    else if (act === 'zk-claim') {
+    if (act === 'zk-pick') {
+      this.pick = this.pick === id ? null : id;
+      this.qty = 1;
+    } else if (act === 'zk-mode') this.mode = ['star', 'grow'].includes(id) ? id : 'area';
+    else if (act === 'cg-qty') this.qty = +id;
+    else if (act === 'zk-grow') {
+      if (growSpecies(this, id)) this.qty = 1;
+    } else if (act === 'zk-claim') {
       const g = this.groups.find((x) => x.id === id);
       if (!this.state.zukan.includes(id)) {
         this.state.zukan.push(id);
@@ -110,6 +148,13 @@ export class ZukanView {
       }
     } else return false;
     return true;
+  }
+
+  /** ほかの画面（水槽など）から、その魚種の育成カードを開く */
+  focus(id) {
+    this.mode = 'grow';
+    this.pick = id;
+    this.qty = 1;
   }
 }
 

@@ -14,8 +14,8 @@ const span = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}時間${Math.floor((s %
  * エサと掃除の処理は既存の CareView / CleanView に任せる。
  */
 export class TankView {
-  constructor({ manager, expeditions, economy, previews, toast, careView, cleanView, onInterior, onChanged }) {
-    Object.assign(this, { manager, expeditions, economy, previews, toast, careView, cleanView, onInterior, onChanged });
+  constructor({ manager, expeditions, economy, previews, toast, careView, cleanView, onInterior, onGrow, onChanged }) {
+    Object.assign(this, { manager, expeditions, economy, previews, toast, careView, cleanView, onInterior, onGrow, onChanged });
     this.tank = null;
     this.adding = false;
     this.sel = null; // 4列の一覧で選んでいる生き物
@@ -56,9 +56,9 @@ export class TankView {
     if (list.length) {
       const n = this.sel ? t.userData.creatures[this.sel] : 0;
       const panel = this.sel
-        ? qtyPanel({ title: getCreature(this.sel).name, info: creatureInfo(this.sel, `展示中 ${n}`), max: n, qty: this.qty, buttons: [{ act: 'tank-unshow', id: `${this.sel}:{n}`, label: '{n}匹 バックヤードへ戻す', primary: true }] })
+        ? qtyPanel({ title: getCreature(this.sel).name, info: creatureInfo(this.sel, `展示中 ${n}`), max: n, qty: this.qty, buttons: [{ act: 'tank-unshow', id: `${this.sel}:{n}`, label: '{n}匹 バックヤードへ戻す', primary: true }, { act: 'tank-grow', id: this.sel, label: `育てる（Lv${this.expeditions.level(this.sel)}）` }] })
         : '';
-      shown.push(creatureGrid(this.previews, list.map(([id, k]) => ({ id, n: k })), { sel: this.sel, panel }));
+      shown.push(creatureGrid(this.previews, list.map(([id, k]) => ({ id, n: k, lv: this.expeditions.level(id) })), { sel: this.sel, panel }));
     }
     const over = used > cap ? `<em class="gs-alert">収容枠の目安を超えています。過密で幸福度が下がります</em>` : '';
     const life = `<h4 class="gs-sub">展示生物（収容枠 ${used}/${cap}）</h4>${over}
@@ -133,6 +133,7 @@ export class TankView {
     else if (act === 'tank-show') this._show(t, id);
     else if (act === 'tank-unshow') this._unshow(t, id);
     else if (act === 'tank-interior') this.onInterior(t);
+    else if (act === 'tank-grow') this.onGrow?.(id);
     else return false;
     return true;
   }

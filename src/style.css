@@ -624,3 +624,8 @@ body.tutorial-on #goal-card { display: none; }
 .rk-row small { color: var(--muted); font-size: 11px; }
 .rk-row em { font-style: normal; font-weight: 800; }
 .rk-row.me { background: #fff4d6; }
+.zk-cell { position: relative; }
+.zk-cell.sel { border-color: #2f8fd0; }
+.zk-lv { position: absolute; left: 5px; top: 5px; padding: 0 4px; border-radius: 6px; color: #0f3550; background: var(--gold); font-size: 9px; font-style: normal; font-weight: 800; line-height: 1.5; }
+.zk-note { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 6px; }
+.zk-note small { color: var(--muted); font-size: 11px; line-height: 1.5; }
